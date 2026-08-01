@@ -255,6 +255,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     });
   }
 
+  // Temporarily unused while paid registration shows "Coming Soon"
+  // pending the Razorpay web integration fix.
+  // ignore: unused_element
   Future<void> _payForEvent() async {
     if (_registering || _processingPayment) return;
     setState(() => _registering = true);
@@ -812,8 +815,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       return SizedBox(
         height: 44,
         child: ElevatedButton.icon(
-          onPressed:
-              (_registering || _processingPayment) ? null : _payForEvent,
+          onPressed: null,
           icon: (_registering || _processingPayment)
               ? const SizedBox(
                   width: 16,
@@ -825,7 +827,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           label: Text(
             (_registering || _processingPayment)
                 ? 'Processing…'
-                : 'Register & Pay ₹${(price / 100).toStringAsFixed(0)}',
+                : 'Coming Soon',
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
           style: ElevatedButton.styleFrom(
