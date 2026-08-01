@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app.dart';
 import 'supabase_client.dart';
 import 'services/deep_link_service.dart';
+import 'providers/pending_route_provider.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -39,8 +40,18 @@ Future<void> main() async {
     // Deep link service failed — app continues without deep link handling
   }
 
+  String? pendingRoute;
+  try {
+    pendingRoute = await restorePendingRoute();
+  } catch (e) {
+    // Pending route restore failed — app continues without it
+  }
+
   runApp(
-    const ProviderScope(
+    ProviderScope(
+      overrides: [
+        pendingRouteProvider.overrideWith((ref) => pendingRoute),
+      ],
       child: CluvoApp(),
     ),
   );

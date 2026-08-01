@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 class AppConfig {
   AppConfig._();
 
@@ -10,6 +12,8 @@ class AppConfig {
 
 const String appDeepLinkBase = 'cluvo://';
 
-String buildShareUrl(String type, String id) =>
-    '$appDeepLinkBase/$type/$id';
+String buildShareUrl(String type, String id) {
+  if (kIsWeb) return '${Uri.base.origin}/$type/$id';
+  return '$appDeepLinkBase/$type/$id';
+}
 

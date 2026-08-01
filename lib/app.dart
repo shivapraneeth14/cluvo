@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'main.dart';
 import 'providers/auth_provider.dart';
+import 'providers/pending_route_provider.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
@@ -208,6 +210,7 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
     final auth = ref.read(authProvider);
     final loggedIn = auth.session != null;
     final location = state.uri.toString();
+    final pendingRoute = ref.read(pendingRouteProvider);
 
     if (location == '/') return '/splash';
 
@@ -219,8 +222,26 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
       '/reset-password',
     ];
 
-    if (auth.isRecovery && location != '/reset-password') {
-      return '/reset-password';
+    if (auth.isRecovery) {
+      ref.read(pendingRouteProvider.notifier).state = null;
+      unawaited(clearPendingRoute());
+      if (location != '/reset-password') {
+        return '/reset-password';
+      }
+    }
+
+    if (!loggedIn &&
+        !authPaths.contains(location) &&
+        _isSharePath(location)) {
+      ref.read(pendingRouteProvider.notifier).state = location;
+      unawaited(savePendingRoute(location));
+      return '/login';
+    }
+
+    if (loggedIn && pendingRoute != null) {
+      ref.read(pendingRouteProvider.notifier).state = null;
+      unawaited(clearPendingRoute());
+      return location == pendingRoute ? null : pendingRoute;
     }
 
     if (loggedIn && !auth.isRecovery && authPaths.contains(location)) {
@@ -231,6 +252,10 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
     }
     return null;
   }
+
+  bool _isSharePath(String location) =>
+      location.startsWith('/communities') ||
+      location.startsWith('/events');
 
   @override
   Widget build(BuildContext context) {
