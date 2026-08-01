@@ -3,6 +3,17 @@ import 'dart:js_interop_unsafe';
 
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 
+@JS('Razorpay')
+extension type RazorpayCheckoutJS._(JSObject _) implements JSObject {
+  external factory RazorpayCheckoutJS(JSObject options);
+  external void open();
+}
+
+@JS('RazorpayCheckout')
+extension type LegacyRazorpayCheckoutJS(JSObject _) implements JSObject {
+  external void open(JSObject options, JSFunction onSuccess, JSFunction onError);
+}
+
 /// Opens Razorpay Checkout.js (https://checkout.razorpay.com/v1/checkout.js)
 /// in the browser. Only used for web builds — mobile uses the native
 /// `razorpay_flutter` plugin via `Razorpay.open()`.
@@ -32,8 +43,7 @@ Future<void> openRazorpayCheckoutWeb({
     ));
   }).toJS;
 
-  final rzpConstructor = globalContext['Razorpay'];
-  if (rzpConstructor != null) {
+  if (globalContext['Razorpay'] != null) {
     final modernOptions = Map<String, dynamic>.of(options);
     modernOptions['handler'] = onSuccessJs;
     final existingModal = modernOptions['modal'];
@@ -47,22 +57,15 @@ Future<void> openRazorpayCheckoutWeb({
         ));
       }).toJS,
     };
-    final checkout =
-        (rzpConstructor as JSFunction).callAsConstructor(_mapToJs(modernOptions));
-    checkout.callMethod<JSAny?>('open'.toJS);
+    RazorpayCheckoutJS(_mapToJs(modernOptions)).open();
     return;
   }
 
-  final legacyCheckout = globalContext['RazorpayCheckout'];
-  if (legacyCheckout == null) {
+  if (globalContext['RazorpayCheckout'] == null) {
     throw StateError('Razorpay Checkout.js is not loaded.');
   }
-  (legacyCheckout as JSObject).callMethod<JSAny?>(
-    'open'.toJS,
-    _mapToJs(options),
-    onSuccessJs,
-    onErrorJs,
-  );
+  LegacyRazorpayCheckoutJS(globalContext['RazorpayCheckout'] as JSObject)
+      .open(_mapToJs(options), onSuccessJs, onErrorJs);
 }
 
 JSObject _mapToJs(Map<String, dynamic> map) {
