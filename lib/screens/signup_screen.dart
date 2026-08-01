@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/auth_text_field.dart';
 import '../widgets/auth_button.dart';
-import 'package:gotrue/gotrue.dart' show OAuthProvider;
+import '../widgets/google_logo.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../supabase_client.dart';
 
 class SignupScreen extends ConsumerStatefulWidget {
@@ -183,10 +185,10 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                       : () async {
                           setState(() => _googleLoading = true);
                           try {
-                            // ignore: avoid_dynamic_calls
-                            await (supabase.auth as dynamic).signInWithOAuth(
+                            await supabase.auth.signInWithOAuth(
                               OAuthProvider.google,
-                              redirectTo: 'cluvo://signup',
+                              redirectTo:
+                                  kIsWeb ? Uri.base.origin : 'cluvo://signup',
                             );
                           } catch (e) {
                             setState(() => _googleLoading = false);
@@ -203,7 +205,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.login, size: 18),
+                      : const GoogleLogo(size: 18),
                   label: Text(
                     _googleLoading ? 'Connecting...' : 'Sign up with Google',
                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),

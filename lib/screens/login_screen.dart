@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/auth_text_field.dart';
 import '../widgets/auth_button.dart';
-import 'package:gotrue/gotrue.dart' show OAuthProvider;
+import '../widgets/google_logo.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../supabase_client.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -139,10 +141,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       : () async {
                           setState(() => _googleLoading = true);
                           try {
-                            // ignore: avoid_dynamic_calls
-                            await (supabase.auth as dynamic).signInWithOAuth(
+                            await supabase.auth.signInWithOAuth(
                               OAuthProvider.google,
-                              redirectTo: 'cluvo://login',
+                              redirectTo:
+                                  kIsWeb ? Uri.base.origin : 'cluvo://login',
                             );
                           } catch (e) {
                             setState(() => _googleLoading = false);
@@ -159,9 +161,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.login, size: 18),
+                      : const GoogleLogo(size: 18),
                   label: Text(
-                    _googleLoading ? 'Connecting...' : 'Continue with Google',
+                    _googleLoading ? 'Connecting...' : 'Sign in with Google',
                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
                   ),
                   style: OutlinedButton.styleFrom(
