@@ -45,6 +45,8 @@ dependencies:
   flutter_svg: ^2.0.10+1
   video_player: ^2.9.2
   shared_preferences: ^2.5.3
+  flutter_web_plugins:
+    sdk: flutter
 
   gotrue: any
 dev_dependencies:

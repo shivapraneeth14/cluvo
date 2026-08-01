@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app.dart';
 import 'supabase_client.dart';
@@ -11,6 +12,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  usePathUrlStrategy();
 
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
