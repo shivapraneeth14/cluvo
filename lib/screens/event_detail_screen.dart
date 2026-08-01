@@ -329,6 +329,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         _razorpay?.open(options);
       }
     } catch (e) {
+      debugPrint('Payment flow error: $e');
       if (!mounted) return;
       _showError('Payment failed. Please check your connection and try again.');
       setState(() {
@@ -824,7 +825,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           label: Text(
             (_registering || _processingPayment)
                 ? 'Processing…'
-                : 'Register & Pay ₹$price',
+                : 'Register & Pay ₹${(price / 100).toStringAsFixed(0)}',
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
           style: ElevatedButton.styleFrom(
