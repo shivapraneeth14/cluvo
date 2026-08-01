@@ -74,8 +74,8 @@ JSObject _mapToJs(Map<String, dynamic> map) {
     final value = entry.value;
     if (value is Map) {
       obj.setProperty(entry.key.toJS, _mapToJs(Map<String, dynamic>.from(value)));
-    } else if (value.isA<JSFunction>()) {
-      obj.setProperty(entry.key.toJS, value);
+    } else if (_isJsFunction(value)) {
+      obj.setProperty(entry.key.toJS, value as JSAny);
     } else if (value is String) {
       obj.setProperty(entry.key.toJS, value.toJS);
     } else if (value is num) {
@@ -88,6 +88,8 @@ JSObject _mapToJs(Map<String, dynamic> map) {
   }
   return obj;
 }
+
+bool _isJsFunction(Object? value) => (value as JSAny).isA<JSFunction>();
 
 Map<String, dynamic> _jsObjectToMap(JSObject obj) {
   const knownKeys = [
