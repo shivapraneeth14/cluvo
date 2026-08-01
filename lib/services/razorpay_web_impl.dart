@@ -6,17 +6,15 @@ import 'package:razorpay_flutter/razorpay_flutter.dart';
 /// Opens Razorpay Checkout.js (https://checkout.razorpay.com/v1/checkout.js)
 /// in the browser. Only used for web builds — mobile uses the native
 /// `razorpay_flutter` plugin via `Razorpay.open()`.
+///
+/// The current checkout.js exposes the `Razorpay` constructor
+/// (`new Razorpay(options)` then `.open()`); the legacy `RazorpayCheckout`
+/// global (`.open(options, onSuccess, onError)`) is kept as a fallback.
 Future<void> openRazorpayCheckoutWeb({
   required Map<String, dynamic> options,
   required void Function(PaymentSuccessResponse) onSuccess,
   required void Function(PaymentFailureResponse) onError,
 }) async {
-  final checkout = globalContext['RazorpayCheckout'];
-  if (checkout == null) {
-    throw StateError('Razorpay Checkout.js is not loaded.');
-  }
-  final razorpayCheckout = checkout as JSObject;
-
   final onSuccessJs = ((JSAny response) {
     onSuccess(PaymentSuccessResponse.fromMap(_jsObjectToMap(response as JSObject)));
   }).toJS;
@@ -34,7 +32,37 @@ Future<void> openRazorpayCheckoutWeb({
     ));
   }).toJS;
 
-  razorpayCheckout.callMethod<JSAny?>('open'.toJS, _mapToJs(options), onSuccessJs, onErrorJs);
+  final rzpConstructor = globalContext['Razorpay'];
+  if (rzpConstructor != null) {
+    final modernOptions = Map<String, dynamic>.of(options);
+    modernOptions['handler'] = onSuccessJs;
+    final existingModal = modernOptions['modal'];
+    modernOptions['modal'] = {
+      if (existingModal is Map<String, dynamic>) ...existingModal,
+      'ondismiss': (() {
+        onError(PaymentFailureResponse(
+          Razorpay.PAYMENT_CANCELLED,
+          'Payment cancelled.',
+          null,
+        ));
+      }).toJS,
+    };
+    final checkout =
+        (rzpConstructor as JSFunction).callAsConstructor(_mapToJs(modernOptions));
+    checkout.callMethod<JSAny?>('open'.toJS);
+    return;
+  }
+
+  final legacyCheckout = globalContext['RazorpayCheckout'];
+  if (legacyCheckout == null) {
+    throw StateError('Razorpay Checkout.js is not loaded.');
+  }
+  (legacyCheckout as JSObject).callMethod<JSAny?>(
+    'open'.toJS,
+    _mapToJs(options),
+    onSuccessJs,
+    onErrorJs,
+  );
 }
 
 JSObject _mapToJs(Map<String, dynamic> map) {
@@ -43,6 +71,8 @@ JSObject _mapToJs(Map<String, dynamic> map) {
     final value = entry.value;
     if (value is Map) {
       obj.setProperty(entry.key.toJS, _mapToJs(Map<String, dynamic>.from(value)));
+    } else if (value.isA<JSFunction>()) {
+      obj.setProperty(entry.key.toJS, value);
     } else if (value is String) {
       obj.setProperty(entry.key.toJS, value.toJS);
     } else if (value is num) {
