@@ -150,7 +150,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           backgroundColor: Color(0xFF10B981),
         ),
       );
-      context.pop();
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go('/communities');
+      }
     } catch (e) {
       _showError('Failed to save: $e');
     } finally {
@@ -172,7 +176,13 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         title: const Text('Edit Profile'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/communities');
+            }
+          },
         ),
       ),
       body: SingleChildScrollView(

@@ -18,7 +18,13 @@ class NotificationsScreen extends ConsumerWidget {
         title: const Text('Notifications'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/communities');
+            }
+          },
         ),
       ),
       body: notifications.when(

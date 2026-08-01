@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
@@ -37,7 +38,9 @@ Future<void> main() async {
   }
 
   try {
-    DeepLinkService(navigatorKey: navigatorKey).init();
+    if (!kIsWeb) {
+      DeepLinkService(navigatorKey: navigatorKey).init();
+    }
   } catch (e) {
     // Deep link service failed — app continues without deep link handling
   }

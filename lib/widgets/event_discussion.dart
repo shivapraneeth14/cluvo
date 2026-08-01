@@ -81,7 +81,7 @@ class _EventDiscussionState extends State<EventDiscussion> {
         try {
           final memberRes = await supabase
               .from('community_members')
-              .select('id')
+              .select('community_id')
               .eq('community_id', communityId)
               .eq('user_id', widget.currentUserId)
               .maybeSingle();
