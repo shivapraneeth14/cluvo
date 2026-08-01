@@ -2,18 +2,19 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app.dart';
 import 'supabase_client.dart';
 import 'services/deep_link_service.dart';
 import 'providers/pending_route_provider.dart';
+import 'url_strategy_stub.dart'
+    if (dart.library.js_interop) 'url_strategy_web.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  usePathUrlStrategy();
+  configureUrlStrategy();
 
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
