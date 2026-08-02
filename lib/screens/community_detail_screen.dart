@@ -51,8 +51,9 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
           .single();
       final eventsFuture = supabase
           .from('events')
-          .select('*')
+          .select('*, communities!inner(name)')
           .eq('community_id', widget.id)
+          .eq('communities.is_hidden', false)
           .isFilter('deleted_at', null)
           .inFilter('status', ['published', 'completed'])
           .order('start_date', ascending: false)

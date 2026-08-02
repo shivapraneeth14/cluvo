@@ -23,7 +23,7 @@ class EventsNotifier extends StateNotifier<PaginatedList<Event>> {
     try {
       final res = await supabase
           .from('events')
-          .select('*, communities(name)')
+          .select('*, communities!inner(name)')
           .isFilter('deleted_at', null)
           .eq('communities.is_hidden', false)
           .inFilter('status', ['published', 'completed'])
@@ -49,7 +49,7 @@ class EventsNotifier extends StateNotifier<PaginatedList<Event>> {
     try {
       final res = await supabase
           .from('events')
-          .select('*, communities(name)')
+          .select('*, communities!inner(name)')
           .isFilter('deleted_at', null)
           .eq('communities.is_hidden', false)
           .inFilter('status', ['published', 'completed'])

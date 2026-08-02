@@ -274,7 +274,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: supabase
           .from('registrations')
-          .select('*, events(title, start_date, status), payments(status, refund_status)')
+          .select('*, events!inner(title, start_date, status, communities!inner(name)), payments(status, refund_status)')
           .eq('user_id', userId)
           .eq('events.communities.is_hidden', false)
           .order('registered_at', ascending: false),

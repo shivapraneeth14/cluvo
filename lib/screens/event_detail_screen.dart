@@ -143,7 +143,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       final session = supabase.auth.currentSession;
       final eventFuture = supabase
           .from('events')
-          .select('*, communities(name)')
+          .select('*, communities!inner(name)')
           .eq('id', widget.id)
           .eq('communities.is_hidden', false)
           .inFilter('status', ['published', 'completed', 'cancelled'])
