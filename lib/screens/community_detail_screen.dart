@@ -47,6 +47,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
           .from('communities')
           .select('*')
           .eq('id', widget.id)
+          .eq('is_hidden', false)
           .single();
       final eventsFuture = supabase
           .from('events')

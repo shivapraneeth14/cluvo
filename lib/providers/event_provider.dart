@@ -25,6 +25,7 @@ class EventsNotifier extends StateNotifier<PaginatedList<Event>> {
           .from('events')
           .select('*, communities(name)')
           .isFilter('deleted_at', null)
+          .eq('communities.is_hidden', false)
           .inFilter('status', ['published', 'completed'])
           .order('start_date', ascending: false)
           .range(0, _pageSize - 1);
@@ -50,6 +51,7 @@ class EventsNotifier extends StateNotifier<PaginatedList<Event>> {
           .from('events')
           .select('*, communities(name)')
           .isFilter('deleted_at', null)
+          .eq('communities.is_hidden', false)
           .inFilter('status', ['published', 'completed'])
           .order('start_date', ascending: false)
           .range(from, to);

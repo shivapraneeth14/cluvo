@@ -145,6 +145,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           .from('events')
           .select('*, communities(name)')
           .eq('id', widget.id)
+          .eq('communities.is_hidden', false)
           .inFilter('status', ['published', 'completed', 'cancelled'])
           .single();
       final mediaFuture = supabase

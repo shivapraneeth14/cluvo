@@ -26,6 +26,7 @@ class CommunitiesNotifier extends StateNotifier<PaginatedList<Community>> {
           .from('communities')
           .select('*')
           .isFilter('deleted_at', null)
+          .eq('is_hidden', false)
           .order('created_at', ascending: false)
           .range(0, _pageSize - 1);
       _page = 0;
@@ -50,6 +51,7 @@ class CommunitiesNotifier extends StateNotifier<PaginatedList<Community>> {
           .from('communities')
           .select('*')
           .isFilter('deleted_at', null)
+          .eq('is_hidden', false)
           .order('created_at', ascending: false)
           .range(from, to);
       _page++;
@@ -78,6 +80,7 @@ final myCommunitiesProvider = FutureProvider<List<Community>>((ref) async {
       .from('community_members')
       .select('role, communities(*)')
       .eq('user_id', session.user.id)
+      .eq('communities.is_hidden', false)
       .order('joined_at', ascending: false);
   return (response as List).map((row) {
     final m = row as Map<String, dynamic>;

@@ -7,6 +7,7 @@ class Community {
   final String ownerId;
   final String visibility;
   final String verificationStatus;
+  final bool isHidden;
   final int memberCount;
   final int eventCount;
   final String? category;
@@ -34,6 +35,7 @@ class Community {
     required this.ownerId,
     this.visibility = 'public',
     this.verificationStatus = 'unverified',
+    this.isHidden = false,
     this.memberCount = 0,
     this.eventCount = 0,
     this.category,
@@ -62,6 +64,7 @@ class Community {
     ownerId: map['owner_id'] as String,
     visibility: map['visibility'] as String? ?? 'public',
     verificationStatus: map['verification_status'] as String? ?? 'unverified',
+    isHidden: map['is_hidden'] as bool? ?? false,
     memberCount: map['member_count'] as int? ?? 0,
     eventCount: map['event_count'] as int? ?? 0,
     category: map['category'] as String?,
@@ -90,6 +93,7 @@ class Community {
     'owner_id': ownerId,
     'visibility': visibility,
     'verification_status': verificationStatus,
+    'is_hidden': isHidden,
     'member_count': memberCount,
     'event_count': eventCount,
     if (category != null) 'category': category,

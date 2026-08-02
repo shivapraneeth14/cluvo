@@ -276,6 +276,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           .from('registrations')
           .select('*, events(title, start_date, status), payments(status, refund_status)')
           .eq('user_id', userId)
+          .eq('events.communities.is_hidden', false)
           .order('registered_at', ascending: false),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
