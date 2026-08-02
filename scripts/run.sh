@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ENV_NAME="${1:-prod}"
+ENV_NAME="${1:-test}"
 if [[ "$ENV_NAME" != "test" && "$ENV_NAME" != "prod" ]]; then
-  echo "Usage: ./scripts/run.sh [test|prod]" >&2
+  echo "Usage: ./scripts/run.sh [test|prod] (default: test)" >&2
   exit 1
 fi
 shift || true
