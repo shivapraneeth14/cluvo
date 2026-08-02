@@ -11,7 +11,7 @@ class AppConfig {
       throw StateError(
         'Supabase is not configured. Build with '
         '--dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=... '
-        'or run ./scripts/switch-supabase.sh to print the exact command.',
+        'or run ./scripts/switch-supabase.sh <test|prod> to print the exact command.',
       );
     }
   }
