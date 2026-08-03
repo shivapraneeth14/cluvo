@@ -34,8 +34,12 @@ merge history — only from build-time configuration.
 ```
 ./scripts/run.sh              # TEST environment (default)
 ./scripts/run.sh prod         # PROD environment
+./scripts/run.sh test emulator-5554   # TEST on a specific device (emulator, chrome, macos, …)
 ./scripts/switch-supabase.sh test|prod   # prints the exact command
 ```
+The Android Studio run config (`main_dart.xml`, gitignored) is preconfigured
+with TEST defines; a fresh clone must use `scripts/run.sh` (or add the defines
+to the run config) — an unconfigured run shows the fail-fast error by design.
 
 Equivalent raw command (TEST):
 ```
