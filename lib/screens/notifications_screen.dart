@@ -30,14 +30,14 @@ class NotificationsScreen extends ConsumerWidget {
       body: notifications.when(
         data: (data) {
           if (data.isEmpty) {
-            return const Center(
+            return Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.notifications_none, size: 48, color: Colors.grey),
+                  Icon(Icons.notifications_none, size: 48, color: context.cluvoTextSecondary),
                   SizedBox(height: 12),
                   Text('No notifications yet.',
-                      style: TextStyle(color: Colors.grey)),
+                      style: TextStyle(color: context.cluvoTextSecondary)),
                 ],
               ),
             );
@@ -58,7 +58,7 @@ class NotificationsScreen extends ConsumerWidget {
                 final type = n.type;
 
                 return ListTile(
-                  leading: _iconForType(type, isRead),
+                  leading: _iconForType(context, type, isRead),
                   title: Text(
                     n.title,
                     style: TextStyle(
@@ -68,11 +68,11 @@ class NotificationsScreen extends ConsumerWidget {
                   ),
                   subtitle: Text(
                     n.body ?? '',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    style: TextStyle(fontSize: 12, color: context.cluvoTextSecondary),
                   ),
                   trailing: Text(
                     _timeAgo(n),
-                    style: TextStyle(fontSize: 11, color: Colors.grey[400]),
+                    style: TextStyle(fontSize: 11, color: context.cluvoTextSecondary),
                   ),
                   onTap: () => _markRead(n, ref),
                 );
@@ -86,14 +86,14 @@ class NotificationsScreen extends ConsumerWidget {
             padding: const EdgeInsets.all(32),
             child: Text('Could not load notifications.\n$e',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey[600])),
+                style: TextStyle(color: context.cluvoTextSecondary)),
           ),
         ),
       ),
     );
   }
 
-  Widget _iconForType(String type, bool isRead) {
+  Widget _iconForType(BuildContext context, String type, bool isRead) {
     IconData icon;
     Color color;
     switch (type) {
@@ -119,7 +119,7 @@ class NotificationsScreen extends ConsumerWidget {
         break;
       default:
         icon = Icons.notifications;
-        color = Colors.grey;
+        color = context.cluvoTextSecondary;
     }
     return CircleAvatar(
       radius: 18,

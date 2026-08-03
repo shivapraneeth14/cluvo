@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -83,7 +84,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 'Sign in to your account',
                 style: TextStyle(
                   fontSize: 15,
-                  color: Colors.grey[600],
+                  color: context.cluvoTextSecondary,
                 ),
               ),
               const SizedBox(height: 32),
@@ -93,14 +94,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   padding: const EdgeInsets.all(12),
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFEF2F2),
+                    color: context.cluvoErrorFill,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFFECACA)),
+                    border: Border.all(color: context.cluvoErrorBorder),
                   ),
                   child: Text(
                     state.error!,
-                    style: const TextStyle(
-                      color: Color(0xFFDC2626),
+                    style: TextStyle(
+                      color: context.cluvoErrorText,
                       fontSize: 13,
                     ),
                   ),
@@ -167,8 +168,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
                   ),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.grey[700],
-                    side: BorderSide(color: Colors.grey[300]!),
+                    foregroundColor: context.cluvoTextPrimary,
+                    side: BorderSide(color: context.cluvoTextSecondary),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -181,7 +182,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 children: [
                   Text(
                     "Don't have an account? ",
-                    style: TextStyle(color: Colors.grey[600]),
+                    style: TextStyle(color: context.cluvoTextSecondary),
                   ),
                   TextButton(
                     onPressed: () => context.go('/signup'),

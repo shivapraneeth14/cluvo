@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
@@ -183,11 +184,11 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.error_outline, size: 40, color: Colors.grey),
+                Icon(Icons.error_outline, size: 40, color: context.cluvoTextSecondary),
                 const SizedBox(height: 12),
                 Text(_error != null ? 'Error: $_error' : 'Not found',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey[600])),
+                    style: TextStyle(color: context.cluvoTextSecondary)),
                 const SizedBox(height: 16),
                 OutlinedButton.icon(
                   onPressed: () {
@@ -285,7 +286,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
                     Text(
                       c['description'] as String,
                       style:
-                          TextStyle(color: Colors.grey[600], fontSize: 14),
+                          TextStyle(color: context.cluvoTextSecondary, fontSize: 14),
                     ),
                   ],
                   const SizedBox(height: 16),
@@ -311,7 +312,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              color: Colors.grey[100],
+                              color: context.cluvoChipFill,
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: Text(t.toString(),
@@ -330,7 +331,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
                     const SizedBox(height: 4),
                     Text(c['rules'] as String,
                         style:
-                            TextStyle(color: Colors.grey[600], fontSize: 13)),
+                            TextStyle(color: context.cluvoTextSecondary, fontSize: 13)),
                   ],
                   const SizedBox(height: 16),
                   Row(
@@ -368,7 +369,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 24),
                         child: Center(
                           child: Text('No events in this community.',
-                              style: TextStyle(color: Colors.grey[500])),
+                              style: TextStyle(color: context.cluvoTextSecondary)),
                         ),
                       )
                     else
@@ -481,7 +482,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
           SizedBox(
             width: 80,
             child: Text(label,
-                style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+                style: TextStyle(color: context.cluvoTextSecondary, fontSize: 13)),
           ),
           Expanded(
             child: Text(value, style: const TextStyle(fontSize: 13)),
@@ -505,7 +506,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFFC2185B) : Colors.grey[100],
+          color: selected ? const Color(0xFFC2185B) : context.cluvoChipFill,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
@@ -513,7 +514,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w500,
-            color: selected ? Colors.white : Colors.grey[700],
+            color: selected ? Colors.white : context.cluvoTextPrimary,
           ),
         ),
       ),
@@ -527,7 +528,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFFC2185B) : Colors.grey[100],
+          color: selected ? const Color(0xFFC2185B) : context.cluvoChipFill,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
@@ -535,7 +536,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: selected ? Colors.white : Colors.grey[700],
+            color: selected ? Colors.white : context.cluvoTextPrimary,
           ),
         ),
       ),
@@ -556,7 +557,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
           child: Center(
             child: Text(
               'No ${_eventFilter ?? ""} events.',
-              style: TextStyle(color: Colors.grey[500]),
+              style: TextStyle(color: context.cluvoTextSecondary),
             ),
           ),
         ),
@@ -659,7 +660,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
                       _formatShortDate(e),
                       style: TextStyle(
                         fontSize: 8,
-                        color: Colors.grey[400],
+                        color: context.cluvoTextSecondary,
                       ),
                     ),
                     const SizedBox(height: 1),
@@ -671,7 +672,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
                         fontSize: 9,
                         fontWeight: FontWeight.w600,
                         color: e.price > 0
-                            ? const Color(0xFFC2185B)
+                            ? context.cluvoPrimaryText
                             : Colors.green,
                       ),
                     ),
@@ -715,22 +716,22 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
       children: [
         Container(
           height: 220,
-          color: Colors.grey[200],
+          color: context.cluvoChipFill,
         ),
         Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(height: 20, width: 200, decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(4))),
+              Container(height: 20, width: 200, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4))),
               const SizedBox(height: 12),
-              Container(height: 14, width: double.infinity, decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(4))),
+              Container(height: 14, width: double.infinity, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4))),
               const SizedBox(height: 8),
-              Container(height: 14, width: 160, decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(4))),
+              Container(height: 14, width: 160, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4))),
               const SizedBox(height: 20),
               ...List.generate(4, (_) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: Container(height: 14, width: double.infinity, decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(4))),
+                child: Container(height: 14, width: double.infinity, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4))),
               )),
               const SizedBox(height: 20),
               Row(
@@ -742,14 +743,14 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       child: Column(
                         children: [
-                          AspectRatio(aspectRatio: 1, child: Container(color: Colors.grey[200])),
+                          AspectRatio(aspectRatio: 1, child: Container(color: context.cluvoChipFill)),
                           Padding(
                             padding: const EdgeInsets.fromLTRB(6, 5, 6, 5),
                             child: Column(
                               children: [
-                                Container(height: 8, width: 50, decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(4))),
+                                Container(height: 8, width: 50, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4))),
                                 const SizedBox(height: 4),
-                                Container(height: 6, width: 30, decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(4))),
+                                Container(height: 6, width: 30, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4))),
                               ],
                             ),
                           ),
@@ -813,7 +814,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
           svg,
           width: 20,
           height: 20,
-          colorFilter: ColorFilter.mode(Colors.grey[600]!, BlendMode.srcIn),
+          colorFilter: ColorFilter.mode(context.cluvoTextSecondary, BlendMode.srcIn),
         ),
       ),
     );

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import '../theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../providers/profile_provider.dart';
 import '../providers/community_provider.dart';
 import '../widgets/notification_bell.dart';
+import '../widgets/theme_toggle_button.dart';
 import '../models/models.dart';
 import '../supabase_client.dart';
 
@@ -34,7 +36,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             color: const Color(0xFFC2185B),
           ),
         ),
-        actions: [const NotificationBell()],
+        actions: const [ThemeToggleButton(), NotificationBell()],
       ),
       body: profile.when(
         data: (data) {
@@ -85,13 +87,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   const SizedBox(height: 4),
                   Text(
                     email,
-                    style: TextStyle(color: Colors.grey[500], fontSize: 14),
+                    style: TextStyle(color: context.cluvoTextSecondary, fontSize: 14),
                   ),
                   if (data != null && data.username != null) ...[
                     const SizedBox(height: 2),
                     Text(
                       '@${data.username}',
-                      style: TextStyle(color: Colors.grey[400], fontSize: 13),
+                      style: TextStyle(color: context.cluvoTextSecondary, fontSize: 13),
                     ),
                   ],
                   const SizedBox(height: 12),
@@ -118,12 +120,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       child: Row(
                         children: [
                           Icon(Icons.calendar_today,
-                              size: 16, color: Colors.grey[500]),
+                              size: 16, color: context.cluvoTextSecondary),
                           const SizedBox(width: 8),
                           Text(
                             'Joined ${data != null ? _formatDate(data.createdAt.toIso8601String()) : ''}',
                             style: TextStyle(
-                                color: Colors.grey[600], fontSize: 13),
+                                color: context.cluvoTextSecondary, fontSize: 13),
                           ),
                         ],
                       ),
@@ -171,11 +173,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.error_outline, size: 40, color: Colors.grey),
+                Icon(Icons.error_outline, size: 40, color: context.cluvoTextSecondary),
                 const SizedBox(height: 12),
                 Text('Error: $e',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey[600])),
+                    style: TextStyle(color: context.cluvoTextSecondary)),
                 const SizedBox(height: 16),
                 OutlinedButton.icon(
                   onPressed: () {
@@ -214,7 +216,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(
-                  color: selected ? const Color(0xFF1976D2) : Colors.transparent,
+                  color: selected ? context.cluvoPrimaryText : Colors.transparent,
                   width: 2.5,
                 ),
               ),
@@ -224,7 +226,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-                color: selected ? const Color(0xFF1976D2) : Colors.grey[500],
+                color: selected ? context.cluvoPrimaryText : context.cluvoTextSecondary,
               ),
             ),
           ),
@@ -254,7 +256,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         child: Column(
           children: [
             Text('Could not load communities.',
-                style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+                style: TextStyle(color: context.cluvoTextSecondary, fontSize: 13)),
             const SizedBox(height: 8),
             TextButton.icon(
               onPressed: () => ref.invalidate(myCommunitiesProvider),
@@ -289,7 +291,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           return Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text('Could not load registrations.',
-                style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+                style: TextStyle(color: context.cluvoTextSecondary, fontSize: 13)),
           );
         }
         final registrations = snapshot.data ?? [];
@@ -298,7 +300,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             padding: const EdgeInsets.only(top: 16),
             child: Center(
               child: Text('No registrations yet.',
-                  style: TextStyle(color: Colors.grey[400], fontSize: 13)),
+                  style: TextStyle(color: context.cluvoTextSecondary, fontSize: 13)),
             ),
           );
         }
@@ -372,14 +374,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             if (startDate != null)
                               Text(_formatDate(startDate),
                                   style: TextStyle(
-                                      fontSize: 12, color: Colors.grey[500])),
+                                      fontSize: 12, color: context.cluvoTextSecondary)),
                             if (refundNotice != null) ...[
                               const SizedBox(height: 4),
                               Text(refundNotice,
                                   style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w500,
-                                      color: Colors.grey[600])),
+                                      color: context.cluvoTextSecondary)),
                             ],
                           ],
                         ),
@@ -432,7 +434,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           return Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text('Could not load payments.',
-                style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+                style: TextStyle(color: context.cluvoTextSecondary, fontSize: 13)),
           );
         }
         final payments = snapshot.data ?? [];
@@ -441,7 +443,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             padding: const EdgeInsets.only(top: 16),
             child: Center(
               child: Text('No payments yet.',
-                  style: TextStyle(color: Colors.grey[400], fontSize: 13)),
+                  style: TextStyle(color: context.cluvoTextSecondary, fontSize: 13)),
             ),
           );
         }
@@ -492,7 +494,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             if (date != null)
                               Text(_formatDate(date),
                                   style: TextStyle(
-                                      fontSize: 12, color: Colors.grey[500])),
+                                      fontSize: 12, color: context.cluvoTextSecondary)),
                           ],
                         ),
                       ),
@@ -539,7 +541,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       case 'attended':
         return Colors.blue;
       case 'cancelled':
-        return Colors.grey;
+        return context.cluvoTextSecondary;
       default:
         return Colors.orange;
     }
@@ -590,16 +592,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       padding: const EdgeInsets.all(24),
       children: [
         const SizedBox(height: 20),
-        CircleAvatar(radius: 40, backgroundColor: Colors.grey[200]),
+        CircleAvatar(radius: 40, backgroundColor: context.cluvoChipFill),
         const SizedBox(height: 16),
-        Center(child: Container(height: 16, width: 160, decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(4)))),
+        Center(child: Container(height: 16, width: 160, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4)))),
         const SizedBox(height: 6),
-        Center(child: Container(height: 12, width: 200, decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(4)))),
+        Center(child: Container(height: 12, width: 200, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4)))),
         const SizedBox(height: 24),
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Container(height: 14, width: 120, decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(4))),
+            child: Container(height: 14, width: 120, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4))),
           ),
         ),
       ],
@@ -656,7 +658,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         '${c.city ?? ''}${c.city != null && c.country != null ? ', ' : ''}${c.country ?? ''}',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey[500],
+                          color: context.cluvoTextSecondary,
                         ),
                       ),
                   ],
@@ -666,7 +668,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 '${c.memberCount} members',
                 style: TextStyle(
                     fontSize: 11,
-                    color: Colors.grey[400],
+                    color: context.cluvoTextSecondary,
                   ),
                 ),
             ],

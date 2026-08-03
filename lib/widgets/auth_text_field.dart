@@ -46,10 +46,10 @@ class _AuthTextFieldState extends State<AuthTextField> {
       children: [
         Text(
           widget.label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,
-            color: CluvoTheme.textPrimary,
+            color: context.cluvoTextPrimary,
           ),
         ),
         const SizedBox(height: 6),
@@ -67,7 +67,7 @@ class _AuthTextFieldState extends State<AuthTextField> {
                       _obscured
                           ? Icons.visibility_off_outlined
                           : Icons.visibility_outlined,
-                      color: CluvoTheme.textSecondary,
+                      color: context.cluvoTextSecondary,
                       size: 20,
                     ),
                     onPressed: () => setState(() => _obscured = !_obscured),
@@ -81,7 +81,7 @@ class _AuthTextFieldState extends State<AuthTextField> {
             widget.helperText!,
             style: TextStyle(
               fontSize: 12,
-              color: CluvoTheme.textSecondary.withValues(alpha: 0.7),
+              color: context.cluvoTextSecondary.withValues(alpha: 0.7),
             ),
           ),
         ],

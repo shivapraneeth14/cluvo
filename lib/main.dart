@@ -5,8 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app.dart';
 import 'supabase_client.dart';
+import 'theme.dart';
 import 'services/deep_link_service.dart';
 import 'providers/pending_route_provider.dart';
+import 'providers/theme_provider.dart';
 import 'url_strategy_stub.dart'
     if (dart.library.js_interop) 'url_strategy_web.dart';
 
@@ -53,10 +55,13 @@ Future<void> main() async {
     // Pending route restore failed — app continues without it
   }
 
+  final savedThemeMode = await loadSavedThemeMode();
+
   runApp(
     ProviderScope(
       overrides: [
         pendingRouteProvider.overrideWith((ref) => pendingRoute),
+        themeModeProvider.overrideWith((ref) => ThemeModeNotifier(initial: savedThemeMode)),
       ],
       child: CluvoApp(),
     ),
@@ -72,7 +77,7 @@ class _ErrorApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       home: Scaffold(
-        backgroundColor: const Color(0xFFFAFAFA),
+        backgroundColor: context.cluvoBackground,
         body: SafeArea(
           child: Center(
             child: Padding(
@@ -82,21 +87,21 @@ class _ErrorApp extends StatelessWidget {
                 children: [
                   const Icon(Icons.cloud_off, size: 64, color: Color(0xFFC2185B)),
                   const SizedBox(height: 24),
-                  const Text(
+                  Text(
                     'Connection Error',
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF171717),
+                      color: context.cluvoTextPrimary,
                     ),
                   ),
                   const SizedBox(height: 12),
                   Text(
                     message,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
-                      color: Color(0xFF737373),
+                      color: context.cluvoTextSecondary,
                       height: 1.5,
                     ),
                   ),

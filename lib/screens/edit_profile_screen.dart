@@ -254,7 +254,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               onTap: _uploading ? null : _pickImage,
               child: Text(
                 _uploading ? 'Uploading...' : 'Tap to change photo',
-                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                style: TextStyle(fontSize: 12, color: context.cluvoTextSecondary),
               ),
             ),
             const SizedBox(height: 32),
@@ -333,10 +333,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   Widget _buildLabel(String text) {
     return Text(
       text,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 14,
         fontWeight: FontWeight.w500,
-        color: CluvoTheme.textPrimary,
+        color: context.cluvoTextPrimary,
       ),
     );
   }
@@ -344,14 +344,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   InputDecoration _inputDecoration() {
     return InputDecoration(
       filled: true,
-      fillColor: CluvoTheme.surface,
+      fillColor: context.cluvoSurface,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: CluvoTheme.border),
+        borderSide: BorderSide(color: context.cluvoBorder),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: CluvoTheme.border),
+        borderSide: BorderSide(color: context.cluvoBorder),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),

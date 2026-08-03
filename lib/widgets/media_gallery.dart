@@ -222,7 +222,7 @@ class _VideoViewerScreenState extends State<_VideoViewerScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.error_outline, size: 48, color: Colors.grey[500]),
+                    Icon(Icons.error_outline, size: 48, color: context.cluvoTextSecondary),
                     const SizedBox(height: 12),
                     const Text(
                       'Could not play this video.',
@@ -233,7 +233,7 @@ class _VideoViewerScreenState extends State<_VideoViewerScreen> {
                       Text(
                         _errorMessage!,
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                        style: TextStyle(color: context.cluvoTextSecondary, fontSize: 12),
                       ),
                     ],
                     const SizedBox(height: 16),

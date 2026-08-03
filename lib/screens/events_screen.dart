@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +8,7 @@ import '../providers/event_provider.dart';
 import '../providers/paginated_provider.dart';
 import '../models/models.dart';
 import '../widgets/notification_bell.dart';
+import '../widgets/theme_toggle_button.dart';
 
 const _months = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -116,7 +118,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
             color: const Color(0xFFC2185B),
           ),
         ),
-        actions: [const NotificationBell()],
+        actions: const [ThemeToggleButton(), NotificationBell()],
       ),
       body: state.loading
           ? _buildSkeleton()
@@ -157,7 +159,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
                       )
                     : null,
                 filled: true,
-                fillColor: Colors.grey[100],
+                fillColor: context.cluvoChipFill,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
@@ -197,7 +199,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
                               : _searchQuery.isNotEmpty
                                   ? 'No events match "$_searchQuery".'
                                   : 'No upcoming events.',
-                          style: const TextStyle(color: Colors.grey),
+                          style: TextStyle(color: context.cluvoTextSecondary),
                         ),
                       ),
                     ],
@@ -280,7 +282,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
                                             overflow: TextOverflow.ellipsis,
                                             style: TextStyle(
                                               fontSize: 9,
-                                              color: Colors.grey[500],
+                                              color: context.cluvoTextSecondary,
                                             ),
                                           ),
                                         const Spacer(),
@@ -290,7 +292,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
                                               _formatShortDate(e),
                                               style: TextStyle(
                                                 fontSize: 8,
-                                                color: Colors.grey[400],
+                                                color: context.cluvoTextSecondary,
                                               ),
                                             ),
                                             const Spacer(),
@@ -302,7 +304,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
                                                 fontSize: 10,
                                                 fontWeight: FontWeight.w600,
                                                 color: price > 0
-                                                    ? const Color(0xFFC2185B)
+                                                    ? context.cluvoPrimaryText
                                                     : Colors.green,
                                               ),
                                             ),
@@ -332,11 +334,11 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, size: 40, color: Colors.grey),
+            Icon(Icons.error_outline, size: 40, color: context.cluvoTextSecondary),
             const SizedBox(height: 12),
             Text('Could not load events.\n$errorMsg',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey[600])),
+                style: TextStyle(color: context.cluvoTextSecondary)),
             const SizedBox(height: 16),
             OutlinedButton.icon(
               onPressed: () => ref.read(eventsProvider.notifier).refresh(),
@@ -366,7 +368,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFFC2185B) : Colors.grey[100],
+          color: selected ? const Color(0xFFC2185B) : context.cluvoChipFill,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
@@ -374,7 +376,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w500,
-            color: selected ? Colors.white : Colors.grey[700],
+            color: selected ? Colors.white : context.cluvoTextPrimary,
           ),
         ),
       ),
@@ -388,7 +390,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFFC2185B) : Colors.grey[100],
+          color: selected ? const Color(0xFFC2185B) : context.cluvoChipFill,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
@@ -397,7 +399,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
             Icon(
               Icons.calendar_today,
               size: 13,
-              color: selected ? Colors.white : Colors.grey[600],
+              color: selected ? Colors.white : context.cluvoTextSecondary,
             ),
             const SizedBox(width: 4),
             Text(
@@ -407,7 +409,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
-                color: selected ? Colors.white : Colors.grey[700],
+                color: selected ? Colors.white : context.cluvoTextPrimary,
               ),
             ),
             if (selected) ...[
@@ -441,7 +443,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
           children: [
             Expanded(
               flex: 2,
-              child: Container(color: Colors.grey[200]),
+              child: Container(color: context.cluvoChipFill),
             ),
             Expanded(
               flex: 2,
@@ -450,11 +452,11 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(height: 8, width: 70, decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(4))),
+                    Container(height: 8, width: 70, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4))),
                     const SizedBox(height: 6),
-                    Container(height: 6, width: 50, decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(4))),
+                    Container(height: 6, width: 50, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4))),
                     const Spacer(),
-                    Container(height: 8, width: 30, decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(4))),
+                    Container(height: 8, width: 30, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4))),
                   ],
                 ),
               ),

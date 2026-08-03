@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
@@ -95,7 +96,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
                 'Enter your new password below.',
                 style: TextStyle(
                   fontSize: 15,
-                  color: Colors.grey[600],
+                  color: context.cluvoTextSecondary,
                 ),
               ),
               const SizedBox(height: 32),
@@ -105,14 +106,14 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
                   padding: const EdgeInsets.all(12),
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFEF2F2),
+                    color: context.cluvoErrorFill,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFFECACA)),
+                    border: Border.all(color: context.cluvoErrorBorder),
                   ),
                   child: Text(
                     state.error!,
-                    style: const TextStyle(
-                      color: Color(0xFFDC2626),
+                    style: TextStyle(
+                      color: context.cluvoErrorText,
                       fontSize: 13,
                     ),
                   ),

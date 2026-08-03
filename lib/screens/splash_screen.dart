@@ -53,7 +53,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: CluvoTheme.background,
+      backgroundColor: context.cluvoBackground,
       body: Center(
         child: FadeTransition(
           opacity: _fadeIn,
@@ -74,13 +74,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
+              Text(
                 'CLUVO',
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 4,
-                  color: CluvoTheme.textPrimary,
+                  color: context.cluvoTextPrimary,
                 ),
               ),
               const SizedBox(height: 8),
@@ -88,7 +88,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                 'Connecting communities',
                 style: TextStyle(
                   fontSize: 14,
-                  color: CluvoTheme.textSecondary,
+                  color: context.cluvoTextSecondary,
                 ),
               ),
             ],

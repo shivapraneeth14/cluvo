@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'main.dart';
 import 'providers/auth_provider.dart';
 import 'providers/pending_route_provider.dart';
+import 'providers/theme_provider.dart';
+import 'theme.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
@@ -38,7 +40,7 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
       initialLocation: '/splash',
       redirect: _redirect,
       errorBuilder: (context, state) => Scaffold(
-        backgroundColor: const Color(0xFFFAFAFA),
+        backgroundColor: context.cluvoBackground,
         body: SafeArea(
           child: Center(
             child: Padding(
@@ -46,12 +48,15 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.link_off, size: 48, color: Colors.grey),
+                  Icon(Icons.link_off, size: 48, color: context.cluvoTextSecondary),
                   const SizedBox(height: 16),
                   Text(
                     'Page not found: "${state.uri.toString()}"',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.grey, fontSize: 14),
+                    style: TextStyle(
+                      color: context.cluvoTextSecondary,
+                      fontSize: 14,
+                    ),
                   ),
                 ],
               ),
@@ -259,22 +264,18 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
 
   @override
   Widget build(BuildContext context) {
+    final themeMode = ref.watch(themeModeProvider);
     ref.listen<AuthState>(authProvider, (_, _) => _router.refresh());
     return MaterialApp.router(
       key: navigatorKey,
       title: 'Cluvo',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        fontFamily: 'Inter',
-        scaffoldBackgroundColor: const Color(0xFFFAFAFA),
-          colorScheme: const ColorScheme.light(
-            primary: Color(0xFFC2185B),
-            secondary: Color(0xFFC2185B),
-          ),
-      ),
+      theme: CluvoTheme.lightTheme,
+      darkTheme: CluvoTheme.darkTheme,
+      themeMode: themeMode,
       builder: (context, child) {
         ErrorWidget.builder = (errorDetails) => Scaffold(
-          backgroundColor: const Color(0xFFFAFAFA),
+          backgroundColor: context.cluvoBackground,
           body: SafeArea(
             child: Center(
               child: Padding(
@@ -282,12 +283,15 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.error_outline, size: 48, color: Colors.grey),
+                    Icon(Icons.error_outline, size: 48, color: context.cluvoTextSecondary),
                     const SizedBox(height: 16),
-                    const Text(
+                    Text(
                       'Something went wrong. Please restart the app.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey, fontSize: 14),
+                      style: TextStyle(
+                        color: context.cluvoTextSecondary,
+                        fontSize: 14,
+                      ),
                     ),
                   ],
                 ),

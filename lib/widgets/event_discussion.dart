@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../theme.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -331,13 +332,13 @@ class _EventDiscussionState extends State<EventDiscussion> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.error_outline, size: 32, color: Colors.grey[300]),
+              Icon(Icons.error_outline, size: 32, color: context.cluvoTextSecondary),
               const SizedBox(height: 8),
               Text('Failed to load discussion.',
-                  style: TextStyle(color: Colors.grey[500])),
+                  style: TextStyle(color: context.cluvoTextSecondary)),
               const SizedBox(height: 4),
               Text(_error!,
-                  style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                  style: TextStyle(color: context.cluvoTextSecondary, fontSize: 11),
                   textAlign: TextAlign.center),
             ],
           ),
@@ -353,10 +354,10 @@ class _EventDiscussionState extends State<EventDiscussion> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.chat_bubble_outline, size: 48, color: Colors.grey[300]),
+                      Icon(Icons.chat_bubble_outline, size: 48, color: context.cluvoTextSecondary),
                       const SizedBox(height: 12),
                       Text('No messages yet. Start the conversation!',
-                          style: TextStyle(color: Colors.grey[500])),
+                          style: TextStyle(color: context.cluvoTextSecondary)),
                     ],
                   ),
                 )
@@ -375,15 +376,15 @@ class _EventDiscussionState extends State<EventDiscussion> {
           Container(
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
             decoration: BoxDecoration(
-              color: Colors.grey[100],
-              border: Border(top: BorderSide(color: Colors.grey[200]!)),
+              color: context.cluvoChipFill,
+              border: Border(top: BorderSide(color: context.cluvoBorder)),
             ),
             child: Row(
               children: [
-                Icon(Icons.info_outline, size: 16, color: Colors.grey[500]),
+                Icon(Icons.info_outline, size: 16, color: context.cluvoTextSecondary),
                 const SizedBox(width: 8),
                 Text('Discussion has not been enabled for this event.',
-                    style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+                    style: TextStyle(color: context.cluvoTextSecondary, fontSize: 13)),
               ],
             ),
           )
@@ -407,15 +408,15 @@ class _EventDiscussionState extends State<EventDiscussion> {
           Container(
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
             decoration: BoxDecoration(
-              color: Colors.grey[100],
-              border: Border(top: BorderSide(color: Colors.grey[200]!)),
+              color: context.cluvoChipFill,
+              border: Border(top: BorderSide(color: context.cluvoBorder)),
             ),
             child: Row(
               children: [
-                Icon(Icons.person_off_outlined, size: 16, color: Colors.grey[500]),
+                Icon(Icons.person_off_outlined, size: 16, color: context.cluvoTextSecondary),
                 const SizedBox(width: 8),
                 Text('You are no longer a member of this community.',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                    style: TextStyle(color: context.cluvoTextSecondary, fontSize: 13)),
               ],
             ),
           )
@@ -423,15 +424,15 @@ class _EventDiscussionState extends State<EventDiscussion> {
           Container(
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
             decoration: BoxDecoration(
-              color: Colors.grey[100],
-              border: Border(top: BorderSide(color: Colors.grey[200]!)),
+              color: context.cluvoChipFill,
+              border: Border(top: BorderSide(color: context.cluvoBorder)),
             ),
             child: Row(
               children: [
-                Icon(Icons.lock_outline, size: 16, color: Colors.grey[500]),
+                Icon(Icons.lock_outline, size: 16, color: context.cluvoTextSecondary),
                 const SizedBox(width: 8),
                 Text('Only admins can post in this discussion.',
-                    style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+                    style: TextStyle(color: context.cluvoTextSecondary, fontSize: 13)),
               ],
             ),
           )
@@ -479,7 +480,7 @@ class _EventDiscussionState extends State<EventDiscussion> {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
-                      color: Colors.grey[500],
+                      color: context.cluvoTextSecondary,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -489,7 +490,7 @@ class _EventDiscussionState extends State<EventDiscussion> {
                     decoration: BoxDecoration(
                       color: isOwn
                           ? const Color(0xFFC2185B).withValues(alpha: 0.1)
-                          : Colors.grey[100],
+                          : context.cluvoChipFill,
                       borderRadius: BorderRadius.circular(12).copyWith(
                         bottomLeft:
                             isOwn ? const Radius.circular(12) : Radius.zero,
@@ -515,7 +516,7 @@ class _EventDiscussionState extends State<EventDiscussion> {
                             'edited',
                             style: TextStyle(
                               fontSize: 10,
-                              color: Colors.grey[400],
+                              color: context.cluvoTextSecondary,
                               fontStyle: FontStyle.italic,
                             ),
                           ),
@@ -526,7 +527,7 @@ class _EventDiscussionState extends State<EventDiscussion> {
                   const SizedBox(height: 2),
                   Text(
                     _formatTime(msg.createdAt),
-                    style: TextStyle(fontSize: 10, color: Colors.grey[400]),
+                    style: TextStyle(fontSize: 10, color: context.cluvoTextSecondary),
                   ),
                 ],
               ),
@@ -540,8 +541,8 @@ class _EventDiscussionState extends State<EventDiscussion> {
   Widget _buildInputBar() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.grey[200]!)),
+        color: context.cluvoSurface,
+        border: Border(top: BorderSide(color: context.cluvoBorder)),
       ),
       padding: EdgeInsets.only(
         left: 12,
@@ -559,13 +560,13 @@ class _EventDiscussionState extends State<EventDiscussion> {
               textCapitalization: TextCapitalization.sentences,
               decoration: InputDecoration(
                 hintText: _editingId != null ? 'Edit message...' : 'Type a message...',
-                hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+                hintStyle: TextStyle(color: context.cluvoTextSecondary, fontSize: 14),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
                   borderSide: BorderSide.none,
                 ),
                 filled: true,
-                fillColor: Colors.grey[100],
+                fillColor: context.cluvoChipFill,
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               ),

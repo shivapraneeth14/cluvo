@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../theme.dart';
+import '../widgets/theme_toggle_button.dart';
 
 class DineScreen extends StatelessWidget {
   const DineScreen({super.key});
@@ -16,6 +18,7 @@ class DineScreen extends StatelessWidget {
             color: const Color(0xFFC2185B),
           ),
         ),
+        actions: const [ThemeToggleButton()],
       ),
       body: Center(
         child: Padding(
@@ -24,7 +27,7 @@ class DineScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(Icons.restaurant,
-                  size: 64, color: Colors.grey[300]),
+                  size: 64, color: context.cluvoTextSecondary),
               const SizedBox(height: 16),
               const Text(
                 'Dine',
@@ -33,7 +36,7 @@ class DineScreen extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 'Coming soon.',
-                style: TextStyle(color: Colors.grey[500], fontSize: 14),
+                style: TextStyle(color: context.cluvoTextSecondary, fontSize: 14),
               ),
             ],
           ),

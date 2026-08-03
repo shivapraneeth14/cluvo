@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +7,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/community_provider.dart';
 import '../providers/paginated_provider.dart';
 import '../widgets/notification_bell.dart';
+import '../widgets/theme_toggle_button.dart';
 import '../models/models.dart';
 
 class CommunitiesScreen extends ConsumerStatefulWidget {
@@ -67,7 +69,7 @@ class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
             color: const Color(0xFFC2185B),
           ),
         ),
-        actions: [const NotificationBell()],
+        actions: const [ThemeToggleButton(), NotificationBell()],
       ),
       body: state.loading
           ? _buildSkeleton()
@@ -106,7 +108,7 @@ class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
                     )
                   : null,
               filled: true,
-              fillColor: Colors.grey[100],
+              fillColor: context.cluvoChipFill,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
@@ -126,7 +128,7 @@ class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
                       Center(
                         child: Text(
                           _query.isEmpty ? 'No communities yet.' : 'No communities match "$_query".',
-                          style: const TextStyle(color: Colors.grey),
+                          style: TextStyle(color: context.cluvoTextSecondary),
                         ),
                       ),
                     ],
@@ -203,34 +205,34 @@ class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
                                               ),
                                               child: Text(
                                                 c.category!,
-                                                style: const TextStyle(
+                                                style: TextStyle(
                                                   fontSize: 11,
-                                                  color: Color(0xFFC2185B),
+                                                  color: context.cluvoPrimaryText,
                                                 ),
                                               ),
                                             ),
                                             const SizedBox(width: 8),
                                           ],
                                           Icon(Icons.people,
-                                              size: 14, color: Colors.grey[500]),
+                                              size: 14, color: context.cluvoTextSecondary),
                                           const SizedBox(width: 3),
                                           Text(
                                             '${c.memberCount}',
                                             style: TextStyle(
                                               fontSize: 12,
-                                              color: Colors.grey[600],
+                                              color: context.cluvoTextSecondary,
                                             ),
                                           ),
                                           if (c.country != null) ...[
                                             const Spacer(),
                                             Icon(Icons.location_on,
-                                                size: 14, color: Colors.grey[400]),
+                                                size: 14, color: context.cluvoTextSecondary),
                                             const SizedBox(width: 2),
                                             Text(
                                               '${c.city ?? ''}${c.city != null ? ', ' : ''}${c.country ?? ''}',
                                               style: TextStyle(
                                                 fontSize: 11,
-                                                color: Colors.grey[500],
+                                                color: context.cluvoTextSecondary,
                                               ),
                                             ),
                                           ],
@@ -259,11 +261,11 @@ class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, size: 40, color: Colors.grey),
+            Icon(Icons.error_outline, size: 40, color: context.cluvoTextSecondary),
             const SizedBox(height: 12),
             Text('Could not load communities.\n$errorMsg',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey[600])),
+                style: TextStyle(color: context.cluvoTextSecondary)),
             const SizedBox(height: 16),
             OutlinedButton.icon(
               onPressed: () => ref.read(communitiesProvider.notifier).refresh(),
@@ -299,16 +301,16 @@ class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
         children: [
           AspectRatio(
             aspectRatio: 16 / 9,
-            child: Container(color: Colors.grey[200]),
+            child: Container(color: context.cluvoChipFill),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(height: 14, width: 180, decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(4))),
+                Container(height: 14, width: 180, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4))),
                 const SizedBox(height: 8),
-                Container(height: 12, width: 240, decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(4))),
+                Container(height: 12, width: 240, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4))),
               ],
             ),
           ),

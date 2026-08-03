@@ -61,7 +61,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                 'Enter your email and we\'ll send you a magic link to reset your password.',
                 style: TextStyle(
                   fontSize: 15,
-                  color: Colors.grey[600],
+                  color: context.cluvoTextSecondary,
                 ),
               ),
               const SizedBox(height: 32),
@@ -71,14 +71,14 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                   padding: const EdgeInsets.all(12),
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFEF2F2),
+                    color: context.cluvoErrorFill,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFFECACA)),
+                    border: Border.all(color: context.cluvoErrorBorder),
                   ),
                   child: Text(
                     state.error!,
-                    style: const TextStyle(
-                      color: Color(0xFFDC2626),
+                    style: TextStyle(
+                      color: context.cluvoErrorText,
                       fontSize: 13,
                     ),
                   ),
@@ -89,20 +89,20 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                   padding: const EdgeInsets.all(12),
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF0FDF4),
+                    color: context.cluvoSuccessFill,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFBBF7D0)),
+                    border: Border.all(color: context.cluvoSuccessBorder),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.check_circle,
-                          color: CluvoTheme.success, size: 20),
+                      Icon(Icons.check_circle,
+                          color: context.cluvoSuccessText, size: 20),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           state.successMessage!,
-                          style: const TextStyle(
-                            color: Color(0xFF16A34A),
+                          style: TextStyle(
+                            color: context.cluvoSuccessText,
                             fontSize: 13,
                           ),
                         ),

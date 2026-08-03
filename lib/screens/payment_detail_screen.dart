@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme.dart';
 import '../supabase_client.dart';
 
 class PaymentDetailScreen extends StatefulWidget {
@@ -64,7 +65,7 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
       case 'reversed':
         return Colors.red;
       default:
-        return Colors.grey;
+        return context.cluvoTextSecondary;
     }
   }
 
@@ -144,7 +145,7 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
                 if (startDate != null) ...[
                   const SizedBox(height: 4),
                   Text(_formatDate(startDate),
-                      style: TextStyle(fontSize: 13, color: Colors.grey[500])),
+                      style: TextStyle(fontSize: 13, color: context.cluvoTextSecondary)),
                 ],
               ],
             ),
@@ -198,7 +199,7 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
           SizedBox(
             width: 100,
             child: Text(label,
-                style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                style: TextStyle(fontSize: 13, color: context.cluvoTextSecondary)),
           ),
           Expanded(
             child: Text(value,
@@ -217,7 +218,7 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
           SizedBox(
             width: 100,
             child: Text(label,
-                style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                style: TextStyle(fontSize: 13, color: context.cluvoTextSecondary)),
           ),
           Row(
             mainAxisSize: MainAxisSize.min,
@@ -257,7 +258,7 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
             width: 8,
             height: 8,
             decoration: BoxDecoration(
-              color: Colors.grey[400],
+              color: context.cluvoTextSecondary,
               shape: BoxShape.circle,
             ),
           ),
@@ -270,9 +271,9 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
                     style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
                 if (details != null && details['note'] != null)
                   Text(details['note'].toString(),
-                      style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                      style: TextStyle(fontSize: 12, color: context.cluvoTextSecondary)),
                 Text(_formatDate(entryDate),
-                    style: TextStyle(fontSize: 11, color: Colors.grey[400])),
+                    style: TextStyle(fontSize: 11, color: context.cluvoTextSecondary)),
               ],
             ),
           ),

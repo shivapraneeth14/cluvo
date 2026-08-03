@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../theme.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
@@ -435,11 +436,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.error_outline, size: 40, color: Colors.grey),
+                Icon(Icons.error_outline, size: 40, color: context.cluvoTextSecondary),
                 const SizedBox(height: 12),
                 Text(_error != null ? 'Error: $_error' : 'Not found',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey[600])),
+                    style: TextStyle(color: context.cluvoTextSecondary)),
                 const SizedBox(height: 16),
                 OutlinedButton.icon(
                   onPressed: () {
@@ -618,7 +619,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           ),
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: context.cluvoSurface,
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.08),
@@ -641,7 +642,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                           'Price',
                           style: TextStyle(
                             fontSize: 11,
-                            color: Colors.grey[500],
+                            color: context.cluvoTextSecondary,
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -707,7 +708,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         decoration: BoxDecoration(
           color: _registrationStatus == 'confirmed' || _registrationStatus == 'attended'
               ? Colors.green.withValues(alpha: 0.1)
-              : Colors.grey[200],
+              : context.cluvoChipFill,
           borderRadius: BorderRadius.circular(10),
         ),
         child: Text(
@@ -719,7 +720,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             fontWeight: FontWeight.w600,
             color: _registrationStatus == 'confirmed' || _registrationStatus == 'attended'
                 ? Colors.green
-                : Colors.grey,
+                : context.cluvoTextSecondary,
           ),
         ),
       );
@@ -780,15 +781,15 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.grey[200],
+          color: context.cluvoChipFill,
           borderRadius: BorderRadius.circular(10),
         ),
-        child: const Text(
+        child: Text(
           'Event Closed',
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: Colors.grey,
+            color: context.cluvoTextSecondary,
           ),
         ),
       );
@@ -798,15 +799,15 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.grey[200],
+          color: context.cluvoChipFill,
           borderRadius: BorderRadius.circular(10),
         ),
-        child: const Text(
+        child: Text(
           'Event Full',
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: Colors.grey,
+            color: context.cluvoTextSecondary,
           ),
         ),
       );
@@ -900,7 +901,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           SizedBox(
             width: 90,
             child: Text(label,
-                style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+                style: TextStyle(color: context.cluvoTextSecondary, fontSize: 13)),
           ),
           Expanded(
             child: Text(value, style: const TextStyle(fontSize: 13)),
@@ -914,19 +915,19 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     return ListView(
       physics: const NeverScrollableScrollPhysics(),
       children: [
-        Container(height: 220, color: Colors.grey[200]),
+        Container(height: 220, color: context.cluvoChipFill),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(height: 20, width: 200, decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(4))),
+              Container(height: 20, width: 200, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4))),
               const SizedBox(height: 12),
-              Container(height: 14, width: double.infinity, decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(4))),
+              Container(height: 14, width: double.infinity, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4))),
               const SizedBox(height: 20),
               ...List.generate(4, (_) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: Container(height: 14, width: double.infinity, decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(4))),
+                child: Container(height: 14, width: double.infinity, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4))),
               )),
             ],
           ),
@@ -957,7 +958,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w600,
-              color: selected ? Colors.black : Colors.grey[400],
+              color: selected ? context.cluvoTextPrimary : context.cluvoTextSecondary,
             ),
           ),
           const SizedBox(height: 4),
@@ -983,10 +984,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.lock_outline, size: 40, color: Colors.grey[300]),
+              Icon(Icons.lock_outline, size: 40, color: context.cluvoTextSecondary),
               const SizedBox(height: 12),
               Text('Sign in to join the discussion.',
-                  style: TextStyle(color: Colors.grey[500])),
+                  style: TextStyle(color: context.cluvoTextSecondary)),
             ],
           ),
         ),
@@ -1036,11 +1037,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.grey[50],
+            color: context.cluvoChipFill,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(description,
-              style: TextStyle(color: Colors.grey[600], fontSize: 14)),
+              style: TextStyle(color: context.cluvoTextSecondary, fontSize: 14)),
         ),
       ];
     }
@@ -1050,11 +1051,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.grey[50],
+            color: context.cluvoChipFill,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(sections[0].value,
-              style: TextStyle(color: Colors.grey[600], fontSize: 14)),
+              style: TextStyle(color: context.cluvoTextSecondary, fontSize: 14)),
         ),
       ];
     }
@@ -1065,12 +1066,12 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.grey[50],
+          color: context.cluvoChipFill,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
             sections[_descTabIndex.clamp(0, sections.length - 1)].value,
-            style: TextStyle(color: Colors.grey[600], fontSize: 14)),
+            style: TextStyle(color: context.cluvoTextSecondary, fontSize: 14)),
       ),
     ];
   }
@@ -1095,7 +1096,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: selected ? Colors.black : Colors.grey[400],
+              color: selected ? context.cluvoTextPrimary : context.cluvoTextSecondary,
                     ),
                   ),
                   const SizedBox(height: 4),
