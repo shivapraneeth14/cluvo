@@ -37,16 +37,32 @@ merge history — only from build-time configuration.
 ./scripts/run.sh test emulator-5554   # TEST on a specific device (emulator, chrome, macos, …)
 ./scripts/switch-supabase.sh test|prod   # prints the exact command
 ```
-The Android Studio run config (`main_dart.xml`, gitignored) is preconfigured
-with TEST defines; a fresh clone must use `scripts/run.sh` (or add the defines
-to the run config) — an unconfigured run shows the fail-fast error by design.
 
-**Android Studio staleness:** AS loads `.idea/runConfigurations/main_dart.xml`
-once at project open and caches it in memory — edits to the XML while the IDE
-is running are ignored. If Run ever launches without defines (fail-fast
-screen), fix it in the IDE: Run → Edit Configurations → "main.dart" → set
-"Additional run args" to the TEST defines → Apply (UI edits persist to both
-memory and disk). Never add defaults to source as a workaround.
+### VS Code (Run button)
+1. Install the **Dart** extension (`dart-code.dart-code`) — required for the
+   Flutter Run button in VS Code.
+2. `.vscode/launch.json` (committed) ships the **Cluvo (TEST)** configuration,
+   whose `toolArgs` pass the four TEST defines — Run (F5) launches with the
+   TEST environment and no terminal needed. Pick the device via the VS Code
+   device selector (bottom bar), or set `"deviceId"` in the config.
+3. Terminal alternative: `./scripts/run.sh test <device-id>`.
+
+### Android Studio (Run button)
+The Android Studio run config (`main_dart.xml`, gitignored) is preconfigured
+with TEST defines; a fresh clone must use `scripts/run.sh` or the VS Code
+config (or add the defines to the run config) — an unconfigured run shows the
+fail-fast error by design.
+
+**Required plugin:** Android Studio 2026.1.1 does **not** bundle the Flutter
+plugin — without it the Run button cannot launch the app at all. Install it
+once: Settings → Plugins → search "Flutter" → Install → restart AS.
+
+**Staleness:** AS loads `.idea/runConfigurations/main_dart.xml` once at
+project open and caches it in memory — edits to the XML while the IDE is
+running are ignored. If Run ever launches without defines (fail-fast screen),
+fix it in the IDE: Run → Edit Configurations → "main.dart" → set "Additional
+run args" to the TEST defines → Apply (UI edits persist to both memory and
+disk). Never add defaults to source as a workaround.
 
 Equivalent raw command (TEST):
 ```
