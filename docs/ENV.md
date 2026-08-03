@@ -62,10 +62,11 @@ flutter build appbundle --release \
 enabled for a release.)
 
 ### Production web (Vercel)
-Deployed automatically from `main`. Values are injected by Vercel project
-environment variables (`SUPABASE_URL`, `SUPABASE_ANON_KEY` — PROD values) at
-build time; the build command maps them to `--dart-define`. Preview
-deployments use TEST-scoped variables.
+Deployed automatically from `main`. Vercel project env vars (`SUPABASE_URL`,
+`SUPABASE_ANON_KEY`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_UPLOAD_PRESET` —
+PROD values for Production scope, TEST values for Preview scope) are read by
+the build entrypoint `scripts/vercel-build.sh` (referenced by the Vercel
+Build Command) and mapped to `--dart-define`. No values live in source.
 
 ## CI/CD
 
