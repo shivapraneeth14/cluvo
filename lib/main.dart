@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app.dart';
+import 'config.dart';
 import 'supabase_client.dart';
 import 'theme.dart';
 import 'services/deep_link_service.dart';
@@ -25,6 +26,13 @@ Future<void> main() async {
   PlatformDispatcher.instance.onError = (error, stack) {
     return true;
   };
+
+  try {
+    AppConfig.ensureConfigured();
+  } catch (e) {
+    runApp(_ErrorApp(message: e.toString()));
+    return;
+  }
 
   try {
     await Supabase.initialize(
