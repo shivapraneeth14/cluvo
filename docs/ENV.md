@@ -41,6 +41,13 @@ The Android Studio run config (`main_dart.xml`, gitignored) is preconfigured
 with TEST defines; a fresh clone must use `scripts/run.sh` (or add the defines
 to the run config) — an unconfigured run shows the fail-fast error by design.
 
+**Android Studio staleness:** AS loads `.idea/runConfigurations/main_dart.xml`
+once at project open and caches it in memory — edits to the XML while the IDE
+is running are ignored. If Run ever launches without defines (fail-fast
+screen), fix it in the IDE: Run → Edit Configurations → "main.dart" → set
+"Additional run args" to the TEST defines → Apply (UI edits persist to both
+memory and disk). Never add defaults to source as a workaround.
+
 Equivalent raw command (TEST):
 ```
 flutter run \
