@@ -9,6 +9,8 @@
 # No value is hardcoded here and none lives in source code.
 set -euo pipefail
 
+export PATH="/vercel/flutter/bin:$PATH"
+
 flutter pub get
 flutter build web --release \
   --dart-define=SUPABASE_URL="$SUPABASE_URL" \
