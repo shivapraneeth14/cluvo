@@ -10,6 +10,8 @@ import '../supabase_client.dart';
 import '../services/razorpay_web.dart';
 import '../widgets/community_photo_grid.dart';
 import '../widgets/event_discussion.dart';
+import '../widgets/wishlist_button.dart';
+import '../providers/wishlist_provider.dart';
 import '../utils.dart';
 
 class EventDetailScreen extends StatefulWidget {
@@ -512,6 +514,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                               subject: 'Check out $title on Cluvo');
                         },
                       ),
+                      WishlistButton(type: wishlistEvent, id: widget.id),
                       const SizedBox(width: 4),
                     ],
                   ),

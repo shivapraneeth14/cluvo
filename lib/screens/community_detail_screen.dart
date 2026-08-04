@@ -28,6 +28,8 @@ import '../theme.dart';
 import '../config.dart';
 import '../supabase_client.dart';
 import '../widgets/community_photo_grid.dart';
+import '../widgets/wishlist_button.dart';
+import '../providers/wishlist_provider.dart';
 import '../models/models.dart';
 
 const _months = [
@@ -251,6 +253,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
                         subject: 'Join ${c['name']} on Cluvo');
                   },
                 ),
+                WishlistButton(type: wishlistCommunity, id: widget.id),
                 const SizedBox(width: 4),
               ],
             ),
@@ -1183,7 +1186,7 @@ class _EventCard extends StatelessWidget {
                     ),
                     if (isPast)
                       Positioned(
-                        top: 8,
+                        top: 44,
                         right: 8,
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -1196,6 +1199,15 @@ class _EventCard extends StatelessWidget {
                                   fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white)),
                         ),
                       ),
+                    // Wishlist save toggle, top-right
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: WishlistButton(
+                        type: wishlistEvent,
+                        id: event.id,
+                      ),
+                    ),
                   ],
                 ),
               ),
