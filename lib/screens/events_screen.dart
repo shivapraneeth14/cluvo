@@ -9,6 +9,8 @@ import '../providers/paginated_provider.dart';
 import '../models/models.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/theme_toggle_button.dart';
+import '../widgets/wishlist_button.dart';
+import '../providers/wishlist_provider.dart';
 
 const _months = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -374,89 +376,101 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
                       final title = e.title;
 
                       return RepaintBoundary(
-                        child: Card(
-                          clipBehavior: Clip.antiAlias,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: InkWell(
-                            onTap: () => context.push('/events/${e.id}'),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  flex: 2,
-                                  child: imageUrl != null && imageUrl.isNotEmpty
-                                      ? CachedNetworkImage(
-                                          imageUrl: imageUrl,
-                                          fit: BoxFit.cover,
-                                          width: double.infinity,
-                                          placeholder: (_, _) => const SizedBox(),
-                                          errorWidget: (_, _, _) =>
-                                              _buildImageFallback(title),
-                                        )
-                                      : _buildImageFallback(title),
-                                ),
-                                Expanded(
-                                  flex: 2,
-                                  child: Padding(
-                                    padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          title,
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w600,
-                                            height: 1.2,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        if (communityName != null)
-                                          Text(
-                                            communityName,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontSize: 9,
-                                              color: context.cluvoTextSecondary,
-                                            ),
-                                          ),
-                                        const Spacer(),
-                                        Row(
+                        child: Stack(
+                          children: [
+                            Card(
+                              clipBehavior: Clip.antiAlias,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: InkWell(
+                                onTap: () => context.push('/events/${e.id}'),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      flex: 2,
+                                      child: imageUrl != null && imageUrl.isNotEmpty
+                                          ? CachedNetworkImage(
+                                              imageUrl: imageUrl,
+                                              fit: BoxFit.cover,
+                                              width: double.infinity,
+                                              placeholder: (_, _) => const SizedBox(),
+                                              errorWidget: (_, _, _) =>
+                                                  _buildImageFallback(title),
+                                            )
+                                          : _buildImageFallback(title),
+                                    ),
+                                    Expanded(
+                                      flex: 2,
+                                      child: Padding(
+                                        padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              _formatShortDate(e),
-                                              style: TextStyle(
-                                                fontSize: 8,
-                                                color: context.cluvoTextSecondary,
+                                              title,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                height: 1.2,
                                               ),
                                             ),
-                                            const Spacer(),
-                                            Text(
-                                              price > 0
-                                                  ? '₹${(price / 100).toStringAsFixed(0)}'
-                                                  : 'Free',
-                                              style: TextStyle(
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.w600,
-                                                color: price > 0
-                                                    ? context.cluvoPrimaryText
-                                                    : Colors.green,
+                                            const SizedBox(height: 2),
+                                            if (communityName != null)
+                                              Text(
+                                                communityName,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  fontSize: 9,
+                                                  color: context.cluvoTextSecondary,
+                                                ),
                                               ),
+                                            const Spacer(),
+                                            Row(
+                                              children: [
+                                                Text(
+                                                  _formatShortDate(e),
+                                                  style: TextStyle(
+                                                    fontSize: 8,
+                                                    color: context.cluvoTextSecondary,
+                                                  ),
+                                                ),
+                                                const Spacer(),
+                                                Text(
+                                                  price > 0
+                                                      ? '₹${(price / 100).toStringAsFixed(0)}'
+                                                      : 'Free',
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: price > 0
+                                                        ? context.cluvoPrimaryText
+                                                        : Colors.green,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ],
                                         ),
-                                      ],
+                                      ),
                                     ),
-                                  ),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ),
-                          ),
+                            Positioned(
+                              top: 6,
+                              right: 6,
+                              child: WishlistButton(
+                                type: wishlistEvent,
+                                id: e.id,
+                              ),
+                            ),
+                          ],
                         ),
                       );
                     },

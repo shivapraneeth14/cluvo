@@ -25,6 +25,7 @@ import 'screens/my_communities_screen.dart';
 import 'screens/my_registrations_screen.dart';
 import 'screens/my_payments_screen.dart';
 import 'screens/payment_detail_screen.dart';
+import 'screens/wishlist_screen.dart';
 
 class CluvoApp extends ConsumerStatefulWidget {
   const CluvoApp({super.key});
@@ -217,6 +218,10 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
                     GoRoute(
                       path: 'payments',
                       builder: (context, state) => const MyPaymentsScreen(),
+                    ),
+                    GoRoute(
+                      path: 'wishlist',
+                      builder: (context, state) => const WishlistScreen(),
                     ),
                   ],
                 ),

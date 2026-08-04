@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../providers/auth_provider.dart';
 import '../providers/profile_provider.dart';
 import '../widgets/notification_bell.dart';
@@ -142,6 +143,12 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 12),
                   ActivityCard(
+                    leading: _menuLeading(Icons.bookmark_outline),
+                    title: 'Wishlist',
+                    subtitle: 'Saved events & communities',
+                    onTap: () => context.push('/profile/wishlist'),
+                  ),
+                  ActivityCard(
                     leading: _menuLeading(Icons.groups_outlined),
                     title: 'Communities',
                     subtitle: "Communities you've joined",
@@ -158,6 +165,24 @@ class ProfileScreen extends ConsumerWidget {
                     title: 'Payments',
                     subtitle: 'Your payment history',
                     onTap: () => context.push('/profile/payments'),
+                  ),
+                  ActivityCard(
+                    leading: _menuLeading(Icons.mail_outline),
+                    title: 'Contact Us',
+                    subtitle: 'supp.cluvo@gmail.com',
+                    onTap: () async {
+                      final uri = Uri.parse(
+                          'mailto:supp.cluvo@gmail.com?subject=Cluvo%20Support');
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(uri,
+                            mode: LaunchMode.externalApplication);
+                      } else if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('No email app found on this device.')),
+                        );
+                      }
+                    },
                   ),
                   const SizedBox(height: 24),
                   SizedBox(

@@ -8,6 +8,8 @@ import '../providers/community_provider.dart';
 import '../providers/paginated_provider.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/theme_toggle_button.dart';
+import '../widgets/wishlist_button.dart';
+import '../providers/wishlist_provider.dart';
 import '../models/models.dart';
 
 class CommunitiesScreen extends ConsumerStatefulWidget {
@@ -267,37 +269,49 @@ class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Container(
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(20),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color:
-                                            Colors.black.withValues(alpha: 0.15),
-                                        blurRadius: 14,
-                                        offset: const Offset(0, 6),
+                                Stack(
+                                  children: [
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(20),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color:
+                                                Colors.black.withValues(alpha: 0.15),
+                                            blurRadius: 14,
+                                            offset: const Offset(0, 6),
+                                          ),
+                                        ],
                                       ),
-                                    ],
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(20),
-                                    child: AspectRatio(
-                                      aspectRatio: 16 / 9,
-                                      child:
-                                          bannerUrl != null &&
-                                                  bannerUrl.isNotEmpty
-                                              ? CachedNetworkImage(
-                                                  imageUrl: bannerUrl,
-                                                  fit: BoxFit.cover,
-                                                  width: double.infinity,
-                                                  errorWidget: (_, _, _) =>
-                                                      _buildBannerFallback(
-                                                        name,
-                                                      ),
-                                                )
-                                              : _buildBannerFallback(name),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(20),
+                                        child: AspectRatio(
+                                          aspectRatio: 16 / 9,
+                                          child:
+                                              bannerUrl != null &&
+                                                      bannerUrl.isNotEmpty
+                                                  ? CachedNetworkImage(
+                                                      imageUrl: bannerUrl,
+                                                      fit: BoxFit.cover,
+                                                      width: double.infinity,
+                                                      errorWidget: (_, _, _) =>
+                                                          _buildBannerFallback(
+                                                            name,
+                                                          ),
+                                                    )
+                                                  : _buildBannerFallback(name),
+                                        ),
+                                      ),
                                     ),
-                                  ),
+                                    Positioned(
+                                      top: 10,
+                                      right: 10,
+                                      child: WishlistButton(
+                                        type: wishlistCommunity,
+                                        id: c.id,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                                 Padding(
                                   padding: const EdgeInsets.fromLTRB(
