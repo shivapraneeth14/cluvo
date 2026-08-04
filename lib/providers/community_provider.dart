@@ -12,9 +12,17 @@ final communitiesProvider =
 
 class CommunitiesNotifier extends StateNotifier<PaginatedList<Community>> {
   int _page = 0;
+  String? _category;
 
   CommunitiesNotifier() : super(const PaginatedList(loading: true)) {
     fetchFirstPage();
+  }
+
+  void setCategory(String? category) {
+    if (_category == category) return;
+    _category = category;
+    _page = 0;
+    fetchFirstPage(showLoading: true);
   }
 
   Future<void> fetchFirstPage({bool showLoading = true}) async {
@@ -22,11 +30,15 @@ class CommunitiesNotifier extends StateNotifier<PaginatedList<Community>> {
       state = state.copyWith(loading: true, clearError: true);
     }
     try {
-      final res = await supabase
+      var query = supabase
           .from('communities')
           .select('*')
           .isFilter('deleted_at', null)
-          .eq('is_hidden', false)
+          .eq('is_hidden', false);
+      if (_category != null) {
+        query = query.eq('category', _category!);
+      }
+      final res = await query
           .order('created_at', ascending: false)
           .range(0, _pageSize - 1);
       _page = 0;
@@ -47,11 +59,15 @@ class CommunitiesNotifier extends StateNotifier<PaginatedList<Community>> {
     final from = (_page + 1) * _pageSize;
     final to = from + _pageSize - 1;
     try {
-      final res = await supabase
+      var query = supabase
           .from('communities')
           .select('*')
           .isFilter('deleted_at', null)
-          .eq('is_hidden', false)
+          .eq('is_hidden', false);
+      if (_category != null) {
+        query = query.eq('category', _category!);
+      }
+      final res = await query
           .order('created_at', ascending: false)
           .range(from, to);
       _page++;
@@ -72,6 +88,22 @@ class CommunitiesNotifier extends StateNotifier<PaginatedList<Community>> {
     await fetchFirstPage(showLoading: false);
   }
 }
+
+final categoriesProvider = FutureProvider<List<String>>((ref) async {
+  final res = await supabase
+      .from('communities')
+      .select('category')
+      .eq('is_hidden', false)
+      .isFilter('deleted_at', null)
+      .not('category', 'is', null);
+  final set = <String>{};
+  for (final row in (res as List)) {
+    final cat = (row as Map<String, dynamic>)['category'] as String?;
+    if (cat != null && cat.trim().isNotEmpty) set.add(cat.trim());
+  }
+  final list = set.toList()..sort();
+  return list;
+});
 
 final myCommunitiesProvider = FutureProvider<List<Community>>((ref) async {
   final session = supabase.auth.currentSession;

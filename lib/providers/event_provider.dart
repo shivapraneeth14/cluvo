@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../supabase_client.dart';
 import '../models/models.dart';
 import 'paginated_provider.dart';
@@ -11,9 +12,23 @@ final eventsProvider = StateNotifierProvider<EventsNotifier, PaginatedList<Event
 
 class EventsNotifier extends StateNotifier<PaginatedList<Event>> {
   int _page = 0;
+  bool _freeOnly = false;
+  String? _priceSort;
+  DateTime? _date;
 
   EventsNotifier() : super(const PaginatedList(loading: true)) {
     fetchFirstPage();
+  }
+
+  void setFilters({bool freeOnly = false, String? priceSort, DateTime? date}) {
+    if (_freeOnly == freeOnly && _priceSort == priceSort && _date == date) {
+      return;
+    }
+    _freeOnly = freeOnly;
+    _priceSort = priceSort;
+    _date = date;
+    _page = 0;
+    fetchFirstPage(showLoading: true);
   }
 
   Future<void> fetchFirstPage({bool showLoading = true}) async {
@@ -21,14 +36,7 @@ class EventsNotifier extends StateNotifier<PaginatedList<Event>> {
       state = state.copyWith(loading: true, clearError: true);
     }
     try {
-      final res = await supabase
-          .from('events')
-          .select('*, communities!inner(name)')
-          .isFilter('deleted_at', null)
-          .eq('communities.is_hidden', false)
-          .inFilter('status', ['published', 'completed'])
-          .order('start_date', ascending: false)
-          .range(0, _pageSize - 1);
+      final res = await _buildQuery().range(0, _pageSize - 1);
       _page = 0;
       final items = (res as List).cast<Map<String, dynamic>>().map((e) => Event.fromMap(e)).toList();
       state = PaginatedList(
@@ -47,14 +55,7 @@ class EventsNotifier extends StateNotifier<PaginatedList<Event>> {
     final from = (_page + 1) * _pageSize;
     final to = from + _pageSize - 1;
     try {
-      final res = await supabase
-          .from('events')
-          .select('*, communities!inner(name)')
-          .isFilter('deleted_at', null)
-          .eq('communities.is_hidden', false)
-          .inFilter('status', ['published', 'completed'])
-          .order('start_date', ascending: false)
-          .range(from, to);
+      final res = await _buildQuery().range(from, to);
       _page++;
       final newItems = (res as List).cast<Map<String, dynamic>>().map((e) => Event.fromMap(e)).toList();
       state = PaginatedList(
@@ -66,6 +67,29 @@ class EventsNotifier extends StateNotifier<PaginatedList<Event>> {
     } catch (e) {
       state = state.copyWith(loadingMore: false, error: e.toString());
     }
+  }
+
+  PostgrestTransformBuilder<PostgrestList> _buildQuery() {
+    var query = supabase
+        .from('events')
+        .select('*, communities!inner(name)')
+        .isFilter('deleted_at', null)
+        .eq('communities.is_hidden', false)
+        .inFilter('status', ['published', 'completed']);
+    if (_freeOnly) {
+      query = query.eq('price', 0);
+    }
+    if (_date != null) {
+      final dayStart = DateTime(_date!.year, _date!.month, _date!.day);
+      final dayEnd = dayStart.add(const Duration(days: 1));
+      query = query
+          .gte('start_date', dayStart.toIso8601String())
+          .lt('start_date', dayEnd.toIso8601String());
+    }
+    if (_priceSort != null) {
+      return query.order('price', ascending: _priceSort == 'low');
+    }
+    return query.order('start_date', ascending: false);
   }
 
   Future<void> refresh() async {

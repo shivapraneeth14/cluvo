@@ -32,8 +32,11 @@ class EventsScreen extends ConsumerStatefulWidget {
 class _EventsScreenState extends ConsumerState<EventsScreen> {
   String? _filter;
   DateTime? _pickedDate;
+  bool _freeOnly = false;
+  String? _priceSort;
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
+  final _filterKey = GlobalKey();
   Timer? _debounce;
   String _searchQuery = '';
 
@@ -73,13 +76,6 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
       }).toList();
     }
 
-    if (_pickedDate != null) {
-      final pickDay = DateTime(_pickedDate!.year, _pickedDate!.month, _pickedDate!.day);
-      return result.where((e) {
-        return DateTime(e.startDate.year, e.startDate.month, e.startDate.day).isAtSameMomentAs(pickDay);
-      }).toList();
-    }
-
     return result.where((e) {
       final cat = _categorize(e, today);
       if (_filter == null) return true;
@@ -95,12 +91,140 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
       firstDate: now.subtract(const Duration(days: 365)),
       lastDate: now.add(const Duration(days: 365)),
     );
-    if (picked != null) {
-      setState(() {
-        _pickedDate = picked;
-        _filter = null;
-      });
+    if (picked != null && mounted) {
+      setState(() => _pickedDate = picked);
+      _applyPriceFilters();
     }
+  }
+
+  bool get _panelActive => _freeOnly || _priceSort != null || _pickedDate != null;
+
+  void _applyPriceFilters() {
+    ref.read(eventsProvider.notifier).setFilters(
+          freeOnly: _freeOnly,
+          priceSort: _priceSort,
+          date: _pickedDate,
+        );
+  }
+
+  Future<void> _openFilterMenu() async {
+    final box = _filterKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        box.localToGlobal(Offset.zero, ancestor: overlay),
+        box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay),
+      ),
+      Offset.zero & overlay.size,
+    );
+
+    final dateLabel = _pickedDate != null
+        ? 'Date: ${_pickedDate!.day}/${_pickedDate!.month} ✓'
+        : null;
+
+    final result = await showMenu<String>(
+      context: context,
+      position: position,
+      elevation: 8,
+      color: context.cluvoSurface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      items: [
+        PopupMenuItem<String>(
+          value: 'all',
+          child: _filterMenuItem('All', 'all', !_panelActive),
+        ),
+        PopupMenuItem<String>(
+          value: 'free',
+          child: _filterMenuItem('Free', 'free', _freeOnly),
+        ),
+        PopupMenuItem<String>(
+          value: 'high',
+          child: _filterMenuItem('Price: High to Low', 'high', _priceSort == 'high'),
+        ),
+        PopupMenuItem<String>(
+          value: 'low',
+          child: _filterMenuItem('Price: Low to High', 'low', _priceSort == 'low'),
+        ),
+        PopupMenuItem<String>(
+          value: 'date',
+          child: _filterMenuItem(dateLabel ?? 'Pick Date', 'date', _pickedDate != null),
+        ),
+      ],
+    );
+    if (result == null || !mounted) return;
+
+    switch (result) {
+      case 'all':
+        setState(() {
+          _freeOnly = false;
+          _priceSort = null;
+          _pickedDate = null;
+        });
+        _applyPriceFilters();
+        break;
+      case 'free':
+        setState(() => _freeOnly = !_freeOnly);
+        _applyPriceFilters();
+        break;
+      case 'high':
+        setState(() => _priceSort = _priceSort == 'high' ? null : 'high');
+        _applyPriceFilters();
+        break;
+      case 'low':
+        setState(() => _priceSort = _priceSort == 'low' ? null : 'low');
+        _applyPriceFilters();
+        break;
+      case 'date':
+        await _pickDate();
+        break;
+    }
+  }
+
+  Widget _filterMenuItem(String label, String option, bool selected) {
+    return Row(
+      children: [
+        Icon(
+          selected
+              ? Icons.check
+              : option == 'date'
+                  ? Icons.calendar_today_outlined
+                  : option == 'free'
+                      ? Icons.volunteer_activism_outlined
+                      : option == 'all'
+                          ? Icons.filter_list
+                          : Icons.currency_rupee,
+          size: 16,
+          color: selected ? CluvoTheme.primary : context.cluvoTextSecondary,
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            label,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              color: context.cluvoTextPrimary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _emptyMessage() {
+    if (_pickedDate != null) {
+      return 'No events on this date.';
+    }
+    if (_freeOnly) {
+      return 'No free events.';
+    }
+    if (_searchQuery.isNotEmpty) {
+      return 'No events match "$_searchQuery".';
+    }
+    return 'No upcoming events.';
   }
 
   @override
@@ -138,34 +262,56 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (v) {
-                _debounce?.cancel();
-                _debounce = Timer(const Duration(milliseconds: 300), () {
-                  setState(() => _searchQuery = v.trim());
-                });
-              },
-              decoration: InputDecoration(
-                hintText: 'Search events...',
-                prefixIcon: const Icon(Icons.search, size: 20),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, size: 18),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() => _searchQuery = '');
-                        },
-                      )
-                    : null,
-                filled: true,
-                fillColor: context.cluvoChipFill,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (v) {
+                      _debounce?.cancel();
+                      _debounce = Timer(const Duration(milliseconds: 300), () {
+                        setState(() => _searchQuery = v.trim());
+                      });
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Search events...',
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 18),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _searchQuery = '');
+                              },
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: context.cluvoChipFill,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+                    ),
+                  ),
                 ),
-                contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
-              ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  key: _filterKey,
+                  child: IconButton(
+                    onPressed: _openFilterMenu,
+                    icon: const Icon(Icons.filter_list),
+                    style: IconButton.styleFrom(
+                      backgroundColor: _panelActive
+                          ? CluvoTheme.primary.withValues(alpha: 0.12)
+                          : context.cluvoChipFill,
+                      foregroundColor: _panelActive
+                          ? CluvoTheme.primary
+                          : context.cluvoTextSecondary,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           Padding(
@@ -180,8 +326,6 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
                   _buildChip('Today', 'today'),
                   const SizedBox(width: 6),
                   _buildChip('Upcoming', 'upcoming'),
-                  const SizedBox(width: 6),
-                  _buildDateChip(),
                 ],
               ),
             ),
@@ -194,11 +338,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
                       const SizedBox(height: 200),
                       Center(
                         child: Text(
-                          _pickedDate != null
-                              ? 'No events on this date.'
-                              : _searchQuery.isNotEmpty
-                                  ? 'No events match "$_searchQuery".'
-                                  : 'No upcoming events.',
+                          _emptyMessage(),
                           style: TextStyle(color: context.cluvoTextSecondary),
                         ),
                       ),
@@ -378,48 +518,6 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
             fontWeight: FontWeight.w500,
             color: selected ? Colors.white : context.cluvoTextPrimary,
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDateChip() {
-    final selected = _pickedDate != null;
-    return GestureDetector(
-      onTap: _pickDate,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected ? const Color(0xFFC2185B) : context.cluvoChipFill,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.calendar_today,
-              size: 13,
-              color: selected ? Colors.white : context.cluvoTextSecondary,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              selected
-                  ? '${_pickedDate!.day}/${_pickedDate!.month}'
-                  : 'Pick Date',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: selected ? Colors.white : context.cluvoTextPrimary,
-              ),
-            ),
-            if (selected) ...[
-              const SizedBox(width: 4),
-              GestureDetector(
-                onTap: () => setState(() => _pickedDate = null),
-                child: Icon(Icons.close, size: 14, color: Colors.white),
-              ),
-            ],
-          ],
         ),
       ),
     );

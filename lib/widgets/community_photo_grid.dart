@@ -1,96 +1,98 @@
+// ============================================================================
+// NEW — CommunityPhotoGrid
+// A two-column photo/video grid used ONLY on the redesigned community detail
+// page's "Photos" tab. This is intentionally a SEPARATE widget from
+// widgets/media_gallery.dart (the original horizontal filmstrip), since that
+// widget may be reused elsewhere in the app (e.g. an event detail screen) —
+// redesigning it in place could change behavior on other screens that were
+// never part of this redesign request. Full-screen image/video viewing reuses
+// the same simple pattern as the original for consistency.
+// ============================================================================
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:video_player/video_player.dart';
 import '../theme.dart';
 
-class MediaGallery extends StatelessWidget {
+class CommunityPhotoGrid extends StatelessWidget {
   final List<Map<String, dynamic>> media;
-  final String label;
-
-  const MediaGallery({super.key, required this.media, this.label = 'Photos & Videos'});
+  const CommunityPhotoGrid({super.key, required this.media});
 
   @override
   Widget build(BuildContext context) {
-    if (media.isEmpty) return const SizedBox.shrink();
-
-    final videos = media.where((m) => m['type'] == 'video').toList();
-    final labelText = videos.isEmpty ? 'Photos' : label;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          labelText,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 10),
-        SizedBox(
-          height: 110,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: media.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 8),
-            itemBuilder: (context, index) {
-              final item = media[index];
-              final url = item['url'] as String;
-              final isVideo = item['type'] == 'video';
-              final thumb = isVideo
-                  ? (item['thumbnail_url'] as String?)
-                  : url;
-
-              return GestureDetector(
-                onTap: () => _openMedia(context, item),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: SizedBox(
-                    width: 120,
-                    height: 110,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        if (thumb != null && thumb.isNotEmpty)
-                          CachedNetworkImage(
-                            imageUrl: thumb,
-                            fit: BoxFit.cover,
-                            width: 120,
-                            height: 110,
-                            placeholder: (_, _) => _placeholder(isVideo),
-                            errorWidget: (_, _, _) => _placeholder(isVideo),
-                          )
-                        else
-                          _placeholder(isVideo),
-                        if (isVideo)
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.black26,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Center(
-                              child: Icon(Icons.play_circle_fill,
-                                  color: Colors.white, size: 36),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
+    if (media.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.photo_library_outlined,
+                  size: 36, color: context.cluvoTextSecondary),
+              const SizedBox(height: 10),
+              Text('No photos yet.',
+                  style: TextStyle(color: context.cluvoTextSecondary, fontSize: 13.5)),
+            ],
           ),
         ),
-        const SizedBox(height: 16),
-      ],
+      );
+    }
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: media.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 1.0,
+      ),
+      itemBuilder: (context, index) {
+        final item = media[index];
+        final url = item['url'] as String;
+        final isVideo = item['type'] == 'video';
+        final thumb = isVideo ? (item['thumbnail_url'] as String?) : url;
+
+        return GestureDetector(
+          onTap: () => _openMedia(context, item),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (thumb != null && thumb.isNotEmpty)
+                  CachedNetworkImage(
+                    imageUrl: thumb,
+                    fit: BoxFit.cover,
+                    placeholder: (_, _) => _placeholder(context, isVideo),
+                    errorWidget: (_, _, _) => _placeholder(context, isVideo),
+                  )
+                else
+                  _placeholder(context, isVideo),
+                if (isVideo)
+                  Container(
+                    color: Colors.black26,
+                    child: const Center(
+                      child: Icon(Icons.play_circle_fill, color: Colors.white, size: 32),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _placeholder(bool isVideo) {
+  Widget _placeholder(BuildContext context, bool isVideo) {
     return Container(
       color: isVideo ? Colors.black87 : CluvoTheme.primary.withValues(alpha: 0.1),
       child: Icon(
         isVideo ? Icons.play_circle_fill : Icons.broken_image,
         color: isVideo ? Colors.white : CluvoTheme.primary,
-        size: 28,
+        size: 24,
       ),
     );
   }
@@ -98,52 +100,36 @@ class MediaGallery extends StatelessWidget {
   void _openMedia(BuildContext context, Map<String, dynamic> item) {
     final url = item['url'] as String;
     final isVideo = item['type'] == 'video';
-
     if (isVideo) {
-      _openVideo(context, url);
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => _VideoViewerScreen(url: url)),
+      );
     } else {
-      _openImage(context, url);
-    }
-  }
-
-  void _openImage(BuildContext context, String url) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => Scaffold(
-          backgroundColor: Colors.black,
-          appBar: AppBar(
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => Scaffold(
             backgroundColor: Colors.black,
-            foregroundColor: Colors.white,
-            elevation: 0,
-          ),
-          body: Center(
-            child: InteractiveViewer(
-              child: CachedNetworkImage(
-                imageUrl: url,
-                fit: BoxFit.contain,
-                placeholder: (_, _) => const Center(child: CircularProgressIndicator()),
-                errorWidget: (_, _, _) =>
-                    const Center(child: Icon(Icons.broken_image, color: Colors.white, size: 48)),
+            appBar: AppBar(backgroundColor: Colors.black, foregroundColor: Colors.white, elevation: 0),
+            body: Center(
+              child: InteractiveViewer(
+                child: CachedNetworkImage(
+                  imageUrl: url,
+                  fit: BoxFit.contain,
+                  placeholder: (_, _) => const Center(child: CircularProgressIndicator()),
+                  errorWidget: (_, _, _) =>
+                      const Center(child: Icon(Icons.broken_image, color: Colors.white, size: 48)),
+                ),
               ),
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  void _openVideo(BuildContext context, String url) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => _VideoViewerScreen(url: url),
-      ),
-    );
+      );
+    }
   }
 }
 
 class _VideoViewerScreen extends StatefulWidget {
   final String url;
-
   const _VideoViewerScreen({required this.url});
 
   @override
@@ -171,12 +157,10 @@ class _VideoViewerScreenState extends State<_VideoViewerScreen> {
       controller.play();
     }).catchError((Object error) {
       if (!mounted) return;
-      debugPrint('VideoPlayer initialize failed for ${widget.url}: $error');
       setState(() {
         _failed = true;
-        _errorMessage = error is PlatformException
-            ? error.message ?? error.toString()
-            : error.toString();
+        _errorMessage =
+            error is PlatformException ? error.message ?? error.toString() : error.toString();
       });
     });
   }
@@ -210,11 +194,7 @@ class _VideoViewerScreenState extends State<_VideoViewerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
+      appBar: AppBar(backgroundColor: Colors.black, foregroundColor: Colors.white, elevation: 0),
       body: Center(
         child: _failed
             ? Padding(
@@ -224,17 +204,13 @@ class _VideoViewerScreenState extends State<_VideoViewerScreen> {
                   children: [
                     Icon(Icons.error_outline, size: 48, color: context.cluvoTextSecondary),
                     const SizedBox(height: 12),
-                    const Text(
-                      'Could not play this video.',
-                      style: TextStyle(color: Colors.white, fontSize: 15),
-                    ),
+                    const Text('Could not play this video.',
+                        style: TextStyle(color: Colors.white, fontSize: 15)),
                     if (_errorMessage != null) ...[
                       const SizedBox(height: 8),
-                      Text(
-                        _errorMessage!,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: context.cluvoTextSecondary, fontSize: 12),
-                      ),
+                      Text(_errorMessage!,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: context.cluvoTextSecondary, fontSize: 12)),
                     ],
                     const SizedBox(height: 16),
                     OutlinedButton.icon(
@@ -259,11 +235,9 @@ class _VideoViewerScreenState extends State<_VideoViewerScreen> {
                         alignment: Alignment.center,
                         children: [
                           VideoPlayer(_controller!),
-                          if (_controller!.value.isBuffering)
-                            const CircularProgressIndicator(),
+                          if (_controller!.value.isBuffering) const CircularProgressIndicator(),
                           if (!_controller!.value.isPlaying && !_controller!.value.isBuffering)
-                            const Icon(Icons.play_circle_fill,
-                                color: Colors.white, size: 72),
+                            const Icon(Icons.play_circle_fill, color: Colors.white, size: 72),
                           Positioned(
                             left: 0,
                             right: 0,
