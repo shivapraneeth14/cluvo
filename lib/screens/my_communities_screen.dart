@@ -1,9 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../theme.dart';
 import '../providers/community_provider.dart';
 import '../widgets/list_page_scaffold.dart';
+import '../models/community.dart';
+
+Widget _letterAvatar(Community c) {
+  return Center(
+    child: Text(
+      c.name.isNotEmpty ? c.name[0].toUpperCase() : 'C',
+      style: const TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+        color: CluvoTheme.primary,
+      ),
+    ),
+  );
+}
 
 class MyCommunitiesScreen extends ConsumerWidget {
   const MyCommunitiesScreen({super.key});
@@ -37,16 +52,15 @@ class MyCommunitiesScreen extends ConsumerWidget {
                       color: CluvoTheme.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Center(
-                      child: Text(
-                        c.name.isNotEmpty ? c.name[0].toUpperCase() : 'C',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: CluvoTheme.primary,
-                        ),
-                      ),
-                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: c.communityAvatarUrl != null &&
+                            c.communityAvatarUrl!.isNotEmpty
+                        ? CachedNetworkImage(
+                            imageUrl: c.communityAvatarUrl!,
+                            fit: BoxFit.cover,
+                            errorWidget: (_, _, _) => _letterAvatar(c),
+                          )
+                        : _letterAvatar(c),
                   ),
                   title: c.name,
                   subtitle: '${c.city ?? ''}${c.city != null && c.country != null ? ', ' : ''}${c.country ?? ''}',

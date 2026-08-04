@@ -167,6 +167,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final available = response.data['available'] as bool;
       state = state.copyWith(checkingUsername: false, usernameAvailable: available);
       return available;
+    } on FunctionException {
+      state = state.copyWith(
+        checkingUsername: false,
+        usernameAvailable: false,
+        error: 'Could not check username right now. Please try again.',
+      );
+      return false;
     } catch (_) {
       state = state.copyWith(
         checkingUsername: false,
@@ -210,6 +217,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
           error: response.data['error'] ?? 'Something went wrong. Try again.',
         );
       }
+    } on FunctionException catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: _functionErrorMessage(e),
+      );
     } on TimeoutException {
       state = state.copyWith(isLoading: false, error: 'Request timed out. Try again.');
     } catch (_) {
@@ -290,6 +302,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
       // Network error — still clear local state
     }
     state = state.copyWith(isLoading: false, clearSession: true);
+  }
+
+  String _functionErrorMessage(FunctionException e) {
+    final details = e.details;
+    final message = details is Map ? details['error'] : null;
+    if (message is String && message.isNotEmpty) return message;
+    if (e.status == 429) {
+      return 'Too many requests. Please wait a few minutes and try again.';
+    }
+    return 'Something went wrong. Please try again.';
   }
 
   String _friendlyAuthError(String message) {

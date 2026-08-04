@@ -146,7 +146,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       final session = supabase.auth.currentSession;
       final eventFuture = supabase
           .from('events')
-          .select('*, communities!inner(name)')
+          .select('*, communities!inner(name, community_avatar_url)')
           .eq('id', widget.id)
           .eq('communities.is_hidden', false)
           .inFilter('status', ['published', 'completed', 'cancelled'])
@@ -478,6 +478,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final closed = start != null && DateTime.parse(start).isBefore(DateTime.now());
     final communityName =
         (e['communities'] as Map<String, dynamic>?)?['name'] as String?;
+    final communityAvatarUrl =
+        (e['communities'] as Map<String, dynamic>?)?['community_avatar_url']
+            as String?;
 
     return Scaffold(
       backgroundColor: context.cluvoBackground,
@@ -524,7 +527,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
                   // ── Content sheet ──────────────────────────────────────
                   SliverToBoxAdapter(
-                    child: _buildSheet(e, communityName, price),
+                    child: _buildSheet(
+                        e, communityName, communityAvatarUrl, price),
                   ),
 
                   // ── Section body ───────────────────────────────────────
@@ -707,7 +711,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
   // ── CONTENT SHEET — chips, description, segmented control ───────────────
 
-  Widget _buildSheet(Map<String, dynamic> e, String? communityName, num price) {
+  Widget _buildSheet(
+      Map<String, dynamic> e, String? communityName, String? communityAvatarUrl, num price) {
     final location = e['location'] as String?;
     final start = e['start_date'] as String?;
     final capacity = e['capacity'] as int?;
@@ -718,7 +723,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         _infoChip(Icons.calendar_today_outlined, _formatDateTime(e, 'start_date')),
       if (location != null && location.isNotEmpty)
         _infoChip(Icons.location_on_outlined, location),
-      if (communityName != null) _infoChip(Icons.groups_outlined, communityName),
+      if (communityName != null)
+        _communityChip(communityName, communityAvatarUrl),
       _priceChip(price),
       if (capacity != null) _infoChip(Icons.people_outline, '$booked/$capacity spots'),
     ];
@@ -773,6 +779,54 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             constraints: const BoxConstraints(maxWidth: 170),
             child: Text(
               value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: context.cluvoTextPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _communityChip(String name, String? avatarUrl) {
+    final showAvatar = avatarUrl != null && avatarUrl.isNotEmpty;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: context.cluvoChipFill,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (showAvatar)
+            ClipOval(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CachedNetworkImage(
+                  imageUrl: avatarUrl,
+                  fit: BoxFit.cover,
+                  errorWidget: (_, _, _) => Icon(
+                    Icons.groups_outlined,
+                    size: 15,
+                    color: context.cluvoPrimaryText,
+                  ),
+                ),
+              ),
+            )
+          else
+            Icon(Icons.groups_outlined, size: 15, color: context.cluvoPrimaryText),
+          const SizedBox(width: 6),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 170),
+            child: Text(
+              name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
