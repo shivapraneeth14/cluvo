@@ -20,8 +20,10 @@ class CommunitiesScreen extends ConsumerStatefulWidget {
 class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
+  final _filterKey = GlobalKey();
   Timer? _debounce;
   String _query = '';
+  String? _selectedCategory;
 
   @override
   void initState() {
@@ -52,6 +54,83 @@ class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
           || (c.country ?? '').toLowerCase().contains(q)
           || (c.category ?? '').toLowerCase().contains(q);
     }).toList();
+  }
+
+  Future<void> _openFilterMenu() async {
+    final box = _filterKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        box.localToGlobal(Offset.zero, ancestor: overlay),
+        box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay),
+      ),
+      Offset.zero & overlay.size,
+    );
+
+    List<String> categories;
+    try {
+      categories = await ref.read(categoriesProvider.future);
+    } catch (_) {
+      categories = const [];
+    }
+    if (!mounted) return;
+
+    final result = await showMenu<String>(
+      context: context,
+      position: position,
+      elevation: 8,
+      color: context.cluvoSurface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      items: [
+        PopupMenuItem<String>(
+          value: '',
+          child: _filterMenuItem('All', _selectedCategory == null),
+        ),
+        ...categories.map(
+          (c) => PopupMenuItem<String>(
+            value: c,
+            child: _filterMenuItem(c, _selectedCategory == c),
+          ),
+        ),
+      ],
+    );
+    if (result == null || !mounted) return;
+    final next = result.isEmpty ? null : result;
+    if (next == _selectedCategory) return;
+    setState(() => _selectedCategory = next);
+    ref.read(communitiesProvider.notifier).setCategory(next);
+  }
+
+  Widget _filterMenuItem(String label, bool selected) {
+    return Row(
+      children: [
+        Icon(
+          selected ? Icons.check : Icons.category_outlined,
+          size: 16,
+          color: selected ? CluvoTheme.primary : context.cluvoTextSecondary,
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            label,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              color: context.cluvoTextPrimary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _emptyMessage() {
+    if (_query.isEmpty && _selectedCategory == null) return 'No communities yet.';
+    if (_query.isEmpty) return 'No communities in "$_selectedCategory".';
+    return 'No communities match "$_query".';
   }
 
   @override
@@ -87,52 +166,77 @@ class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-          child: TextField(
-            controller: _searchController,
-            onChanged: (v) {
-              _debounce?.cancel();
-              _debounce = Timer(const Duration(milliseconds: 300), () {
-                setState(() => _query = v.trim());
-              });
-            },
-            decoration: InputDecoration(
-              hintText: 'Search communities...',
-              prefixIcon: const Icon(Icons.search, size: 20),
-              suffixIcon: _searchController.text.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear, size: 18),
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() => _query = '');
-                      },
-                    )
-                  : null,
-              filled: true,
-              fillColor: context.cluvoChipFill,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (v) {
+                    _debounce?.cancel();
+                    _debounce = Timer(const Duration(milliseconds: 300), () {
+                      setState(() => _query = v.trim());
+                    });
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'Search communities...',
+                    prefixIcon: const Icon(Icons.search, size: 20),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 18),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _query = '');
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: context.cluvoChipFill,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+                  ),
+                ),
               ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
-            ),
+              const SizedBox(width: 8),
+              SizedBox(
+                key: _filterKey,
+                child: IconButton(
+                  onPressed: _openFilterMenu,
+                  icon: const Icon(Icons.filter_list),
+                  style: IconButton.styleFrom(
+                    backgroundColor: _selectedCategory != null
+                        ? CluvoTheme.primary.withValues(alpha: 0.12)
+                        : context.cluvoChipFill,
+                    foregroundColor: _selectedCategory != null
+                        ? CluvoTheme.primary
+                        : context.cluvoTextSecondary,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         Expanded(
           child: RefreshIndicator(
-            onRefresh: notifier.refresh,
-            child: filtered.isEmpty
-                ? ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: [
-                      const SizedBox(height: 200),
-                      Center(
-                        child: Text(
-                          _query.isEmpty ? 'No communities yet.' : 'No communities match "$_query".',
-                          style: TextStyle(color: context.cluvoTextSecondary),
+              onRefresh: () async {
+                ref.invalidate(categoriesProvider);
+                await notifier.refresh();
+              },
+              child: filtered.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        const SizedBox(height: 200),
+                        Center(
+                          child: Text(
+                            _emptyMessage(),
+                            style: TextStyle(color: context.cluvoTextSecondary),
+                          ),
                         ),
-                      ),
-                    ],
-                  )
+                      ],
+                    )
                 : ListView.builder(
                     controller: _scrollController,
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -155,33 +259,52 @@ class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
                       final name = c.name;
 
                       return RepaintBoundary(
-                        child: Card(
-                          margin: const EdgeInsets.only(bottom: 16),
-                          clipBehavior: Clip.antiAlias,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
                           child: InkWell(
                             onTap: () => context.push('/communities/${c.id}'),
+                            borderRadius: BorderRadius.circular(20),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                AspectRatio(
-                                  aspectRatio: 16 / 9,
-                                  child: bannerUrl != null && bannerUrl.isNotEmpty
-                                      ? CachedNetworkImage(
-                                          imageUrl: bannerUrl,
-                                          fit: BoxFit.cover,
-                                          width: double.infinity,
-                                          errorWidget: (_, _, _) =>
-                                              _buildBannerFallback(name),
-                                        )
-                                      : _buildBannerFallback(name),
+                                Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(20),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color:
+                                            Colors.black.withValues(alpha: 0.15),
+                                        blurRadius: 14,
+                                        offset: const Offset(0, 6),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(20),
+                                    child: AspectRatio(
+                                      aspectRatio: 16 / 9,
+                                      child:
+                                          bannerUrl != null &&
+                                                  bannerUrl.isNotEmpty
+                                              ? CachedNetworkImage(
+                                                  imageUrl: bannerUrl,
+                                                  fit: BoxFit.cover,
+                                                  width: double.infinity,
+                                                  errorWidget: (_, _, _) =>
+                                                      _buildBannerFallback(
+                                                        name,
+                                                      ),
+                                                )
+                                              : _buildBannerFallback(name),
+                                    ),
+                                  ),
                                 ),
                                 Padding(
-                                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+                                  padding: const EdgeInsets.fromLTRB(
+                                      12, 12, 12, 0),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         name,
@@ -293,18 +416,32 @@ class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
   }
 
   Widget _buildSkeletonCard() {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AspectRatio(
-            aspectRatio: 16 / 9,
-            child: Container(color: context.cluvoChipFill),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: Container(color: context.cluvoChipFill),
+              ),
+            ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

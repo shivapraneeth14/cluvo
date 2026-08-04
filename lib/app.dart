@@ -21,6 +21,9 @@ import 'screens/dine_screen.dart';
 import 'screens/edit_profile_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/my_communities_screen.dart';
+import 'screens/my_registrations_screen.dart';
+import 'screens/my_payments_screen.dart';
 import 'screens/payment_detail_screen.dart';
 
 class CluvoApp extends ConsumerStatefulWidget {
@@ -202,6 +205,20 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
                 GoRoute(
                   path: '/profile',
                   builder: (context, state) => const ProfileScreen(),
+                  routes: [
+                    GoRoute(
+                      path: 'communities',
+                      builder: (context, state) => const MyCommunitiesScreen(),
+                    ),
+                    GoRoute(
+                      path: 'registrations',
+                      builder: (context, state) => const MyRegistrationsScreen(),
+                    ),
+                    GoRoute(
+                      path: 'payments',
+                      builder: (context, state) => const MyPaymentsScreen(),
+                    ),
+                  ],
                 ),
               ],
             ),

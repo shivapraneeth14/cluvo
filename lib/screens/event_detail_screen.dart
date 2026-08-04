@@ -8,7 +8,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../config.dart';
 import '../supabase_client.dart';
 import '../services/razorpay_web.dart';
-import '../widgets/media_gallery.dart';
+import '../widgets/community_photo_grid.dart';
 import '../widgets/event_discussion.dart';
 import '../utils.dart';
 
@@ -466,7 +466,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     }
 
     final e = _event!;
-    final imageUrl = e['image_url'] as String?;
     final title = e['title'] as String;
     final price = (e['price'] as num?) ?? 0;
     final capacity = e['capacity'] as int?;
@@ -479,26 +478,23 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         (e['communities'] as Map<String, dynamic>?)?['name'] as String?;
 
     return Scaffold(
+      backgroundColor: context.cluvoBackground,
       body: Column(
         children: [
           Expanded(
             child: RefreshIndicator(
               onRefresh: _load,
               child: CustomScrollView(
-              slivers: [
-                SliverAppBar(
-                  expandedHeight: 220,
-                  pinned: false,
-                  stretch: true,
-                  backgroundColor: const Color(0xFFC2185B),
-                  leading: Container(
-                    margin: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.3),
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                slivers: [
+                  // ── App bar: back + share ─────────────────────────────
+                  SliverAppBar(
+                    pinned: true,
+                    elevation: 0,
+                    scrolledUnderElevation: 0,
+                    backgroundColor: context.cluvoBackground,
+                    foregroundColor: context.cluvoTextPrimary,
+                    leading: IconButton(
+                      icon: const Icon(Icons.arrow_back),
                       onPressed: () {
                         if (context.canPop()) {
                           context.pop();
@@ -507,164 +503,356 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                         }
                       },
                     ),
+                    actions: [
+                      IconButton(
+                        icon: const Icon(Icons.share_outlined),
+                        onPressed: () {
+                          final url = buildShareUrl('events', widget.id);
+                          Share.share('Check out $title on Cluvo!\n$url',
+                              subject: 'Check out $title on Cluvo');
+                        },
+                      ),
+                      const SizedBox(width: 4),
+                    ],
                   ),
-                  flexibleSpace: FlexibleSpaceBar(
-                    background: imageUrl != null && imageUrl.isNotEmpty
-                        ? CachedNetworkImage(
-                            imageUrl: imageUrl,
-                            fit: BoxFit.cover,
-                            width: double.infinity,
-                            errorWidget: (_, _, _) =>
-                                _buildBannerFallback(title),
+
+                  // ── Hero: floating rounded image, title set into photo ─
+                  SliverToBoxAdapter(child: _buildHero(e)),
+
+                  // ── Content sheet ──────────────────────────────────────
+                  SliverToBoxAdapter(
+                    child: _buildSheet(e, communityName, price),
+                  ),
+
+                  // ── Section body ───────────────────────────────────────
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+                    sliver: _selectedSection == 'photos'
+                        ? SliverToBoxAdapter(
+                            child: CommunityPhotoGrid(media: _media),
                           )
-                        : _buildBannerFallback(title),
+                        : SliverToBoxAdapter(child: _buildDiscussionSection()),
                   ),
-                ),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                title,
-                                style: const TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                ],
+              ),
+            ),
+          ),
+
+          // ── Floating bottom bar: price + action ─────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Container(
+              decoration: BoxDecoration(
+                color: context.cluvoSurface,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                  child: Row(
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Price',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: context.cluvoTextSecondary,
                             ),
-                            SizedBox(
-                              height: 32,
-                              child: IconButton(
-                                icon: const Icon(Icons.share, size: 18),
-                                style: IconButton.styleFrom(
-                                  foregroundColor: const Color(0xFFC2185B),
-                                  backgroundColor: const Color(0xFFC2185B)
-                                      .withValues(alpha: 0.1),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                                onPressed: () {
-                                  final url =
-                                      buildShareUrl('events', widget.id);
-                                  Share.share(
-                                      'Check out $title on Cluvo!\n$url',
-                                      subject: 'Check out $title on Cluvo');
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (e['description'] != null) ...[
-                          const SizedBox(height: 8),
-                          ..._buildDescSection(e['description'] as String),
-                        ],
-                        const SizedBox(height: 12),
-                        if (e['description'] == null || _parseDescSections(e['description']).isEmpty || _descTabIndex == 0) ...[
-                          if (communityName != null)
-                            _detailRow('Community', communityName),
-                          if (e['start_date'] != null)
-                            _detailRow('Start',
-                                _formatDateTime(_event!, 'start_date')),
-                          if (e['end_date'] != null)
-                            _detailRow('End',
-                                _formatDateTime(_event!, 'end_date')),
-                          _detailRow(
-                              'Location', e['location'] as String? ?? '—'),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: price > 0
-                                  ? const Color(0xFFC2185B).withValues(alpha: 0.1)
-                                  : Colors.green.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              price > 0
-                                  ? '₹${(price / 100).toStringAsFixed(0)}'
-                                  : 'Free Event',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: price > 0
-                                    ? const Color(0xFFC2185B)
-                                    : Colors.green,
-                              ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            price > 0
+                                ? '₹${(price / 100).toStringAsFixed(0)}'
+                                : 'Free',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ],
-                        const SizedBox(height: 16),
-                        _buildTabBar(),
-                        const SizedBox(height: 12),
-                        if (_selectedSection == 'discussion')
-                          _buildDiscussionSection()
-                        else
-                          MediaGallery(
-                            media: _media,
-                            label: 'Event Photos & Videos',
-                          ),
-                      ],
-                    ),
+                      ),
+                      const Spacer(),
+                      _buildActionButton(price, isFull, eventStatus, closed),
+                    ],
                   ),
-                ),
-              ],
-            ),
-          ),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              color: context.cluvoSurface,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 8,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                child: Row(
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Price',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: context.cluvoTextSecondary,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          price > 0
-                              ? '₹${(price / 100).toStringAsFixed(0)}'
-                              : 'Free',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Spacer(),
-                    _buildActionButton(price, isFull, eventStatus, closed),
-                  ],
                 ),
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ── HERO — floating rounded image with title set into the photo ─────────
+
+  Widget _buildHero(Map<String, dynamic> e) {
+    final imageUrl = e['image_url'] as String?;
+    final title = e['title'] as String;
+    final start = e['start_date'] as String?;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Container(
+        height: 300,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              imageUrl != null && imageUrl.isNotEmpty
+                  ? CachedNetworkImage(
+                      imageUrl: imageUrl,
+                      fit: BoxFit.cover,
+                      errorWidget: (_, _, _) => _buildBannerFallback(title),
+                    )
+                  : _buildBannerFallback(title),
+
+              // Scrim for text legibility — stronger toward the bottom
+              Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black38,
+                      Colors.transparent,
+                      Colors.transparent,
+                      Colors.black87,
+                    ],
+                    stops: [0.0, 0.28, 0.55, 1.0],
+                  ),
+                ),
+              ),
+
+              // Title + date, set directly into the image
+              Positioned(
+                left: 20,
+                right: 20,
+                bottom: 20,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'PlayfairDisplay',
+                        fontSize: 30,
+                        height: 1.1,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        shadows: [
+                          Shadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 2)),
+                          Shadow(color: Colors.black26, blurRadius: 14, offset: Offset(0, 6)),
+                        ],
+                      ),
+                    ),
+                    if (start != null) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(Icons.calendar_today_outlined,
+                              size: 14, color: Colors.white),
+                          const SizedBox(width: 6),
+                          Text(
+                            _formatDateTime(e, 'start_date'),
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                              shadows: [
+                                Shadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 2)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── CONTENT SHEET — chips, description, segmented control ───────────────
+
+  Widget _buildSheet(Map<String, dynamic> e, String? communityName, num price) {
+    final location = e['location'] as String?;
+    final start = e['start_date'] as String?;
+    final capacity = e['capacity'] as int?;
+    final booked = (e['booked_count'] as num?) ?? 0;
+
+    final chips = <Widget>[
+      if (start != null)
+        _infoChip(Icons.calendar_today_outlined, _formatDateTime(e, 'start_date')),
+      if (location != null && location.isNotEmpty)
+        _infoChip(Icons.location_on_outlined, location),
+      if (communityName != null) _infoChip(Icons.groups_outlined, communityName),
+      _priceChip(price),
+      if (capacity != null) _infoChip(Icons.people_outline, '$booked/$capacity spots'),
+    ];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: context.cluvoBackground,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(28),
+          topRight: Radius.circular(28),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              height: 44,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: chips.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (_, i) => chips[i],
+              ),
+            ),
+            if (e['description'] != null) ...[
+              const SizedBox(height: 20),
+              ..._buildDescSection(e['description'] as String),
+            ],
+            const SizedBox(height: 24),
+            _buildSegmentedControl(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _infoChip(IconData icon, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: context.cluvoChipFill,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: context.cluvoPrimaryText),
+          const SizedBox(width: 6),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 170),
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: context.cluvoTextPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _priceChip(num price) {
+    final paid = price > 0;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: paid
+            ? CluvoTheme.primary.withValues(alpha: 0.1)
+            : CluvoTheme.success.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            paid ? Icons.currency_rupee : Icons.volunteer_activism_outlined,
+            size: 15,
+            color: paid ? CluvoTheme.primary : CluvoTheme.success,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            paid ? '₹${(price / 100).toStringAsFixed(0)}' : 'Free',
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: paid ? CluvoTheme.primary : CluvoTheme.success,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── SEGMENTED CONTROL — animated underline instead of pill toggle ───────
+
+  Widget _buildSegmentedControl() {
+    return Row(
+      children: [
+        _segmentTab('Discussion', 'discussion'),
+        const SizedBox(width: 28),
+        _segmentTab('Photos', 'photos'),
+      ],
+    );
+  }
+
+  Widget _segmentTab(String label, String section) {
+    final selected = _selectedSection == section;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedSection = section),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: selected ? CluvoTheme.primary : Colors.transparent,
+              width: 2.5,
+            ),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'PlayfairDisplay',
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            color: selected ? context.cluvoTextPrimary : context.cluvoTextSecondary,
+          ),
+        ),
       ),
     );
   }
@@ -892,86 +1080,67 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
-  Widget _detailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 90,
-            child: Text(label,
-                style: TextStyle(color: context.cluvoTextSecondary, fontSize: 13)),
-          ),
-          Expanded(
-            child: Text(value, style: const TextStyle(fontSize: 13)),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildSkeleton() {
     return ListView(
       physics: const NeverScrollableScrollPhysics(),
       children: [
-        Container(height: 220, color: context.cluvoChipFill),
+        const SizedBox(height: kToolbarHeight + 8),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+          child: Container(
+            height: 300,
+            decoration: BoxDecoration(
+              color: context.cluvoChipFill,
+              borderRadius: BorderRadius.circular(20),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(height: 20, width: 200, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4))),
-              const SizedBox(height: 12),
-              Container(height: 14, width: double.infinity, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4))),
+              Row(
+                children: List.generate(3, (i) => Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Container(
+                        height: 36,
+                        width: 90,
+                        decoration: BoxDecoration(
+                          color: context.cluvoChipFill,
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                      ),
+                    )),
+              ),
               const SizedBox(height: 20),
+              Container(
+                  height: 14,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                      color: context.cluvoChipFill,
+                      borderRadius: BorderRadius.circular(4))),
+              const SizedBox(height: 12),
+              Container(
+                  height: 14,
+                  width: 240,
+                  decoration: BoxDecoration(
+                      color: context.cluvoChipFill,
+                      borderRadius: BorderRadius.circular(4))),
+              const SizedBox(height: 24),
               ...List.generate(4, (_) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Container(height: 14, width: double.infinity, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4))),
-              )),
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Container(
+                        height: 14,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                            color: context.cluvoChipFill,
+                            borderRadius: BorderRadius.circular(4))),
+                  )),
             ],
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildTabBar() {
-    return Row(
-      children: [
-        _buildTab('Discussion', 'discussion'),
-        const SizedBox(width: 24),
-        _buildTab('Photos', 'photos'),
-      ],
-    );
-  }
-
-  Widget _buildTab(String label, String section) {
-    final selected = _selectedSection == section;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedSection = section),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: selected ? context.cluvoTextPrimary : context.cluvoTextSecondary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Container(
-            height: 2.5,
-            width: 50,
-            decoration: BoxDecoration(
-              color: selected ? Colors.blue : Colors.transparent,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -1038,7 +1207,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: context.cluvoChipFill,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Text(description,
               style: TextStyle(color: context.cluvoTextSecondary, fontSize: 14)),
@@ -1052,7 +1221,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: context.cluvoChipFill,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Text(sections[0].value,
               style: TextStyle(color: context.cluvoTextSecondary, fontSize: 14)),
@@ -1104,7 +1273,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                     height: 2.5,
                     width: label.length * 9.0,
                     decoration: BoxDecoration(
-                      color: selected ? Colors.blue : Colors.transparent,
+                      color: selected ? CluvoTheme.primary : Colors.transparent,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
