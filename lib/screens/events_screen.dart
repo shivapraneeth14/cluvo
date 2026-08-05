@@ -34,8 +34,7 @@ class EventsScreen extends ConsumerStatefulWidget {
 class _EventsScreenState extends ConsumerState<EventsScreen> {
   String? _filter;
   DateTime? _pickedDate;
-  bool _freeOnly = false;
-  String? _priceSort;
+  String? _priceOption;
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
   final _filterKey = GlobalKey();
@@ -94,17 +93,20 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
       lastDate: now.add(const Duration(days: 365)),
     );
     if (picked != null && mounted) {
-      setState(() => _pickedDate = picked);
+      setState(() {
+        _pickedDate = picked;
+        _priceOption = null;
+      });
       _applyPriceFilters();
     }
   }
 
-  bool get _panelActive => _freeOnly || _priceSort != null || _pickedDate != null;
+  bool get _panelActive => _priceOption != null || _pickedDate != null;
 
   void _applyPriceFilters() {
     ref.read(eventsProvider.notifier).setFilters(
-          freeOnly: _freeOnly,
-          priceSort: _priceSort,
+          freeOnly: _priceOption == 'free',
+          priceSort: _priceOption == 'free' ? null : _priceOption,
           date: _pickedDate,
         );
   }
@@ -139,15 +141,15 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
         ),
         PopupMenuItem<String>(
           value: 'free',
-          child: _filterMenuItem('Free', 'free', _freeOnly),
+          child: _filterMenuItem('Free', 'free', _priceOption == 'free'),
         ),
         PopupMenuItem<String>(
           value: 'high',
-          child: _filterMenuItem('Price: High to Low', 'high', _priceSort == 'high'),
+          child: _filterMenuItem('Price: High to Low', 'high', _priceOption == 'high'),
         ),
         PopupMenuItem<String>(
           value: 'low',
-          child: _filterMenuItem('Price: Low to High', 'low', _priceSort == 'low'),
+          child: _filterMenuItem('Price: Low to High', 'low', _priceOption == 'low'),
         ),
         PopupMenuItem<String>(
           value: 'date',
@@ -160,22 +162,30 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
     switch (result) {
       case 'all':
         setState(() {
-          _freeOnly = false;
-          _priceSort = null;
+          _priceOption = null;
           _pickedDate = null;
         });
         _applyPriceFilters();
         break;
       case 'free':
-        setState(() => _freeOnly = !_freeOnly);
+        setState(() {
+          _priceOption = _priceOption == 'free' ? null : 'free';
+          _pickedDate = null;
+        });
         _applyPriceFilters();
         break;
       case 'high':
-        setState(() => _priceSort = _priceSort == 'high' ? null : 'high');
+        setState(() {
+          _priceOption = _priceOption == 'high' ? null : 'high';
+          _pickedDate = null;
+        });
         _applyPriceFilters();
         break;
       case 'low':
-        setState(() => _priceSort = _priceSort == 'low' ? null : 'low');
+        setState(() {
+          _priceOption = _priceOption == 'low' ? null : 'low';
+          _pickedDate = null;
+        });
         _applyPriceFilters();
         break;
       case 'date':
@@ -220,7 +230,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
     if (_pickedDate != null) {
       return 'No events on this date.';
     }
-    if (_freeOnly) {
+    if (_priceOption == 'free') {
       return 'No free events.';
     }
     if (_searchQuery.isNotEmpty) {
@@ -515,10 +525,13 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
   Widget _buildChip(String label, String? category) {
     final selected = _filter == category && _pickedDate == null;
     return GestureDetector(
-      onTap: () => setState(() {
-        _filter = selected ? null : category;
-        _pickedDate = null;
-      }),
+      onTap: () {
+        setState(() {
+          _filter = selected ? null : category;
+          _pickedDate = null;
+        });
+        _applyPriceFilters();
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(

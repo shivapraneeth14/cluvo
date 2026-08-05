@@ -4,6 +4,7 @@ class Community {
   final String? description;
   final String? location;
   final String? bannerUrl;
+  final String? communityAvatarUrl;
   final String ownerId;
   final String visibility;
   final String verificationStatus;
@@ -32,6 +33,7 @@ class Community {
     this.description,
     this.location,
     this.bannerUrl,
+    this.communityAvatarUrl,
     required this.ownerId,
     this.visibility = 'public',
     this.verificationStatus = 'unverified',
@@ -61,6 +63,7 @@ class Community {
     description: map['description'] as String?,
     location: map['location'] as String?,
     bannerUrl: map['banner_url'] as String?,
+    communityAvatarUrl: map['community_avatar_url'] as String?,
     ownerId: map['owner_id'] as String,
     visibility: map['visibility'] as String? ?? 'public',
     verificationStatus: map['verification_status'] as String? ?? 'unverified',
@@ -90,6 +93,7 @@ class Community {
     if (description != null) 'description': description,
     if (location != null) 'location': location,
     if (bannerUrl != null) 'banner_url': bannerUrl,
+    if (communityAvatarUrl != null) 'community_avatar_url': communityAvatarUrl,
     'owner_id': ownerId,
     'visibility': visibility,
     'verification_status': verificationStatus,

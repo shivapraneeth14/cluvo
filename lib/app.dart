@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'main.dart';
 import 'providers/auth_provider.dart';
+import 'providers/notification_provider.dart';
 import 'providers/pending_route_provider.dart';
 import 'providers/theme_provider.dart';
 import 'theme.dart';
@@ -287,7 +288,11 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
   @override
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
-    ref.listen<AuthState>(authProvider, (_, _) => _router.refresh());
+    ref.listen<AuthState>(authProvider, (_, next) {
+      ref.read(notificationsRealtimeProvider).sync(next.session?.user.id);
+      _router.refresh();
+    });
+    ref.read(notificationsRealtimeProvider).sync(ref.read(authProvider).session?.user.id);
     return MaterialApp.router(
       key: navigatorKey,
       title: 'Cluvo',

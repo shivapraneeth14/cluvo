@@ -74,7 +74,7 @@ class NotificationsScreen extends ConsumerWidget {
                     _timeAgo(n),
                     style: TextStyle(fontSize: 11, color: context.cluvoTextSecondary),
                   ),
-                  onTap: () => _markRead(n, ref),
+                  onTap: () => _openNotification(context, n, ref),
                 );
               },
             ),
@@ -128,13 +128,25 @@ class NotificationsScreen extends ConsumerWidget {
     );
   }
 
-  void _markRead(AppNotification n, WidgetRef ref) async {
-    if (n.read) return;
-    try {
-      await supabase.from('notifications').update({'read': true}).eq('id', n.id);
-      ref.invalidate(unreadCountProvider);
-      ref.invalidate(notificationsProvider);
-    } catch (_) {
+  Future<void> _openNotification(
+      BuildContext context, AppNotification n, WidgetRef ref) async {
+    if (!n.read) {
+      try {
+        await supabase.from('notifications').update({'read': true}).eq('id', n.id);
+        if (!context.mounted) return;
+        ref.invalidate(unreadCountProvider);
+        ref.invalidate(notificationsProvider);
+      } catch (_) {
+      }
+    }
+    final payload = n.payload;
+    if (payload == null) return;
+    if (payload['type'] == 'community') {
+      final id = payload['id'];
+      if (id != null) context.push('/communities/$id');
+    } else {
+      final eventId = payload['id'] ?? payload['event_id'];
+      if (eventId != null) context.push('/events/$eventId');
     }
   }
 

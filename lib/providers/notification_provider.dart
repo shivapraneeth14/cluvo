@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../supabase_client.dart';
 import '../models/models.dart';
+import '../services/notifications_realtime.dart';
 
 final notificationsProvider = FutureProvider<List<AppNotification>>((ref) async {
   final session = supabase.auth.currentSession;
@@ -28,4 +29,13 @@ final unreadCountProvider = FutureProvider<int>((ref) async {
 final notificationRefreshProvider = Provider<void>((ref) {
   ref.invalidate(notificationsProvider);
   ref.invalidate(unreadCountProvider);
+});
+
+final notificationsRealtimeProvider = Provider<NotificationsRealtime>((ref) {
+  final controller = NotificationsRealtime(() {
+    ref.invalidate(notificationsProvider);
+    ref.invalidate(unreadCountProvider);
+  });
+  ref.onDispose(controller.dispose);
+  return controller;
 });
