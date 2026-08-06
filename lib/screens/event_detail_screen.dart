@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../config.dart';
 import '../supabase_client.dart';
@@ -714,6 +715,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   Widget _buildSheet(
       Map<String, dynamic> e, String? communityName, String? communityAvatarUrl, num price) {
     final location = e['location'] as String?;
+    final lat = (e['latitude'] as num?)?.toDouble();
+    final lng = (e['longitude'] as num?)?.toDouble();
     final start = e['start_date'] as String?;
     final capacity = e['capacity'] as int?;
     final booked = (e['booked_count'] as num?) ?? 0;
@@ -722,7 +725,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       if (start != null)
         _infoChip(Icons.calendar_today_outlined, _formatDateTime(e, 'start_date')),
       if (location != null && location.isNotEmpty)
-        _infoChip(Icons.location_on_outlined, location),
+        _locationChip(location, lat: lat, lng: lng),
       if (communityName != null)
         _communityChip(communityName, communityAvatarUrl),
       _priceChip(price),
@@ -761,6 +764,68 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         ),
       ),
     );
+  }
+
+  Widget _locationChip(String value, {double? lat, double? lng}) {
+    Widget chip = _infoChip(Icons.location_on_outlined, value);
+    if (lat == null || lng == null) return chip;
+    return GestureDetector(
+      onTap: () => _openInGoogleMaps(value, lat, lng),
+      child: chip,
+    );
+  }
+
+  Future<void> _openInGoogleMaps(String label, double lat, double lng) async {
+    final url = 'https://www.google.com/maps/search/?api=1&query=$lat,$lng';
+    final labelSheet = Text(
+      label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+    );
+    if (!mounted) return;
+    final open = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: context.cluvoBackground,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: context.cluvoPrimaryText.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(2)))),
+              const SizedBox(height: 16),
+              Text('Open location', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: context.cluvoPrimaryText)),
+              const SizedBox(height: 8),
+              labelSheet,
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(backgroundColor: Colors.purple.shade800),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.map_outlined, size: 18),
+                      SizedBox(width: 8),
+                      Text('Open in Google Maps'),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (open == true) {
+      try {
+        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      } catch (_) {}
+    }
   }
 
   Widget _infoChip(IconData icon, String value) {

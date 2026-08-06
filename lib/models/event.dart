@@ -7,6 +7,8 @@ class Event {
   final DateTime startDate;
   final DateTime? endDate;
   final String? location;
+  final double? latitude;
+  final double? longitude;
   final int? capacity;
   final double price;
   final int bookedCount;
@@ -26,6 +28,8 @@ class Event {
     required this.startDate,
     this.endDate,
     this.location,
+    this.latitude,
+    this.longitude,
     this.capacity,
     this.price = 0,
     this.bookedCount = 0,
@@ -54,6 +58,8 @@ class Event {
       startDate: DateTime.parse(map['start_date'] as String),
       endDate: map['end_date'] != null ? DateTime.parse(map['end_date'] as String) : null,
       location: map['location'] as String?,
+      latitude: (map['latitude'] as num?)?.toDouble(),
+      longitude: (map['longitude'] as num?)?.toDouble(),
       capacity: map['capacity'] as int?,
       price: (map['price'] as num?)?.toDouble() ?? 0,
       bookedCount: map['booked_count'] as int? ?? 0,
@@ -75,6 +81,8 @@ class Event {
     'start_date': startDate.toIso8601String(),
     if (endDate != null) 'end_date': endDate!.toIso8601String(),
     if (location != null) 'location': location,
+    if (latitude != null) 'latitude': latitude,
+    if (longitude != null) 'longitude': longitude,
     if (capacity != null) 'capacity': capacity,
     'price': price,
     'booked_count': bookedCount,
