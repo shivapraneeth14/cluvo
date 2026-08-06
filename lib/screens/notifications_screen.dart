@@ -139,15 +139,6 @@ class NotificationsScreen extends ConsumerWidget {
       } catch (_) {
       }
     }
-    final payload = n.payload;
-    if (payload == null) return;
-    if (payload['type'] == 'community') {
-      final id = payload['id'];
-      if (id != null) context.push('/communities/$id');
-    } else {
-      final eventId = payload['id'] ?? payload['event_id'];
-      if (eventId != null) context.push('/events/$eventId');
-    }
   }
 
   String _timeAgo(AppNotification notification) {

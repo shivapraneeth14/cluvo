@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../supabase_client.dart';
@@ -22,6 +23,7 @@ class AuthState {
   final bool usernameAvailable;
   final bool isRecovery;
   final bool checkingUsername;
+  final bool googleOnly;
 
   const AuthState({
     this.isLoading = false,
@@ -31,6 +33,7 @@ class AuthState {
     this.usernameAvailable = true,
     this.isRecovery = false,
     this.checkingUsername = false,
+    this.googleOnly = false,
   });
 
   AuthState copyWith({
@@ -41,6 +44,7 @@ class AuthState {
     bool? usernameAvailable,
     bool? isRecovery,
     bool? checkingUsername,
+    bool? googleOnly,
     bool clearError = false,
     bool clearSuccess = false,
     bool clearSession = false,
@@ -53,6 +57,7 @@ class AuthState {
       usernameAvailable: usernameAvailable ?? this.usernameAvailable,
       isRecovery: clearSession ? false : isRecovery ?? this.isRecovery,
       checkingUsername: checkingUsername ?? this.checkingUsername,
+      googleOnly: googleOnly ?? this.googleOnly,
     );
   }
 }
@@ -91,6 +96,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
           if (data.event == AuthChangeEvent.passwordRecovery) {
             state = state.copyWith(session: supabase.auth.currentSession, isRecovery: true);
           }
+          if (data.event == AuthChangeEvent.signedIn ||
+              data.event == AuthChangeEvent.initialSession ||
+              data.event == AuthChangeEvent.tokenRefreshed) {
+            state = state.copyWith(
+              session: data.session ?? supabase.auth.currentSession,
+            );
+          }
           if (data.event == AuthChangeEvent.signedOut) {
             state = state.copyWith(clearSession: true);
             _invalidateDependentProviders();
@@ -115,6 +127,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   void setError(String message) {
     state = state.copyWith(error: message, clearSuccess: true);
+  }
+
+  void setGoogleOnly(bool value) {
+    state = state.copyWith(googleOnly: value);
   }
 
   void clearMessages() {
@@ -236,19 +252,35 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (state.isLoading) return;
     state = state.copyWith(isLoading: true, clearError: true, clearSuccess: true);
     try {
-      await supabase.auth.resetPasswordForEmail(
-        email.trim(),
-        redirectTo: 'cluvo://login',
-      );
+      final response = await supabase.functions.invoke(
+        'forgot-password',
+        body: {
+          'email': email.trim(),
+          'redirectTo': kIsWeb ? Uri.base.origin : 'cluvo://login',
+        },
+      ).timeout(const Duration(seconds: 15));
+
+      final data = (response.data as Map<String, dynamic>?) ?? const {};
+      final kind = data['kind'] as String? ?? 'none';
+      if (kind == 'google') {
+        state = state.copyWith(
+          isLoading: false,
+          googleOnly: true,
+          error: 'This account uses Google sign-in. Continue with Google instead.',
+        );
+      } else {
+        state = state.copyWith(
+          isLoading: false,
+          successMessage: 'Check your email for the reset link.',
+        );
+      }
+    } on FunctionException catch (e) {
       state = state.copyWith(
         isLoading: false,
-        successMessage: 'Check your email for the reset link.',
+        error: _functionErrorMessage(e),
       );
-    } on AuthException catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: _friendlyAuthError(e.message),
-      );
+    } on TimeoutException {
+      state = state.copyWith(isLoading: false, error: 'Request timed out. Try again.');
     } catch (_) {
       state = state.copyWith(
         isLoading: false,
@@ -272,7 +304,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = state.copyWith(
         isLoading: false,
         isRecovery: false,
-        successMessage: 'Password updated successfully!',
+        successMessage: 'Password updated — sign in with your new password.',
       );
     } on AuthException catch (e) {
       state = state.copyWith(
