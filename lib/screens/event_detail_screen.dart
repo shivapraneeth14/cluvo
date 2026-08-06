@@ -475,8 +475,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final booked = (e['booked_count'] as num?) ?? 0;
     final isFull = capacity != null && booked >= capacity;
     final eventStatus = e['status'] as String? ?? 'published';
-    final start = e['start_date'] as String?;
-    final closed = start != null && DateTime.parse(start).isBefore(DateTime.now());
+    final endStr = e['end_date'] as String?;
+    final closed = endStr != null && DateTime.parse(endStr).isBefore(DateTime.now());
     final communityName =
         (e['communities'] as Map<String, dynamic>?)?['name'] as String?;
     final communityAvatarUrl =
