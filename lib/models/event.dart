@@ -13,7 +13,7 @@ class Event {
   final double price;
   final int bookedCount;
   final String status;
-  final String createdBy;
+  final String? createdBy;
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? deletedAt;
@@ -34,7 +34,7 @@ class Event {
     this.price = 0,
     this.bookedCount = 0,
     this.status = 'draft',
-    required this.createdBy,
+    this.createdBy,
     required this.createdAt,
     required this.updatedAt,
     this.deletedAt,
@@ -64,7 +64,7 @@ class Event {
       price: (map['price'] as num?)?.toDouble() ?? 0,
       bookedCount: map['booked_count'] as int? ?? 0,
       status: map['status'] as String? ?? 'draft',
-      createdBy: map['created_by'] as String,
+      createdBy: map['created_by'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
       deletedAt: map['deleted_at'] != null ? DateTime.parse(map['deleted_at'] as String) : null,
