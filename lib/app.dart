@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'main.dart';
 import 'providers/auth_provider.dart';
+import 'providers/consent_provider.dart';
 import 'providers/notification_provider.dart';
 import 'providers/pending_route_provider.dart';
 import 'providers/theme_provider.dart';
@@ -27,6 +28,7 @@ import 'screens/my_registrations_screen.dart';
 import 'screens/my_payments_screen.dart';
 import 'screens/payment_detail_screen.dart';
 import 'screens/wishlist_screen.dart';
+import 'screens/consent_gate.dart';
 
 class CluvoApp extends ConsumerStatefulWidget {
   const CluvoApp({super.key});
@@ -290,9 +292,15 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
     final themeMode = ref.watch(themeModeProvider);
     ref.listen<AuthState>(authProvider, (_, next) {
       ref.read(notificationsRealtimeProvider).sync(next.session?.user.id);
+      if (next.session != null && !next.session!.isExpired) {
+        ref.read(consentProvider.notifier).check();
+      }
       _router.refresh();
     });
     ref.read(notificationsRealtimeProvider).sync(ref.read(authProvider).session?.user.id);
+    if (ref.read(authProvider).session != null) {
+      ref.read(consentProvider.notifier).check();
+    }
     return MaterialApp.router(
       key: navigatorKey,
       title: 'Cluvo',
@@ -326,7 +334,7 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
             ),
           ),
         );
-        return child!;
+        return ConsentGate(child: child!);
       },
       routerConfig: _router,
     );

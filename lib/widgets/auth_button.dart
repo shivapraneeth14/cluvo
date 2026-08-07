@@ -4,12 +4,14 @@ import 'package:flutter/services.dart';
 class AuthButton extends StatelessWidget {
   final String label;
   final bool isLoading;
+  final bool enabled;
   final VoidCallback? onPressed;
 
   const AuthButton({
     super.key,
     required this.label,
     this.isLoading = false,
+    this.enabled = true,
     required this.onPressed,
   });
 
@@ -19,10 +21,12 @@ class AuthButton extends StatelessWidget {
       width: double.infinity,
       height: 48,
       child: ElevatedButton(
-        onPressed: isLoading ? null : () {
-          HapticFeedback.lightImpact();
-          onPressed?.call();
-        },
+        onPressed: isLoading || !enabled
+            ? null
+            : () {
+                HapticFeedback.lightImpact();
+                onPressed?.call();
+              },
         child: isLoading
             ? const SizedBox(
                 width: 20,

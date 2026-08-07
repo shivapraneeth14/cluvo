@@ -186,6 +186,24 @@ class ProfileScreen extends ConsumerWidget {
                       }
                     },
                   ),
+                  ActivityCard(
+                    leading: _menuLeading(Icons.privacy_tip_outlined),
+                    title: 'Privacy Policy',
+                    subtitle: 'cluvo-org.vercel.app/privacy',
+                    onTap: () => _openLegalUrl(
+                      context,
+                      'https://cluvo-org.vercel.app/privacy',
+                    ),
+                  ),
+                  ActivityCard(
+                    leading: _menuLeading(Icons.description_outlined),
+                    title: 'Terms of Service',
+                    subtitle: 'cluvo-org.vercel.app/terms',
+                    onTap: () => _openLegalUrl(
+                      context,
+                      'https://cluvo-org.vercel.app/terms',
+                    ),
+                  ),
                   const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,
@@ -319,6 +337,17 @@ class ProfileScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _openLegalUrl(BuildContext context, String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open the page.')),
+      );
+    }
   }
 
   Widget _menuLeading(IconData icon) {
