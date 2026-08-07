@@ -1,7 +1,7 @@
 class Registration {
   final String id;
   final String eventId;
-  final String userId;
+  final String? userId;
   final String status;
   final String? qrCode;
   final bool checkedIn;
@@ -13,7 +13,7 @@ class Registration {
   Registration({
     required this.id,
     required this.eventId,
-    required this.userId,
+    this.userId,
     this.status = 'pending',
     this.qrCode,
     this.checkedIn = false,
@@ -26,7 +26,7 @@ class Registration {
   factory Registration.fromMap(Map<String, dynamic> map) => Registration(
     id: map['id'] as String,
     eventId: map['event_id'] as String,
-    userId: map['user_id'] as String,
+    userId: map['user_id'] as String?,
     status: map['status'] as String? ?? 'pending',
     qrCode: map['qr_code'] as String?,
     checkedIn: map['checked_in'] as bool? ?? false,

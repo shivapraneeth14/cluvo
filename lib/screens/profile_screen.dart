@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import '../theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/auth_provider.dart';
 import '../providers/profile_provider.dart';
+import '../supabase_client.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/theme_toggle_button.dart';
 import '../widgets/list_page_scaffold.dart';
@@ -204,6 +206,18 @@ class ProfileScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: () => _confirmDeleteAccount(context, ref),
+                    child: const Text(
+                      'Delete Account',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.w500,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 32),
                 ],
               ),
@@ -239,6 +253,70 @@ class ProfileScreen extends ConsumerWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+    Future<void> _confirmDeleteAccount(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete your account?'),
+        content: const Text(
+          'This permanently deletes your profile, wishlist, reviews and '
+          'notifications, and removes you from all communities. Your '
+          'registration and payment history is kept for legal/financial '
+          'retention but is no longer linked to you. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete my account'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      final res = await supabase.functions.invoke('delete-account');
+      if (res.data?['success'] == true) {
+        await ref.read(authProvider.notifier).signOut();
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Your account has been deleted.')),
+        );
+        context.go('/login');
+      } else {
+        final msg = res.data?['error'] as String? ??
+            'Could not delete your account. Please try again.';
+        if (context.mounted) _showErrorDialog(context, msg);
+      }
+    } catch (e) {
+      final msg = e is FunctionException && e.details is Map
+          ? ((e.details as Map)['error'] as String? ?? 'Could not delete your account.')
+          : 'Could not delete your account. Check your connection and try again.';
+      if (context.mounted) _showErrorDialog(context, msg);
+    }
+  }
+
+  void _showErrorDialog(BuildContext context, String message) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Account not deleted'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
   }
