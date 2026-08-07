@@ -205,8 +205,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
     String password,
     String firstName,
     String lastName,
-    String username,
-  ) async {
+    String username, {
+    required bool consentAccepted,
+    required String consentVersion,
+    required String source,
+  }) async {
     if (state.isLoading) return;
     state = state.copyWith(isLoading: true, clearError: true, clearSuccess: true);
 
@@ -219,6 +222,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
           'first_name': firstName.trim(),
           'last_name': lastName.trim(),
           'username': username.trim(),
+          'consent_accepted': consentAccepted,
+          'consent_version': consentVersion,
+          'source': source,
         },
       ).timeout(const Duration(seconds: 15));
 

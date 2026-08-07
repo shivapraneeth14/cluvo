@@ -9,6 +9,8 @@ import '../widgets/auth_button.dart';
 import '../widgets/google_logo.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../supabase_client.dart';
+import '../legal_content.dart';
+import '../widgets/terms_checkbox.dart';
 
 class SignupScreen extends ConsumerStatefulWidget {
   const SignupScreen({super.key});
@@ -24,6 +26,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _googleLoading = false;
+  bool _termsAccepted = false;
 
   @override
   void initState() {
@@ -84,6 +87,10 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       _showError(passwordError);
       return;
     }
+    if (!_termsAccepted) {
+      _showError('Please accept the Privacy Policy and Terms of Service to continue.');
+      return;
+    }
 
     final notifier = ref.read(authProvider.notifier);
     final available = await notifier.checkUsername(username);
@@ -92,7 +99,16 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       return;
     }
 
-    notifier.signUp(email, password, firstName, lastName, username);
+    notifier.signUp(
+      email,
+      password,
+      firstName,
+      lastName,
+      username,
+      consentAccepted: true,
+      consentVersion: consentVersion,
+      source: 'mobile',
+    );
   }
 
   void _showError(String message) {
@@ -170,10 +186,16 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 showToggle: true,
                 helperText: '8+ characters, 1 capital letter',
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 8),
+              TermsCheckbox(
+                value: _termsAccepted,
+                onChanged: (v) => setState(() => _termsAccepted = v),
+              ),
+              const SizedBox(height: 8),
               AuthButton(
                 label: 'Create Account',
                 isLoading: state.isLoading || state.checkingUsername,
+                enabled: _termsAccepted,
                 onPressed: _signUp,
               ),
               const SizedBox(height: 12),
@@ -181,7 +203,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 width: double.infinity,
                 height: 48,
                 child: OutlinedButton.icon(
-                  onPressed: _googleLoading
+                  onPressed: (_googleLoading || !_termsAccepted)
                       ? null
                       : () async {
                           setState(() => _googleLoading = true);
