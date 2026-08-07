@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -27,6 +28,21 @@ Future<void> main() async {
     return true;
   };
 
+  // Everything runs inside a guarded zone: uncaught async errors land in the
+  // handler below instead of killing the process. Framework errors are still
+  // routed through FlutterError.onError above.
+  await runZonedGuarded(_bootstrap, (error, stack) {
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: error,
+        stack: stack,
+        library: 'zone',
+      ),
+    );
+  });
+}
+
+Future<void> _bootstrap() async {
   try {
     AppConfig.ensureConfigured();
   } catch (e) {
