@@ -15,6 +15,20 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:video_player/video_player.dart';
 import '../theme.dart';
 
+// Cloudinary originals can be 4K+ (e.g. phone .mov files) which many mobile
+// hardware decoders reject ("format supported=NO_exceeds_capabilities").
+// Rewrite delivery URLs to request a 1080p mp4 instead; Cloudinary serves the
+// pre-generated eager derivative or transcodes on the fly.
+String cloudinaryPlayableVideoUrl(String url) {
+  const marker = '/video/upload/';
+  final idx = url.indexOf(marker);
+  if (idx < 0) return url;
+  final rest = url.substring(idx + marker.length);
+  if (!RegExp(r'^v\d+/').hasMatch(rest)) return url; // transformation already present
+  final noExt = rest.replaceFirst(RegExp(r'\.[A-Za-z0-9]{2,5}(\?.*)?$'), '');
+  return '${url.substring(0, idx + marker.length)}w_1080,q_auto/$noExt.mp4';
+}
+
 class CommunityPhotoGrid extends StatelessWidget {
   final List<Map<String, dynamic>> media;
   const CommunityPhotoGrid({super.key, required this.media});
@@ -149,7 +163,8 @@ class _VideoViewerScreenState extends State<_VideoViewerScreen> {
   }
 
   void _initController() {
-    final controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+    final controller =
+        VideoPlayerController.networkUrl(Uri.parse(cloudinaryPlayableVideoUrl(widget.url)));
     _controller = controller;
     controller.initialize().then((_) {
       if (!mounted) return;
