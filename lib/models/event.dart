@@ -1,3 +1,5 @@
+enum EventLifecycle { active, live, closed, cancelled }
+
 class Event {
   final String id;
   final String communityId;
@@ -70,6 +72,16 @@ class Event {
       deletedAt: map['deleted_at'] != null ? DateTime.parse(map['deleted_at'] as String) : null,
       communityName: communityName,
     );
+  }
+
+  EventLifecycle lifecycle([DateTime? now]) {
+    final n = now ?? DateTime.now();
+    if (status == 'cancelled') return EventLifecycle.cancelled;
+    if (status == 'completed') return EventLifecycle.closed;
+    final end = endDate;
+    if (end != null && n.isAfter(end)) return EventLifecycle.closed;
+    if (!n.isBefore(startDate)) return EventLifecycle.live;
+    return EventLifecycle.active;
   }
 
   Map<String, dynamic> toMap() => {

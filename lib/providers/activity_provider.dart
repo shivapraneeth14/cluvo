@@ -6,7 +6,7 @@ Future<List<Map<String, dynamic>>> _fetchMyRegistrations() async {
   if (session == null) return [];
   final res = await supabase
       .from('registrations')
-      .select('*, events!inner(title, start_date, status, communities!inner(name)), payments(status, refund_status)')
+      .select('*, events!inner(title, start_date, status, communities!inner(name)), payments(status, refund_status, amount, refunded_amount))')
       .eq('user_id', session.user.id)
       .eq('events.communities.is_hidden', false)
       .order('registered_at', ascending: false);

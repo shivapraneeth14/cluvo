@@ -51,21 +51,41 @@ class MyPaymentsScreen extends ConsumerWidget {
     final title = ev?['title'] as String? ?? 'Unknown Event';
     final amount = (p['amount'] as num?)?.toDouble() ?? 0;
     final status = p['status'] as String? ?? 'pending';
+    final refundStatus = p['refund_status'] as String?;
     final date = p['created_at'] as String?;
     final paymentId = p['id'] as String?;
+
+    final refundLabels = {
+      'processed': 'Refunded',
+      'pending': 'Refund Processing',
+      'queued': 'Refund Queued',
+      'requested': 'Refund Requested',
+      'failed': 'Refund Failed',
+    };
+    final refundLabel = refundStatus != null ? refundLabels[refundStatus] : null;
+    final chipLabel = refundLabel ?? status[0].toUpperCase() + status.substring(1);
+    final chipColor = refundLabel != null
+        ? (refundStatus == 'processed'
+            ? Colors.green
+            : refundStatus == 'failed'
+                ? Colors.red
+                : Colors.orange)
+        : payStatusColor(status);
 
     return ActivityCard(
       leading: Container(
         width: 44,
         height: 44,
         decoration: BoxDecoration(
-          color: payStatusColor(status).withValues(alpha: 0.1),
+          color: chipColor.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Center(
           child: Icon(
-            payStatusIcon(status),
-            color: payStatusColor(status),
+            refundLabel != null
+                ? (refundStatus == 'processed' ? Icons.assignment_turned_in : Icons.schedule)
+                : payStatusIcon(status),
+            color: chipColor,
             size: 20,
           ),
         ),
@@ -80,22 +100,22 @@ class MyPaymentsScreen extends ConsumerWidget {
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: payStatusColor(status),
+              color: chipColor,
             ),
           ),
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-              color: payStatusColor(status).withValues(alpha: 0.1),
+              color: chipColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(6),
             ),
             child: Text(
-              status[0].toUpperCase() + status.substring(1),
+              chipLabel,
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: payStatusColor(status),
+                color: chipColor,
               ),
             ),
           ),

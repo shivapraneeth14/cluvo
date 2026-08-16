@@ -75,7 +75,10 @@ class EventsNotifier extends StateNotifier<PaginatedList<Event>> {
         .select('*, communities!inner(name)')
         .isFilter('deleted_at', null)
         .eq('communities.is_hidden', false)
-        .inFilter('status', ['published', 'completed']);
+        .eq('status', 'published')
+        .or(
+          'start_date.gte.${DateTime.now().toIso8601String()},end_date.is.null,end_date.gte.${DateTime.now().toIso8601String()}',
+        );
     if (_freeOnly) {
       query = query.eq('price', 0);
     }

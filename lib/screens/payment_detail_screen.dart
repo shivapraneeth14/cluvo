@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme.dart';
 import '../supabase_client.dart';
 
@@ -13,34 +14,80 @@ class PaymentDetailScreen extends StatefulWidget {
 
 class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
   Map<String, dynamic>? _payment;
-  List<dynamic>? _auditLog;
+  List<dynamic>? _timeline;
   bool _loading = true;
   String? _error;
+  RealtimeChannel? _channel;
+
+  static const _refundLabels = {
+    'processed': 'Refunded',
+    'pending': 'Refund Processing',
+    'queued': 'Refund Queued',
+    'requested': 'Refund Requested',
+    'failed': 'Refund Failed',
+  };
 
   @override
   void initState() {
     super.initState();
     _load();
+    _subscribe();
+  }
+
+  @override
+  void dispose() {
+    final ch = _channel;
+    if (ch != null) supabase.removeChannel(ch);
+    super.dispose();
+  }
+
+  void _subscribe() {
+    try {
+      _channel = supabase
+          .channel('payment-detail-${widget.paymentId}')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.update,
+            schema: 'public',
+            table: 'payments',
+            filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'id', value: widget.paymentId),
+            callback: (payload) {
+              final newRow = payload.newRecord;
+              if (!mounted) return;
+              setState(() {
+                _payment = {...?_payment, ...newRow};
+              });
+            },
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.insert,
+            schema: 'public',
+            table: 'notifications',
+            filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'user_id', value: supabase.auth.currentUser?.id ?? ''),
+            callback: (payload) async {
+              final row = payload.newRecord;
+              final payId = (row['payload'] as Map?)?.remove('payment_id');
+              if (payId != widget.paymentId) return;
+              await _loadTimelineOnly();
+            },
+          )
+          .subscribe();
+    } catch (_) {
+      // realtime unavailable — pull-to-refresh / manual navigation still works
+    }
   }
 
   Future<void> _load() async {
     try {
-      final results = await Future.wait([
-        supabase
-            .from('payments')
-            .select('*, registrations!inner(*, events!inner(title, start_date, status))')
-            .eq('id', widget.paymentId)
-            .single(),
-        supabase
-            .from('payment_audit_log')
-            .select('*')
-            .eq('payment_id', widget.paymentId)
-            .order('created_at'),
-      ]);
+      final payment = await supabase
+          .from('payments')
+          .select('*, registrations!inner(*, events!inner(title, start_date, status))')
+          .eq('id', widget.paymentId)
+          .single();
+      final timeline = await _fetchTimeline();
       if (!mounted) return;
       setState(() {
-        _payment = results[0] as Map<String, dynamic>?;
-        _auditLog = results[1] as List<dynamic>?;
+        _payment = payment;
+        _timeline = timeline;
         _loading = false;
       });
     } catch (e) {
@@ -50,6 +97,24 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
         _loading = false;
       });
     }
+  }
+
+  Future<List<dynamic>> _fetchTimeline() async {
+    final res = await supabase
+        .from('notifications')
+        .select('*')
+        .contains('payload', {'payment_id': widget.paymentId})
+        .inFilter('type', ['registration_confirmed', 'refund_initiated', 'refund_completed'])
+        .order('created_at');
+    return res as List<dynamic>? ?? [];
+  }
+
+  Future<void> _loadTimelineOnly() async {
+    try {
+      final timeline = await _fetchTimeline();
+      if (!mounted) return;
+      setState(() => _timeline = timeline);
+    } catch (_) {}
   }
 
   Color _statusColor(String status) {
@@ -159,13 +224,13 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
           if (razorpayPaymentId != null) _row('Razorpay ID', razorpayPaymentId),
           _row('Date', _formatDate(createdAt)),
           _statusRow('Status', status),
-          if (refundStatus != null) _statusRow('Refund', refundStatus),
+          if (refundStatus != null) _statusRow('Refund', _refundLabels[refundStatus] ?? refundStatus),
         ]),
-        if (_auditLog != null && _auditLog!.isNotEmpty) ...[
+        if (_timeline != null && _timeline!.isNotEmpty) ...[
           const SizedBox(height: 12),
-          _sectionCard('Activity Log', [
-            for (final entry in _auditLog!)
-              _auditEntry(entry as Map<String, dynamic>),
+          _sectionCard('Activity', [
+            for (final entry in _timeline!)
+              _timelineEntry(entry as Map<String, dynamic>),
           ]),
         ],
       ],
@@ -239,14 +304,12 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
     );
   }
 
-  Widget _auditEntry(Map<String, dynamic> entry) {
-    final action = entry['action'] as String? ?? '';
+  Widget _timelineEntry(Map<String, dynamic> entry) {
+    final type = entry['type'] as String? ?? '';
+    final body = entry['body'] as String? ?? '';
     final entryDate = entry['created_at'] as String?;
-    final details = entry['details'] as Map<String, dynamic>?;
-    final actionLabel = action
-        .split('_')
-        .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
-        .join(' ');
+    final isRefund = type.startsWith('refund_');
+    final isCompleted = type == 'refund_completed';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -258,7 +321,11 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
             width: 8,
             height: 8,
             decoration: BoxDecoration(
-              color: context.cluvoTextSecondary,
+              color: isCompleted
+                  ? Colors.green
+                  : isRefund
+                      ? Colors.orange
+                      : context.cluvoTextSecondary,
               shape: BoxShape.circle,
             ),
           ),
@@ -267,11 +334,8 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(actionLabel,
+                Text(body,
                     style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-                if (details != null && details['note'] != null)
-                  Text(details['note'].toString(),
-                      style: TextStyle(fontSize: 12, color: context.cluvoTextSecondary)),
                 Text(_formatDate(entryDate),
                     style: TextStyle(fontSize: 11, color: context.cluvoTextSecondary)),
               ],

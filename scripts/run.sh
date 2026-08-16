@@ -30,6 +30,11 @@ fi
 CLOUD_NAME="djz0pypu1"
 UPLOAD_PRESET="cluvo_preset"
 
+# Razorpay Key ID — same value for test and prod (public by design; it ships
+# inside every checkout page). The matching Key SECRET lives only on the
+# projects as a function secret.
+RAZORPAY_KEY_ID="rzp_test_THqWNZqOZGQZOu"
+
 echo "flutter run ($ENV_NAME${DEVICE:+ / $DEVICE}) ..."
 exec flutter run \
   "${DEVICE_FLAGS[@]}" \
@@ -37,4 +42,5 @@ exec flutter run \
   --dart-define=SUPABASE_ANON_KEY=$ANON \
   --dart-define=CLOUDINARY_CLOUD_NAME=$CLOUD_NAME \
   --dart-define=CLOUDINARY_UPLOAD_PRESET=$UPLOAD_PRESET \
+  --dart-define=RAZORPAY_KEY_ID=$RAZORPAY_KEY_ID \
   "$@"

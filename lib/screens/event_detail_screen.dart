@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'dart:async';
 import '../theme.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -8,11 +9,14 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../config.dart';
 import '../supabase_client.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/razorpay_web.dart';
 import '../widgets/community_photo_grid.dart';
 import '../widgets/event_discussion.dart';
 import '../widgets/wishlist_button.dart';
+import '../widgets/lifecycle_ticker.dart';
 import '../providers/wishlist_provider.dart';
+import '../models/models.dart';
 import '../utils.dart';
 
 class EventDetailScreen extends StatefulWidget {
@@ -23,7 +27,8 @@ class EventDetailScreen extends StatefulWidget {
   State<EventDetailScreen> createState() => _EventDetailScreenState();
 }
 
-class _EventDetailScreenState extends State<EventDetailScreen> {
+class _EventDetailScreenState extends State<EventDetailScreen>
+    with LifecycleTickerMixin<EventDetailScreen> {
   Map<String, dynamic>? _event;
   List<Map<String, dynamic>> _media = [];
   bool _loading = true;
@@ -40,6 +45,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   String _selectedSection = 'discussion';
   int _descTabIndex = 0;
   Razorpay? _razorpay;
+  RealtimeChannel? _eventChannel;
+  RealtimeChannel? _regChannel;
+  Timer? _realtimeDebounce;
 
   @override
   void initState() {
@@ -51,12 +59,73 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       _razorpay!.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
     }
     _load();
+    startLifecycleTick();
+    _subscribeRealtime();
   }
 
   @override
   void dispose() {
+    _eventChannel?.unsubscribe();
+    _regChannel?.unsubscribe();
+    _realtimeDebounce?.cancel();
     if (!kIsWeb) _razorpay?.clear();
     super.dispose();
+  }
+
+  // 60s tick: the action button flips Pay/Register -> Live -> Event Closed as
+  // start/end dates pass, without any refresh.
+  @override
+  void onLifecycleTick() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  void _subscribeRealtime() {
+    _eventChannel = supabase
+        .channel('event-detail-${widget.id}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'events',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: widget.id,
+          ),
+          callback: (payload) {
+            final newRow = payload.newRecord;
+            if (!mounted || _event == null) return;
+            setState(() {
+              _event = Map<String, dynamic>.from(_event!)
+                ..addAll(Map<String, dynamic>.from(newRow));
+            });
+          },
+        )
+        .subscribe();
+
+    final session = supabase.auth.currentSession;
+    if (session == null) return;
+    _regChannel = supabase
+        .channel('event-detail-reg-${session.user.id}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'registrations',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user_id',
+            value: session.user.id,
+          ),
+          callback: (payload) {
+            final row = Map<String, dynamic>.from(payload.newRecord);
+            if (row['event_id'] != widget.id) return;
+            _realtimeDebounce?.cancel();
+            _realtimeDebounce = Timer(const Duration(milliseconds: 500), () {
+              if (mounted) _load();
+            });
+          },
+        )
+        .subscribe();
   }
 
   void _handlePaymentSuccess(PaymentSuccessResponse response) {
@@ -147,7 +216,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       final session = supabase.auth.currentSession;
       final eventFuture = supabase
           .from('events')
-          .select('*, communities!inner(name, community_avatar_url)')
+          .select('*, communities!inner(name, community_avatar_url, commission_percent)')
           .eq('id', widget.id)
           .eq('communities.is_hidden', false)
           .inFilter('status', ['published', 'completed', 'cancelled'])
@@ -260,9 +329,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     });
   }
 
-  // Temporarily unused while paid registration shows "Coming Soon"
-  // pending the Razorpay web integration fix.
-  // ignore: unused_element
   Future<void> _payForEvent() async {
     if (_registering || _processingPayment) return;
     setState(() => _registering = true);
@@ -381,6 +447,71 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
   Future<void> _cancelRegistration() async {
     if (_registering) return;
+
+    final community = _event?['communities'] as Map<String, dynamic>?;
+    final reg = supabase.auth.currentUser != null
+        ? await supabase
+            .from('registrations')
+            .select('payments(amount, refund_status)')
+            .eq('event_id', widget.id)
+            .eq('user_id', supabase.auth.currentUser!.id)
+            .eq('status', 'confirmed')
+            .maybeSingle()
+            .catchError((_) => null)
+        : null;
+    final payRaw = reg?['payments'];
+    Map<String, dynamic>? payment;
+    if (payRaw is Map<String, dynamic>) {
+      payment = payRaw;
+    } else if (payRaw is List && payRaw.isNotEmpty) {
+      payment = payRaw.first as Map<String, dynamic>?;
+    }
+    final paid = (payment?['amount'] as num?)?.toInt() ?? 0;
+    final pct = ((community?['commission_percent'] as num?) ?? 10).toInt();
+    final expectedRefund = paid > 0 ? paid - ((paid * pct) / 100).toInt() : 0;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel registration?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Your registration will be cancelled.',
+              style: TextStyle(fontSize: 14),
+            ),
+            if (paid > 0) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Refund: ₹${(expectedRefund / 100).toStringAsFixed(0)} '
+                '(booking fee ₹${((paid - expectedRefund) / 100).toStringAsFixed(0)} is not refundable on self-cancel).',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Refunds appear in your payment details and take 3–5 business days to reach your account.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Keep registration'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Cancel & refund'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
     setState(() => _registering = true);
     try {
       final res = await supabase.functions
@@ -391,11 +522,23 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           .timeout(const Duration(seconds: 30));
       if (!mounted) return;
       if (res.data['success'] == true) {
+        final refund = res.data['refund'];
+        final refundedAmount = refund is Map<String, dynamic> ? refund['amount'] as num? : null;
         setState(() {
           _isRegistered = false;
           _registrationStatus = 'cancelled';
           _event!['booked_count'] = ((_event!['booked_count'] as num?) ?? 1) - 1;
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              refundedAmount != null && refundedAmount > 0
+                  ? 'Registration cancelled. Refund of ₹${(refundedAmount / 100).toStringAsFixed(0)} initiated.'
+                  : 'Registration cancelled.',
+            ),
+            backgroundColor: Colors.green[700],
+          ),
+        );
       } else {
         _showError(res.data['error'] ?? 'Cancellation failed.');
       }
@@ -475,8 +618,18 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final booked = (e['booked_count'] as num?) ?? 0;
     final isFull = capacity != null && booked >= capacity;
     final eventStatus = e['status'] as String? ?? 'published';
+    final startStr = e['start_date'] as String?;
     final endStr = e['end_date'] as String?;
-    final closed = endStr != null && DateTime.parse(endStr).isBefore(DateTime.now());
+    final lifecycle = eventStatus == 'cancelled'
+        ? EventLifecycle.cancelled
+        : eventStatus == 'completed'
+            ? EventLifecycle.closed
+            : endStr != null && DateTime.parse(endStr).isBefore(DateTime.now())
+                ? EventLifecycle.closed
+                : startStr != null &&
+                        !DateTime.parse(startStr).isBefore(DateTime.now())
+                    ? EventLifecycle.active
+                    : EventLifecycle.live;
     final communityName =
         (e['communities'] as Map<String, dynamic>?)?['name'] as String?;
     final communityAvatarUrl =
@@ -565,33 +718,42 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                 top: false,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                  child: Row(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
+                      Row(
                         children: [
-                          Text(
-                            'Price',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: context.cluvoTextSecondary,
-                            ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Price',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: context.cluvoTextSecondary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                price > 0
+                                    ? '₹${(price / 100).toStringAsFixed(0)}'
+                                    : 'Free',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            price > 0
-                                ? '₹${(price / 100).toStringAsFixed(0)}'
-                                : 'Free',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          const Spacer(),
+                          _buildActionButton(price, isFull, eventStatus, lifecycle),
                         ],
                       ),
-                      const Spacer(),
-                      _buildActionButton(price, isFull, eventStatus, closed),
+                      if (price > 0 && !_isRegistered && eventStatus != 'cancelled') ...[
+                        const SizedBox(height: 8),
+                        _buildRefundDisclosure(price),
+                      ],
                     ],
                   ),
                 ),
@@ -979,7 +1141,19 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
-  Widget _buildActionButton(num price, bool isFull, String eventStatus, bool closed) {
+  Widget _buildRefundDisclosure(num price) {
+    final community = _event?['communities'] as Map<String, dynamic>?;
+    final pct = ((community?['commission_percent'] as num?) ?? 10).toInt();
+    final fee = ((price * pct) / 100).toInt();
+    final refund = price.toInt() - fee;
+    return Text(
+      'Free cancellation with refund up to 24h before start. Self-cancelling refunds ₹${(refund / 100).toStringAsFixed(0)} '
+      '(₹${(fee / 100).toStringAsFixed(0)} booking fee kept); if the organizer cancels, you get the full amount back.',
+      style: TextStyle(fontSize: 10.5, color: context.cluvoTextSecondary),
+    );
+  }
+
+  Widget _buildActionButton(num price, bool isFull, String eventStatus, EventLifecycle lifecycle) {
     if (eventStatus == 'cancelled') {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -1087,7 +1261,32 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       );
     }
 
-    if (closed) {
+    if (lifecycle == EventLifecycle.live) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE53935).withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.circle, size: 12, color: Color(0xFFE53935)),
+            const SizedBox(width: 8),
+            const Text(
+              'Live',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFE53935),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (lifecycle == EventLifecycle.closed) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
@@ -1127,7 +1326,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       return SizedBox(
         height: 44,
         child: ElevatedButton.icon(
-          onPressed: null,
+          onPressed: (_registering || _processingPayment) ? null : _payForEvent,
           icon: (_registering || _processingPayment)
               ? const SizedBox(
                   width: 16,
@@ -1139,7 +1338,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           label: Text(
             (_registering || _processingPayment)
                 ? 'Processing…'
-                : 'Coming Soon',
+                : 'Pay ₹${(price / 100).toStringAsFixed(0)}',
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
           style: ElevatedButton.styleFrom(

@@ -27,6 +27,7 @@ import 'screens/my_communities_screen.dart';
 import 'screens/my_registrations_screen.dart';
 import 'screens/my_payments_screen.dart';
 import 'screens/payment_detail_screen.dart';
+import 'screens/ticket_screen.dart';
 import 'screens/wishlist_screen.dart';
 import 'screens/consent_gate.dart';
 
@@ -162,6 +163,12 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
           path: '/payments/:id',
           builder: (context, state) => PaymentDetailScreen(
             paymentId: state.pathParameters['id']!,
+          ),
+        ),
+        GoRoute(
+          path: '/ticket/:id',
+          builder: (context, state) => TicketScreen(
+            registrationId: state.pathParameters['id']!,
           ),
         ),
         StatefulShellRoute.indexedStack(
