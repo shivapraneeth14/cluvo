@@ -1,0 +1,14 @@
+# Vercel ignores (upload only source; build runs remotely via
+# scripts/vercel-build.sh with Vercel project env vars)
+.dart_tool/
+build/
+.pub-cache/
+.pub/
+.idea/
+android/app/debug/
+android/app/profile/
+android/app/release/
+android/build/
+coverage/
+*.log
+flutter_01.png
