@@ -34,7 +34,7 @@ jobs:
       - run: bash scripts/check-env-hygiene.sh
 
   build-web:
-    name: Flutter web build (explicit defines)
+    name: Flutter web build (per-branch defines from file)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -47,11 +47,16 @@ jobs:
       - run: flutter pub get
       - name: Build web with per-branch environment defines
         run: |
-          flutter build web --release \
-            --dart-define=SUPABASE_URL=${{ github.ref_name == 'main' && secrets.SUPABASE_URL_PROD || secrets.SUPABASE_URL_TEST }} \
-            --dart-define=SUPABASE_ANON_KEY=${{ github.ref_name == 'main' && secrets.SUPABASE_ANON_KEY_PROD || secrets.SUPABASE_ANON_KEY_TEST }} \
-            --dart-define=CLOUDINARY_CLOUD_NAME=djz0pypu1 \
-            --dart-define=CLOUDINARY_UPLOAD_PRESET=cluvo_preset
+          cat > env.ci.json <<EOF
+          {
+            "SUPABASE_URL": "${{ github.ref_name == 'main' && secrets.SUPABASE_URL_PROD || secrets.SUPABASE_URL_TEST }}",
+            "SUPABASE_ANON_KEY": "${{ github.ref_name == 'main' && secrets.SUPABASE_ANON_KEY_PROD || secrets.SUPABASE_ANON_KEY_TEST }}",
+            "CLOUDINARY_CLOUD_NAME": "djz0pypu1",
+            "CLOUDINARY_UPLOAD_PRESET": "cluvo_preset",
+            "RAZORPAY_KEY_ID": "rzp_test_THqWNZqOZGQZOu"
+          }
+          EOF
+          flutter build web --release --dart-define-from-file=env.ci.json
 
   test:
     name: Flutter test (define-less, fail-fast guard)

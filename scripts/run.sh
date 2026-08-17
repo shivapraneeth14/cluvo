@@ -17,30 +17,17 @@ else
   shift 2 || true
 fi
 
-# NOTE: environment values are injected ONLY here (build time). Never add
+# Environment values come ONLY from the per-environment define file
+# (env.test.json / env.prod.json). Never type values here and never add
 # defaults to lib/config.dart — see docs/ENV.md and scripts/check-env-hygiene.sh.
-if [[ "$ENV_NAME" == "test" ]]; then
-  URL="https://ofvfasdgdwkehdcjugnf.supabase.co"
-  ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9mdmZhc2RnZHdrZWhkY2p1Z25mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU1OTkxNDcsImV4cCI6MjEwMTE3NTE0N30.oaxiWOFClGzO1WqBihmLoZV69soVpfMv6gtUMnMakxY"
-else
-  URL="https://vdxspyumkvwawmqwfkzr.supabase.co"
-  ANON="sb_publishable_phag39UwA63y44O1703IkA_Ky6ebjwV"
+ENV_FILE="env.$ENV_NAME.json"
+if [[ ! -f "$ENV_FILE" ]]; then
+  echo "Missing $ENV_FILE — copy env.example.json and fill it in" >&2
+  exit 1
 fi
 
-CLOUD_NAME="djz0pypu1"
-UPLOAD_PRESET="cluvo_preset"
-
-# Razorpay Key ID — same value for test and prod (public by design; it ships
-# inside every checkout page). The matching Key SECRET lives only on the
-# projects as a function secret.
-RAZORPAY_KEY_ID="rzp_test_THqWNZqOZGQZOu"
-
-echo "flutter run ($ENV_NAME${DEVICE:+ / $DEVICE}) ..."
+echo "flutter run ($ENV_NAME${DEVICE:+ / $DEVICE}) using $ENV_FILE ..."
 exec flutter run \
   "${DEVICE_FLAGS[@]}" \
-  --dart-define=SUPABASE_URL=$URL \
-  --dart-define=SUPABASE_ANON_KEY=$ANON \
-  --dart-define=CLOUDINARY_CLOUD_NAME=$CLOUD_NAME \
-  --dart-define=CLOUDINARY_UPLOAD_PRESET=$UPLOAD_PRESET \
-  --dart-define=RAZORPAY_KEY_ID=$RAZORPAY_KEY_ID \
+  --dart-define-from-file="$ENV_FILE" \
   "$@"
