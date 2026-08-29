@@ -75,7 +75,7 @@ class _TicketScreenState extends State<TicketScreen> {
     final qrCode = _registration!['qr_code'] as String?;
     final status = _registration!['status'] as String?;
     final eventStatus = (events?['status'] as String?) ?? 'confirmed';
-    final cancelled = status != 'confirmed';
+    final cancelled = status == 'cancelled';
     final eventCancelled = eventStatus == 'cancelled';
     final userEmail = supabase.auth.currentUser?.email ?? '';
 

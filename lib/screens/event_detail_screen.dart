@@ -243,7 +243,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
         ]).timeout(const Duration(seconds: 30));
         if (!mounted) return;
         final regData = results[2] as Map<String, dynamic>?;
-        registered = regData?['status'] == 'confirmed';
+        registered = ['confirmed', 'attended'].contains(regData?['status']);
         _registrationStatus = regData?['status'] as String?;
         final event = results[0] as Map<String, dynamic>?;
         if (event != null) {
@@ -345,6 +345,19 @@ class _EventDetailScreenState extends State<EventDetailScreen>
         return;
       }
 
+      // Cancellation-policy acknowledgement — no order is created until the
+      // attendee explicitly accepts the 24-hour cancellation rule.
+      final acknowledged = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => const _CancellationPolicyDialog(),
+      );
+      if (!mounted) return;
+      if (acknowledged != true) {
+        setState(() => _registering = false);
+        return;
+      }
+
       // Create booking + payment order in a single call
       final paymentRes = await supabase.functions
           .invoke('create-payment', body: {'event_id': widget.id})
@@ -440,13 +453,25 @@ class _EventDetailScreenState extends State<EventDetailScreen>
       }
     } catch (e) {
       if (!mounted) return;
-      _showError('Something went wrong. Try again.');
+      _showError(_functionErrorMessage(e, 'Something went wrong. Try again.'));
     }
     if (mounted) setState(() => _registering = false);
   }
 
+  bool _cancellationClosed() {
+    final e = _event;
+    if (e == null) return false;
+    final start = getParsedDate(e, 'start_date');
+    if (start == null) return false;
+    return !DateTime.now().isBefore(start.subtract(const Duration(hours: 24)));
+  }
+
   Future<void> _cancelRegistration() async {
     if (_registering) return;
+    if (_cancellationClosed()) {
+      _showError('Cancellations close 24 hours before the event starts.');
+      return;
+    }
 
     final community = _event?['communities'] as Map<String, dynamic>?;
     final reg = supabase.auth.currentUser != null
@@ -470,7 +495,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     final pct = ((community?['commission_percent'] as num?) ?? 10).toInt();
     final expectedRefund = paid > 0 ? paid - ((paid * pct) / 100).toInt() : 0;
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = !mounted ? null : await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Cancel registration?'),
@@ -544,7 +569,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
       }
     } catch (e) {
       if (!mounted) return;
-      _showError('Something went wrong. Try again.');
+      _showError(_functionErrorMessage(e, 'Something went wrong. Try again.'));
     }
     if (mounted) setState(() => _registering = false);
   }
@@ -554,6 +579,17 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg), backgroundColor: Colors.red[700]),
     );
+  }
+
+  String _functionErrorMessage(Object error, String fallback) {
+    if (error is FunctionException) {
+      final details = error.details;
+      if (details is Map) {
+        final msg = details['error'];
+        if (msg is String && msg.trim().isNotEmpty) return msg;
+      }
+    }
+    return fallback;
   }
 
   @override
@@ -1211,52 +1247,74 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     }
 
     if (_isRegistered) {
-      return Row(
+      final isAttended = _registrationStatus == 'attended';
+      final cancellationClosed = _cancellationClosed();
+      return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.green.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.check_circle, size: 16, color: Colors.green),
-                const SizedBox(width: 6),
-                const Text(
-                  'Registered',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.green,
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isAttended
+                      ? Colors.blue.withValues(alpha: 0.1)
+                      : Colors.green.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isAttended ? Icons.star : Icons.check_circle,
+                      size: 16,
+                      color: isAttended ? Colors.blue : Colors.green,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      isAttended ? 'Attended' : 'Registered',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: isAttended ? Colors.blue : Colors.green,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (!isAttended) ...[
+                const SizedBox(width: 8),
+                SizedBox(
+                  height: 36,
+                  child: OutlinedButton(
+                    onPressed: (_registering || cancellationClosed) ? null : _cancelRegistration,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: BorderSide(color: cancellationClosed ? Colors.grey.shade400 : Colors.red),
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: _registering
+                        ? const SizedBox(
+                            width: 14, height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red),
+                          )
+                        : Text('Cancel', style: TextStyle(fontSize: 13, color: cancellationClosed ? Colors.grey.shade500 : null)),
                   ),
                 ),
               ],
-            ),
+            ],
           ),
-          const SizedBox(width: 8),
-          SizedBox(
-            height: 36,
-            child: OutlinedButton(
-              onPressed: _registering ? null : _cancelRegistration,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.red,
-                side: const BorderSide(color: Colors.red),
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: _registering
-                  ? const SizedBox(
-                      width: 14, height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red),
-                    )
-                  : const Text('Cancel', style: TextStyle(fontSize: 13)),
+          if (!isAttended && cancellationClosed) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Cancellation closed — event starts within 24 hours',
+              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
             ),
-          ),
+          ],
         ],
       );
     }
@@ -1611,5 +1669,56 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     final dt = getParsedDate(event, key);
     if (dt == null) return '';
     return '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+class _CancellationPolicyDialog extends StatefulWidget {
+  const _CancellationPolicyDialog();
+
+  @override
+  State<_CancellationPolicyDialog> createState() => _CancellationPolicyDialogState();
+}
+
+class _CancellationPolicyDialogState extends State<_CancellationPolicyDialog> {
+  bool _acknowledged = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Before you pay'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Cancellations are allowed only until 24 hours before the event starts. '
+            'Inside 24 hours, cancellation closes and your booking becomes non-refundable.',
+            style: TextStyle(fontSize: 14),
+          ),
+          const SizedBox(height: 8),
+          CheckboxListTile(
+            value: _acknowledged,
+            onChanged: (v) => setState(() => _acknowledged = v ?? false),
+            controlAffinity: ListTileControlAffinity.leading,
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            title: const Text(
+              'I understand the cancellation policy',
+              style: TextStyle(fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Not now'),
+        ),
+        FilledButton(
+          onPressed: _acknowledged ? () => Navigator.of(context).pop(true) : null,
+          child: const Text('Proceed to Pay'),
+        ),
+      ],
+    );
   }
 }

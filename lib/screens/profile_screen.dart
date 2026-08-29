@@ -224,18 +224,7 @@ class ProfileScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  TextButton(
-                    onPressed: () => _confirmDeleteAccount(context, ref),
-                    child: const Text(
-                      'Delete Account',
-                      style: TextStyle(
-                        color: Colors.red,
-                        fontWeight: FontWeight.w500,
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
-                  ),
+
                   const SizedBox(height: 32),
                 ],
               ),
