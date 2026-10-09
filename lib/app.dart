@@ -305,9 +305,6 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
       _router.refresh();
     });
     ref.read(notificationsRealtimeProvider).sync(ref.read(authProvider).session?.user.id);
-    if (ref.read(authProvider).session != null) {
-      ref.read(consentProvider.notifier).check();
-    }
     return MaterialApp.router(
       key: navigatorKey,
       title: 'Cluvo',
