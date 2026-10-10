@@ -176,7 +176,7 @@ void main() {
       expect(errors, isEmpty, reason: 'no FlutterError in $mode');
       expect(find.text('Test Event'), findsOneWidget,
           reason: 'title rendered in $mode');
-      expect(find.text('Coming Soon'), findsOneWidget,
+      expect(find.text('Pay ₹100'), findsOneWidget,
           reason: 'action button rendered in $mode');
     });
   }

@@ -6,6 +6,7 @@ import '../supabase_client.dart';
 import 'profile_provider.dart';
 import 'community_provider.dart';
 import 'notification_provider.dart';
+import 'wishlist_provider.dart';
 
 final _capitalLetter = RegExp(r'[A-Z]');
 
@@ -123,6 +124,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     _ref.invalidate(myCommunitiesProvider);
     _ref.invalidate(notificationsProvider);
     _ref.invalidate(unreadCountProvider);
+    _ref.invalidate(wishlistProvider);
   }
 
   void setError(String message) {
@@ -307,8 +309,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       await supabase.auth.updateUser(UserAttributes(password: newPassword))
           .timeout(const Duration(seconds: 15));
+      // End the temporary recovery session before emitting success so the
+      // router sends the user to /login instead of bouncing them to
+      // /communities (logged-in users cannot stay on /login).
+      try {
+        await supabase.auth.signOut().timeout(const Duration(seconds: 10));
+      } catch (_) {
+        // Sign-out is best-effort — local state is cleared below regardless.
+      }
       state = state.copyWith(
         isLoading: false,
+        clearSession: true,
         isRecovery: false,
         successMessage: 'Password updated — sign in with your new password.',
       );

@@ -75,7 +75,10 @@ class EventsNotifier extends StateNotifier<PaginatedList<Event>> {
         .select('*, communities!inner(name)')
         .isFilter('deleted_at', null)
         .eq('communities.is_hidden', false)
-        .inFilter('status', ['published', 'completed']);
+        .eq('status', 'published')
+        .or(
+          'start_date.gte.${DateTime.now().toUtc().toIso8601String()},end_date.is.null,end_date.gte.${DateTime.now().toUtc().toIso8601String()}',
+        );
     if (_freeOnly) {
       query = query.eq('price', 0);
     }
@@ -83,8 +86,8 @@ class EventsNotifier extends StateNotifier<PaginatedList<Event>> {
       final dayStart = DateTime(_date!.year, _date!.month, _date!.day);
       final dayEnd = dayStart.add(const Duration(days: 1));
       query = query
-          .gte('start_date', dayStart.toIso8601String())
-          .lt('start_date', dayEnd.toIso8601String());
+          .gte('start_date', dayStart.toUtc().toIso8601String())
+          .lt('start_date', dayEnd.toUtc().toIso8601String());
     }
     if (_priceSort != null) {
       return query.order('price', ascending: _priceSort == 'low');

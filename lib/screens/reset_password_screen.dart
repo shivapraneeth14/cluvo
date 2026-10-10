@@ -31,7 +31,6 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
           ),
         );
         ref.read(authProvider.notifier).clearSuccess();
-        ref.read(authProvider.notifier).signOut();
         context.go('/login');
       }
     });

@@ -27,7 +27,7 @@ class AppNotification {
     body: map['body'] as String?,
     payload: map['payload'] as Map<String, dynamic>?,
     read: map['read'] as bool? ?? false,
-    createdAt: DateTime.parse(map['created_at'] as String),
+    createdAt: DateTime.parse(map['created_at'] as String).toLocal(),
   );
 
   Map<String, dynamic> toMap() => {

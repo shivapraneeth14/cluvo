@@ -5,3 +5,7 @@
 -dontwarn com.google.android.play.core.**
 -keepattributes *Annotation*, InnerClasses
 -dontnote kotlinx.serialization.AnnotationsKt
+
+# Razorpay checkout SDK — R8 must not strip its reflective/native layers
+-keep class com.razorpay.** { *; }
+-dontwarn com.razorpay.**

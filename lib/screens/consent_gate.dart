@@ -6,9 +6,12 @@ import '../providers/consent_provider.dart';
 import '../widgets/terms_checkbox.dart';
 import '../theme.dart';
 
-/// Full-screen gate shown only right after a brand-new account is created
-/// via Google OAuth (signup moment) — returning logins go straight to the
-/// app with no intermediate page. Consent is recorded server-side once.
+/// Full-screen gate shown until the server confirms the account has consented
+/// (Google/OAuth-created accounts record consent post-login). It appears when
+/// the server reports no consent, and — if the server cannot be reached — for
+/// accounts that look brand new, so an un-consented user is never silently
+/// let through. Returning and already-consented users pass straight through,
+/// and the app renders normally while a check is in flight.
 class ConsentGate extends ConsumerStatefulWidget {
   final Widget child;
 
@@ -38,11 +41,18 @@ class _ConsentGateState extends ConsumerState<ConsentGate> {
     final session = ref.watch(authProvider).session;
     final consentState = ref.watch(consentProvider);
 
-    if (session == null ||
-        consentState.consented == true ||
-        !_isNewAccount(session)) {
-      return widget.child;
-    }
+    if (session == null) return widget.child;
+    if (consentState.consented == true) return widget.child;
+    // While a check is in flight, render the app normally so returning users
+    // never see a flash of this screen on startup.
+    if (consentState.checking) return widget.child;
+
+    // Gate when the server confirms there is no consent, or when consent is
+    // unknown and the account is brand new (fail closed for new accounts).
+    final bool isNew = _isNewAccount(session);
+    final showGate =
+        consentState.consented == false || (isNew && consentState.consented != true);
+    if (!showGate) return widget.child;
 
     return Scaffold(
       backgroundColor: context.cluvoBackground,
@@ -88,6 +98,15 @@ class _ConsentGateState extends ConsumerState<ConsentGate> {
                 Text(
                   consentState.error!,
                   style: TextStyle(color: context.cluvoErrorText, fontSize: 13),
+                ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    onPressed: consentState.checking
+                        ? null
+                        : () => ref.read(consentProvider.notifier).check(),
+                    child: const Text('Retry'),
+                  ),
                 ),
               ],
               const SizedBox(height: 24),

@@ -10,7 +10,11 @@ import '../models/models.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/theme_toggle_button.dart';
 import '../widgets/wishlist_button.dart';
+import '../widgets/event_status_chip.dart';
+import '../widgets/lifecycle_ticker.dart';
 import '../providers/wishlist_provider.dart';
+import '../supabase_client.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 const _months = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -31,7 +35,8 @@ class EventsScreen extends ConsumerStatefulWidget {
   ConsumerState<EventsScreen> createState() => _EventsScreenState();
 }
 
-class _EventsScreenState extends ConsumerState<EventsScreen> {
+class _EventsScreenState extends ConsumerState<EventsScreen>
+    with LifecycleTickerMixin<EventsScreen> {
   String? _filter;
   DateTime? _pickedDate;
   String? _priceOption;
@@ -39,20 +44,61 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
   final _scrollController = ScrollController();
   final _filterKey = GlobalKey();
   Timer? _debounce;
+  Timer? _realtimeDebounce;
+  RealtimeChannel? _eventsChannel;
+  bool _closedDropScheduled = false;
   String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    startLifecycleTick();
+    _subscribeRealtime();
   }
 
   @override
   void dispose() {
+    _eventsChannel?.unsubscribe();
     _searchController.dispose();
     _scrollController.dispose();
     _debounce?.cancel();
+    _realtimeDebounce?.cancel();
     super.dispose();
+  }
+
+  // 60s tick: chips + Today/Upcoming/Past category stay fresh; when a listed
+  // event turns closed it drops off the list with a single refetch.
+  @override
+  void onLifecycleTick() {
+    if (!mounted) return;
+    setState(() {});
+    final state = ref.read(eventsProvider);
+    final hasClosed = state.items.any((e) => e.lifecycle() == EventLifecycle.closed);
+    if (hasClosed && !_closedDropScheduled) {
+      _closedDropScheduled = true;
+      ref.read(eventsProvider.notifier).refresh();
+      Future.delayed(const Duration(seconds: 5), () {
+        _closedDropScheduled = false;
+      });
+    }
+  }
+
+  void _subscribeRealtime() {
+    _eventsChannel = supabase
+        .channel('events-screen-list')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'events',
+          callback: (_) {
+            _realtimeDebounce?.cancel();
+            _realtimeDebounce = Timer(const Duration(seconds: 2), () {
+              if (mounted) ref.read(eventsProvider.notifier).refresh();
+            });
+          },
+        )
+        .subscribe();
   }
 
   void _onScroll() {
@@ -361,7 +407,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(12),
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
+                      crossAxisCount: 2,
                       mainAxisSpacing: 10,
                       crossAxisSpacing: 10,
                       childAspectRatio: 0.85,
@@ -450,17 +496,24 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
                                                   ),
                                                 ),
                                                 const Spacer(),
-                                                Text(
-                                                  price > 0
-                                                      ? '₹${(price / 100).toStringAsFixed(0)}'
-                                                      : 'Free',
-                                                  style: TextStyle(
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: price > 0
-                                                        ? context.cluvoPrimaryText
-                                                        : Colors.green,
-                                                  ),
+                                                Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                                  children: [
+                                                    EventStatusChip(lifecycle: e.lifecycle()),
+                                                    const SizedBox(height: 3),
+                                                    Text(
+                                                      price > 0
+                                                          ? '₹${(price / 100).toStringAsFixed(0)}'
+                                                          : 'Free',
+                                                      style: TextStyle(
+                                                        fontSize: 10,
+                                                        fontWeight: FontWeight.w600,
+                                                        color: price > 0
+                                                            ? context.cluvoPrimaryText
+                                                            : Colors.green,
+                                                      ),
+                                                    ),
+                                                  ],
                                                 ),
                                               ],
                                             ),

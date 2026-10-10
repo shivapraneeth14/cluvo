@@ -58,29 +58,51 @@ class MyRegistrationsScreen extends ConsumerWidget {
     final eventId = r['event_id'] as String?;
     final isEventCancelled = events?['status'] == 'cancelled';
 
+    Map<String, dynamic>? payment;
+    final raw = r['payments'];
+    if (raw is Map<String, dynamic>) {
+      payment = raw;
+    } else if (raw is List && raw.isNotEmpty) {
+      payment = raw.first as Map<String, dynamic>?;
+    }
+    final paymentStatus = payment?['status'] as String?;
+    final refundStatus = payment?['refund_status'] as String?;
+    final paidAmount = payment?['amount'] as num?;
+    final refundedAmount = payment?['refunded_amount'] as num?;
+    final qrCode = r['qr_code'] as String?;
+
+    final refundLabels = {
+      'processed': 'Refunded',
+      'pending': 'Refund processing',
+      'queued': 'Refund queued',
+      'requested': 'Refund in progress',
+      'failed': 'Refund failed — support will contact you',
+    };
+
     String? refundNotice;
+    final effectiveRefundLabel = (refundStatus != null) ? refundLabels[refundStatus] : null;
     if (isEventCancelled) {
-      final raw = r['payments'];
-      Map<String, dynamic>? payment;
-      if (raw is Map<String, dynamic>) {
-        payment = raw;
-      } else if (raw is List && raw.isNotEmpty) {
-        payment = raw.first as Map<String, dynamic>?;
-      }
-      final paymentStatus = payment?['status'] as String?;
-      final refundStatus = payment?['refund_status'] as String?;
-      if (paymentStatus == 'refunded') {
-        refundNotice = 'Refunded';
-      } else if (refundStatus == 'requested') {
-        refundNotice = 'Refund in progress';
+      if (refundStatus == 'processed') {
+        final shown = refundedAmount is num && refundedAmount > 0 ? refundedAmount : paidAmount;
+        refundNotice = shown is num && shown > 0 ? 'Refunded · ₹${(shown / 100).toStringAsFixed(0)}' : 'Refunded';
+      } else if (effectiveRefundLabel != null) {
+        refundNotice = effectiveRefundLabel;
       } else {
         refundNotice = 'Event cancelled — money will be refunded';
       }
+    } else if (status == 'cancelled' && paymentStatus == 'refunded') {
+      final shown = refundedAmount is num && refundedAmount > 0 ? refundedAmount : paidAmount;
+      refundNotice = shown is num && shown > 0 ? 'Cancelled · refunded ₹${(shown / 100).toStringAsFixed(0)}' : 'Cancelled · refunded';
+    } else if (status == 'cancelled' && effectiveRefundLabel != null) {
+      refundNotice = 'Cancelled · $effectiveRefundLabel';
     }
+
+    final hasTicket = status == 'confirmed' && qrCode != null && !isEventCancelled;
 
     final subtitle = [
       formatDate(startDate),
       ?refundNotice,
+      if (hasTicket) 'Tap to view your ticket',
     ].join('\n');
 
     return ActivityCard(
@@ -92,11 +114,13 @@ class MyRegistrationsScreen extends ConsumerWidget {
           borderRadius: BorderRadius.circular(10),
         ),
         child: Center(
-          child: Icon(
-            regStatusIcon(status),
-            color: regStatusColor(context, status),
-            size: 20,
-          ),
+          child: hasTicket
+              ? const Icon(Icons.confirmation_number_outlined, color: Colors.green, size: 20)
+              : Icon(
+                  regStatusIcon(status),
+                  color: regStatusColor(context, status),
+                  size: 20,
+                ),
         ),
       ),
       title: title,
@@ -104,19 +128,25 @@ class MyRegistrationsScreen extends ConsumerWidget {
       trailing: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
-          color: regStatusColor(context, status).withValues(alpha: 0.1),
+          color: (hasTicket ? Colors.green : regStatusColor(context, status)).withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(6),
         ),
         child: Text(
-          status[0].toUpperCase() + status.substring(1),
+          hasTicket
+              ? 'Ticket'
+              : status[0].toUpperCase() + status.substring(1),
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,
-            color: regStatusColor(context, status),
+            color: hasTicket ? Colors.green : regStatusColor(context, status),
           ),
         ),
       ),
-      onTap: eventId != null ? () => context.push('/events/$eventId') : null,
+      onTap: hasTicket
+          ? () => context.push('/ticket/${r['id']}')
+          : eventId != null
+              ? () => context.push('/events/$eventId')
+              : null,
     );
   }
 }

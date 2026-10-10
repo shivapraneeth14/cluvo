@@ -18,6 +18,8 @@
 // page-scoped widget (community_photo_grid.dart) instead.
 // ============================================================================
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
@@ -27,7 +29,10 @@ import 'package:url_launcher/url_launcher.dart';
 import '../theme.dart';
 import '../config.dart';
 import '../supabase_client.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/community_photo_grid.dart';
+import '../widgets/event_status_chip.dart';
+import '../widgets/lifecycle_ticker.dart';
 import '../widgets/wishlist_button.dart';
 import '../providers/wishlist_provider.dart';
 import '../models/models.dart';
@@ -39,6 +44,32 @@ const _months = [
 
 const double _heroHeight = 300;
 
+// Community events tab ordering: live first, active next, closed after,
+// cancelled last — each by most recent start_date.
+List<Event> _sortCommunityEvents(List<Event> events) {
+  final sorted = List<Event>.from(events);
+  int rank(Event e) {
+    switch (e.lifecycle()) {
+      case EventLifecycle.live:
+        return 0;
+      case EventLifecycle.active:
+        return 1;
+      case EventLifecycle.closed:
+        return 2;
+      case EventLifecycle.cancelled:
+        return 3;
+    }
+  }
+
+  sorted.sort((a, b) {
+    final ra = rank(a);
+    final rb = rank(b);
+    if (ra != rb) return ra.compareTo(rb);
+    return b.startDate.compareTo(a.startDate);
+  });
+  return sorted;
+}
+
 class CommunityDetailScreen extends StatefulWidget {
   final String id;
   const CommunityDetailScreen({super.key, required this.id});
@@ -47,7 +78,8 @@ class CommunityDetailScreen extends StatefulWidget {
   State<CommunityDetailScreen> createState() => _CommunityDetailScreenState();
 }
 
-class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
+class _CommunityDetailScreenState extends State<CommunityDetailScreen>
+    with LifecycleTickerMixin<CommunityDetailScreen> {
   Map<String, dynamic>? _community;
   List<Event> _events = [];
   List<Map<String, dynamic>> _media = [];
@@ -62,6 +94,8 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
   DateTime? _pickedDate;
   final _filterKey = GlobalKey();
   String _selectedSection = 'events';
+  RealtimeChannel? _eventsChannel;
+  Timer? _realtimeDebounce;
 
   // ── DATA (unchanged from original) ────────────────────────────────────
 
@@ -69,6 +103,44 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
   void initState() {
     super.initState();
     _load();
+    startLifecycleTick();
+    _subscribeRealtime();
+  }
+
+  @override
+  void dispose() {
+    _eventsChannel?.unsubscribe();
+    _realtimeDebounce?.cancel();
+    super.dispose();
+  }
+
+  // 60s tick: re-sort + lifecycle chips update without a refresh.
+  @override
+  void onLifecycleTick() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  void _subscribeRealtime() {
+    _eventsChannel = supabase
+        .channel('community-events-${widget.id}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'events',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'community_id',
+            value: widget.id,
+          ),
+          callback: (_) {
+            _realtimeDebounce?.cancel();
+            _realtimeDebounce = Timer(const Duration(seconds: 2), () {
+              if (mounted) _load();
+            });
+          },
+        )
+        .subscribe();
   }
 
   Future<void> _load() async {
@@ -86,7 +158,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
           .eq('community_id', widget.id)
           .eq('communities.is_hidden', false)
           .isFilter('deleted_at', null)
-          .inFilter('status', ['published', 'completed'])
+          .inFilter('status', ['published', 'completed', 'cancelled'])
           .order('start_date', ascending: false)
           .limit(50);
 
@@ -118,9 +190,9 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
           isMember = true;
           isOwner = (memberRes as Map<String, dynamic>)['role'] == 'OWNER';
         }
-        final events = (results[1] as List)
+        final events = _sortCommunityEvents((results[1] as List)
             .map((e) => Event.fromMap(e as Map<String, dynamic>))
-            .toList();
+            .toList());
         setState(() {
           _community = results[0] as Map<String, dynamic>?;
           _events = events;
@@ -136,9 +208,9 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
           mediaFuture,
         ]).timeout(const Duration(seconds: 30));
         if (!mounted) return;
-        final events = (results[1] as List)
+        final events = _sortCommunityEvents((results[1] as List)
             .map((e) => Event.fromMap(e as Map<String, dynamic>))
-            .toList();
+            .toList());
         setState(() {
           _community = results[0] as Map<String, dynamic>?;
           _events = events;
@@ -1101,16 +1173,14 @@ class _EventCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final today = DateTime.now();
-    final todayDay = DateTime(today.year, today.month, today.day);
-    final eventDay =
-        DateTime(event.startDate.year, event.startDate.month, event.startDate.day);
-    final isPast = eventDay.isBefore(todayDay);
+    final lifecycle = event.lifecycle();
+    final dormant = lifecycle == EventLifecycle.closed ||
+        lifecycle == EventLifecycle.cancelled;
     final imageUrl = event.imageUrl;
     final months = _months;
 
     return Opacity(
-      opacity: isPast ? 0.55 : 1.0,
+      opacity: dormant ? 0.55 : 1.0,
       child: GestureDetector(
         onTap: onTap,
         child: Column(
@@ -1160,6 +1230,12 @@ class _EventCard extends StatelessWidget {
                         ),
                       ),
                     ),
+                    // Status chip above the price badge, bottom-right
+                    Positioned(
+                      bottom: 34,
+                      right: 8,
+                      child: EventStatusChip(lifecycle: lifecycle),
+                    ),
                     // Price badge, bottom-right
                     Positioned(
                       bottom: 8,
@@ -1184,21 +1260,6 @@ class _EventCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (isPast)
-                      Positioned(
-                        top: 44,
-                        right: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.75),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Text('Closed',
-                              style: TextStyle(
-                                  fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white)),
-                        ),
-                      ),
                     // Wishlist save toggle, top-right
                     Positioned(
                       top: 8,

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'dart:async';
 import '../theme.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -8,11 +9,14 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../config.dart';
 import '../supabase_client.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/razorpay_web.dart';
 import '../widgets/community_photo_grid.dart';
 import '../widgets/event_discussion.dart';
 import '../widgets/wishlist_button.dart';
+import '../widgets/lifecycle_ticker.dart';
 import '../providers/wishlist_provider.dart';
+import '../models/models.dart';
 import '../utils.dart';
 
 class EventDetailScreen extends StatefulWidget {
@@ -23,7 +27,8 @@ class EventDetailScreen extends StatefulWidget {
   State<EventDetailScreen> createState() => _EventDetailScreenState();
 }
 
-class _EventDetailScreenState extends State<EventDetailScreen> {
+class _EventDetailScreenState extends State<EventDetailScreen>
+    with LifecycleTickerMixin<EventDetailScreen> {
   Map<String, dynamic>? _event;
   List<Map<String, dynamic>> _media = [];
   bool _loading = true;
@@ -40,6 +45,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   String _selectedSection = 'discussion';
   int _descTabIndex = 0;
   Razorpay? _razorpay;
+  RealtimeChannel? _eventChannel;
+  RealtimeChannel? _regChannel;
+  Timer? _realtimeDebounce;
 
   @override
   void initState() {
@@ -51,12 +59,73 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       _razorpay!.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
     }
     _load();
+    startLifecycleTick();
+    _subscribeRealtime();
   }
 
   @override
   void dispose() {
+    _eventChannel?.unsubscribe();
+    _regChannel?.unsubscribe();
+    _realtimeDebounce?.cancel();
     if (!kIsWeb) _razorpay?.clear();
     super.dispose();
+  }
+
+  // 60s tick: the action button flips Pay/Register -> Live -> Event Closed as
+  // start/end dates pass, without any refresh.
+  @override
+  void onLifecycleTick() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  void _subscribeRealtime() {
+    _eventChannel = supabase
+        .channel('event-detail-${widget.id}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'events',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: widget.id,
+          ),
+          callback: (payload) {
+            final newRow = payload.newRecord;
+            if (!mounted || _event == null) return;
+            setState(() {
+              _event = Map<String, dynamic>.from(_event!)
+                ..addAll(Map<String, dynamic>.from(newRow));
+            });
+          },
+        )
+        .subscribe();
+
+    final session = supabase.auth.currentSession;
+    if (session == null) return;
+    _regChannel = supabase
+        .channel('event-detail-reg-${session.user.id}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'registrations',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user_id',
+            value: session.user.id,
+          ),
+          callback: (payload) {
+            final row = Map<String, dynamic>.from(payload.newRecord);
+            if (row['event_id'] != widget.id) return;
+            _realtimeDebounce?.cancel();
+            _realtimeDebounce = Timer(const Duration(milliseconds: 500), () {
+              if (mounted) _load();
+            });
+          },
+        )
+        .subscribe();
   }
 
   void _handlePaymentSuccess(PaymentSuccessResponse response) {
@@ -147,7 +216,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       final session = supabase.auth.currentSession;
       final eventFuture = supabase
           .from('events')
-          .select('*, communities!inner(name, community_avatar_url)')
+          .select('*, communities!inner(name, community_avatar_url, platform_fee_amount)')
           .eq('id', widget.id)
           .eq('communities.is_hidden', false)
           .inFilter('status', ['published', 'completed', 'cancelled'])
@@ -174,7 +243,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         ]).timeout(const Duration(seconds: 30));
         if (!mounted) return;
         final regData = results[2] as Map<String, dynamic>?;
-        registered = regData?['status'] == 'confirmed';
+        registered = ['confirmed', 'attended'].contains(regData?['status']);
         _registrationStatus = regData?['status'] as String?;
         final event = results[0] as Map<String, dynamic>?;
         if (event != null) {
@@ -260,9 +329,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     });
   }
 
-  // Temporarily unused while paid registration shows "Coming Soon"
-  // pending the Razorpay web integration fix.
-  // ignore: unused_element
   Future<void> _payForEvent() async {
     if (_registering || _processingPayment) return;
     setState(() => _registering = true);
@@ -275,6 +341,23 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
       if (AppConfig.razorpayKeyId.isEmpty) {
         _showError('Payment is not configured. Please contact support.');
+        setState(() => _registering = false);
+        return;
+      }
+
+      // Payment review — breakdown + cancellation policy. No order is created
+      // until the attendee explicitly confirms and accepts the 24-hour rule.
+      final ticketPaise = ((_event?['price'] as num?) ?? 0).toInt();
+      final acknowledged = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => _CancellationPolicyDialog(
+          ticketPaise: ticketPaise,
+          feeNetPaise: _feeNetPaise(),
+        ),
+      );
+      if (!mounted) return;
+      if (acknowledged != true) {
         setState(() => _registering = false);
         return;
       }
@@ -374,13 +457,93 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      _showError('Something went wrong. Try again.');
+      _showError(_functionErrorMessage(e, 'Something went wrong. Try again.'));
     }
     if (mounted) setState(() => _registering = false);
   }
 
+  bool _cancellationClosed() {
+    final e = _event;
+    if (e == null) return false;
+    final start = getParsedDate(e, 'start_date');
+    if (start == null) return false;
+    return !DateTime.now().isBefore(start.subtract(const Duration(hours: 24)));
+  }
+
   Future<void> _cancelRegistration() async {
     if (_registering) return;
+    if (_cancellationClosed()) {
+      _showError('Cancellations close 24 hours before the event starts.');
+      return;
+    }
+
+    final reg = supabase.auth.currentUser != null
+        ? await supabase
+            .from('registrations')
+            .select('payments(amount, platform_fee, refund_status)')
+            .eq('event_id', widget.id)
+            .eq('user_id', supabase.auth.currentUser!.id)
+            .eq('status', 'confirmed')
+            .maybeSingle()
+            .catchError((_) => null)
+        : null;
+    final payRaw = reg?['payments'];
+    Map<String, dynamic>? payment;
+    if (payRaw is Map<String, dynamic>) {
+      payment = payRaw;
+    } else if (payRaw is List && payRaw.isNotEmpty) {
+      payment = payRaw.first as Map<String, dynamic>?;
+    }
+    final paid = (payment?['amount'] as num?)?.toInt() ?? 0;
+    // Self-cancel refunds the ticket; the fee (persisted at order creation)
+    // stays with the platform.
+    final feeKept = paid > 0
+        ? ((payment?['platform_fee'] as num?)?.toInt() ?? 0)
+        : 0;
+    final expectedRefund = paid > 0 ? (paid - feeKept).clamp(0, paid) : 0;
+
+    final confirmed = !mounted ? null : await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel registration?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Your registration will be cancelled.',
+              style: TextStyle(fontSize: 14),
+            ),
+            if (paid > 0) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Refund: ${formatRupees(expectedRefund)} '
+                '(platform fee ${formatRupees(feeKept)} is not refundable on self-cancel).',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Refunds appear in your payment details and take 3–5 business days to reach your account.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Keep registration'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Cancel & refund'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
     setState(() => _registering = true);
     try {
       final res = await supabase.functions
@@ -391,17 +554,29 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           .timeout(const Duration(seconds: 30));
       if (!mounted) return;
       if (res.data['success'] == true) {
+        final refund = res.data['refund'];
+        final refundedAmount = refund is Map<String, dynamic> ? refund['amount'] as num? : null;
         setState(() {
           _isRegistered = false;
           _registrationStatus = 'cancelled';
           _event!['booked_count'] = ((_event!['booked_count'] as num?) ?? 1) - 1;
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              refundedAmount != null && refundedAmount > 0
+                  ? 'Registration cancelled. Refund of ₹${(refundedAmount / 100).toStringAsFixed(0)} initiated.'
+                  : 'Registration cancelled.',
+            ),
+            backgroundColor: Colors.green[700],
+          ),
+        );
       } else {
         _showError(res.data['error'] ?? 'Cancellation failed.');
       }
     } catch (e) {
       if (!mounted) return;
-      _showError('Something went wrong. Try again.');
+      _showError(_functionErrorMessage(e, 'Something went wrong. Try again.'));
     }
     if (mounted) setState(() => _registering = false);
   }
@@ -411,6 +586,17 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg), backgroundColor: Colors.red[700]),
     );
+  }
+
+  String _functionErrorMessage(Object error, String fallback) {
+    if (error is FunctionException) {
+      final details = error.details;
+      if (details is Map) {
+        final msg = details['error'];
+        if (msg is String && msg.trim().isNotEmpty) return msg;
+      }
+    }
+    return fallback;
   }
 
   @override
@@ -475,8 +661,18 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final booked = (e['booked_count'] as num?) ?? 0;
     final isFull = capacity != null && booked >= capacity;
     final eventStatus = e['status'] as String? ?? 'published';
+    final startStr = e['start_date'] as String?;
     final endStr = e['end_date'] as String?;
-    final closed = endStr != null && DateTime.parse(endStr).isBefore(DateTime.now());
+    final lifecycle = eventStatus == 'cancelled'
+        ? EventLifecycle.cancelled
+        : eventStatus == 'completed'
+            ? EventLifecycle.closed
+            : endStr != null && DateTime.parse(endStr).isBefore(DateTime.now())
+                ? EventLifecycle.closed
+                : startStr != null &&
+                        !DateTime.parse(startStr).isBefore(DateTime.now())
+                    ? EventLifecycle.active
+                    : EventLifecycle.live;
     final communityName =
         (e['communities'] as Map<String, dynamic>?)?['name'] as String?;
     final communityAvatarUrl =
@@ -565,33 +761,40 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                 top: false,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                  child: Row(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
+                      Row(
                         children: [
-                          Text(
-                            'Price',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: context.cluvoTextSecondary,
-                            ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                price > 0 ? 'Ticket price' : 'Price',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: context.cluvoTextSecondary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                price > 0 ? formatRupees(price) : 'Free',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            price > 0
-                                ? '₹${(price / 100).toStringAsFixed(0)}'
-                                : 'Free',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          const Spacer(),
+                          _buildActionButton(price, isFull, eventStatus, lifecycle),
                         ],
                       ),
-                      const Spacer(),
-                      _buildActionButton(price, isFull, eventStatus, closed),
+                      if (price > 0 && !_isRegistered && eventStatus != 'cancelled') ...[
+                        const SizedBox(height: 8),
+                        _buildRefundDisclosure(price),
+                      ],
                     ],
                   ),
                 ),
@@ -979,7 +1182,28 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
-  Widget _buildActionButton(num price, bool isFull, String eventStatus, bool closed) {
+  // Flat platform fee (paise, pre-GST) for this event's community.
+  int _feeNetPaise() {
+    final community = _event?['communities'] as Map<String, dynamic>?;
+    return (community?['platform_fee_amount'] as num?)?.toInt() ??
+        kDefaultPlatformFeePaise;
+  }
+
+  // Flat platform fee + 18% GST for this event's community (paise).
+  int _feeAmountPaise() => platformFeeTotal(_feeNetPaise());
+
+  Widget _buildRefundDisclosure(num price) {
+    final fee = _feeAmountPaise();
+    final total = price + fee;
+    return Text(
+      'Free cancellation with refund up to 24h before start. Self-cancelling refunds your ticket '
+      '${formatRupees(price)} (platform fee ${formatRupees(fee)} is kept); if the organizer cancels, '
+      'you get the full ${formatRupees(total)} back.',
+      style: TextStyle(fontSize: 10.5, color: context.cluvoTextSecondary),
+    );
+  }
+
+  Widget _buildActionButton(num price, bool isFull, String eventStatus, EventLifecycle lifecycle) {
     if (eventStatus == 'cancelled') {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -1037,57 +1261,104 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     }
 
     if (_isRegistered) {
-      return Row(
+      final isAttended = _registrationStatus == 'attended';
+      final cancellationClosed = _cancellationClosed();
+      return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.green.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.check_circle, size: 16, color: Colors.green),
-                const SizedBox(width: 6),
-                const Text(
-                  'Registered',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.green,
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isAttended
+                      ? Colors.blue.withValues(alpha: 0.1)
+                      : Colors.green.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isAttended ? Icons.star : Icons.check_circle,
+                      size: 16,
+                      color: isAttended ? Colors.blue : Colors.green,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      isAttended ? 'Attended' : 'Registered',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: isAttended ? Colors.blue : Colors.green,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (!isAttended) ...[
+                const SizedBox(width: 8),
+                SizedBox(
+                  height: 36,
+                  child: OutlinedButton(
+                    onPressed: (_registering || cancellationClosed) ? null : _cancelRegistration,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: BorderSide(color: cancellationClosed ? Colors.grey.shade400 : Colors.red),
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: _registering
+                        ? const SizedBox(
+                            width: 14, height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red),
+                          )
+                        : Text('Cancel', style: TextStyle(fontSize: 13, color: cancellationClosed ? Colors.grey.shade500 : null)),
                   ),
                 ),
               ],
-            ),
+            ],
           ),
-          const SizedBox(width: 8),
-          SizedBox(
-            height: 36,
-            child: OutlinedButton(
-              onPressed: _registering ? null : _cancelRegistration,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.red,
-                side: const BorderSide(color: Colors.red),
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: _registering
-                  ? const SizedBox(
-                      width: 14, height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red),
-                    )
-                  : const Text('Cancel', style: TextStyle(fontSize: 13)),
+          if (!isAttended && cancellationClosed) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Cancellation closed — event starts within 24 hours',
+              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
             ),
-          ),
+          ],
         ],
       );
     }
 
-    if (closed) {
+    if (lifecycle == EventLifecycle.live) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE53935).withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.circle, size: 12, color: Color(0xFFE53935)),
+            const SizedBox(width: 8),
+            const Text(
+              'Live',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFE53935),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (lifecycle == EventLifecycle.closed) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
@@ -1127,7 +1398,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       return SizedBox(
         height: 44,
         child: ElevatedButton.icon(
-          onPressed: null,
+          onPressed: (_registering || _processingPayment) ? null : _payForEvent,
           icon: (_registering || _processingPayment)
               ? const SizedBox(
                   width: 16,
@@ -1139,7 +1410,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           label: Text(
             (_registering || _processingPayment)
                 ? 'Processing…'
-                : 'Coming Soon',
+                : 'Pay ${formatRupees(price)}',
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
           style: ElevatedButton.styleFrom(
@@ -1412,5 +1683,97 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final dt = getParsedDate(event, key);
     if (dt == null) return '';
     return '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+class _CancellationPolicyDialog extends StatefulWidget {
+  final int ticketPaise;
+  final int feeNetPaise;
+
+  const _CancellationPolicyDialog({
+    required this.ticketPaise,
+    required this.feeNetPaise,
+  });
+
+  @override
+  State<_CancellationPolicyDialog> createState() => _CancellationPolicyDialogState();
+}
+
+class _CancellationPolicyDialogState extends State<_CancellationPolicyDialog> {
+  bool _acknowledged = false;
+
+  Widget _row(String label, String value, {bool bold = false}) {
+    final style = TextStyle(
+      fontSize: bold ? 14.5 : 13.5,
+      fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+      color: bold ? null : const Color(0xFF374151),
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: style),
+          Text(value, style: style),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final gst = gstForPlatformFee(widget.feeNetPaise);
+    final total = widget.ticketPaise + widget.feeNetPaise + gst;
+    return AlertDialog(
+      title: const Text('Before you pay'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _row('Ticket price', formatRupees(widget.ticketPaise)),
+          _row('Platform fee', formatRupees(widget.feeNetPaise)),
+          _row('GST (18%)', formatRupees(gst)),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 6),
+            child: Divider(height: 1),
+          ),
+          _row('Total you pay', formatRupees(total), bold: true),
+          const SizedBox(height: 14),
+          const Text(
+            'Cancellations are allowed only until 24 hours before the event starts. '
+            'Inside 24 hours, cancellation closes and your booking becomes non-refundable.',
+            style: TextStyle(fontSize: 13.5),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'If you cancel yourself, the ticket price is refunded but the platform fee is kept. '
+            'If the organizer cancels the event, you get the full amount back.',
+            style: TextStyle(fontSize: 12.5, color: Colors.grey),
+          ),
+          const SizedBox(height: 4),
+          CheckboxListTile(
+            value: _acknowledged,
+            onChanged: (v) => setState(() => _acknowledged = v ?? false),
+            controlAffinity: ListTileControlAffinity.leading,
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            title: const Text(
+              'I understand the cancellation policy',
+              style: TextStyle(fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Not now'),
+        ),
+        FilledButton(
+          onPressed: _acknowledged ? () => Navigator.of(context).pop(true) : null,
+          child: Text('Confirm payment ${formatRupees(total)}'),
+        ),
+      ],
+    );
   }
 }

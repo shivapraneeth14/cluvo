@@ -113,6 +113,10 @@ class NotificationsScreen extends ConsumerWidget {
         icon = Icons.cancel;
         color = Colors.red;
         break;
+      case 'event_updated':
+        icon = Icons.update;
+        color = CluvoTheme.primaryLight;
+        break;
       case 'removed_from_community':
         icon = Icons.person_remove;
         color = Colors.red;
@@ -148,6 +152,7 @@ class NotificationsScreen extends ConsumerWidget {
     if (diff.inMinutes < 60) return '${diff.inMinutes}m';
     if (diff.inHours < 24) return '${diff.inHours}h';
     if (diff.inDays < 7) return '${diff.inDays}d';
-    return '${dt.day}/${dt.month}';
+    final local = dt.toLocal();
+    return '${local.day}/${local.month}';
   }
 }

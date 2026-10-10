@@ -4,7 +4,8 @@ import 'theme.dart';
 DateTime? safeParseDate(String? iso) {
   if (iso == null || iso.isEmpty) return null;
   try {
-    return DateTime.parse(iso);
+    final dt = DateTime.parse(iso);
+    return dt.isUtc ? dt.toLocal() : dt;
   } catch (_) {
     return null;
   }
@@ -26,9 +27,39 @@ void preParseEventDates(List<Map<String, dynamic>> events) {
 }
 
 String formatDate(String? iso) {
-  final dt = DateTime.tryParse(iso ?? '');
+  final dt = safeParseDate(iso);
   if (dt == null) return '';
   return '${dt.day}/${dt.month}/${dt.year}';
+}
+
+String formatDateTime(DateTime? dt) {
+  if (dt == null) return '';
+  final local = dt.isUtc ? dt.toLocal() : dt;
+  return '${local.day}/${local.month}/${local.year} ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+}
+
+// ── Fee-on-top money math (all paise) ─────────────────────────────────────
+// Mirrors supabase/functions/_shared/fees.ts — keep both in sync:
+//   total charged = ticket + flat fee + 18% GST on the fee
+//   organizer receives 100% of the ticket; the fee is NOT part of it.
+const int kPlatformFeeGstPercent = 18;
+const int kDefaultPlatformFeePaise = 2000; // ₹20 flat, pre-GST
+
+int gstForPlatformFee(int netPaise) =>
+    (netPaise * kPlatformFeeGstPercent / 100).round();
+
+/// Total platform fee charged to the customer (flat fee + GST), in paise.
+int platformFeeTotal(int? feeAmountPaise) {
+  final net = feeAmountPaise ?? kDefaultPlatformFeePaise;
+  return net + gstForPlatformFee(net);
+}
+
+/// ₹ for a paise amount — omits decimals only when the value is whole.
+String formatRupees(num paise) {
+  final value = paise / 100;
+  return value == value.roundToDouble()
+      ? '₹${value.toStringAsFixed(0)}'
+      : '₹${value.toStringAsFixed(2)}';
 }
 
 Color regStatusColor(BuildContext context, String status) {

@@ -31,9 +31,9 @@ class Profile {
     username: map['username'] as String?,
     avatarUrl: map['avatar_url'] as String?,
     isAdmin: map['is_admin'] as bool? ?? false,
-    createdAt: DateTime.parse(map['created_at'] as String),
-    updatedAt: DateTime.parse(map['updated_at'] as String),
-    deletedAt: map['deleted_at'] != null ? DateTime.parse(map['deleted_at'] as String) : null,
+    createdAt: DateTime.parse(map['created_at'] as String).toLocal(),
+    updatedAt: DateTime.parse(map['updated_at'] as String).toLocal(),
+    deletedAt: map['deleted_at'] != null ? DateTime.parse(map['deleted_at'] as String).toLocal() : null,
   );
 
   Map<String, dynamic> toMap() => {

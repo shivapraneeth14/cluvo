@@ -18,7 +18,7 @@ class JoinRequest {
     communityId: map['community_id'] as String,
     userId: map['user_id'] as String,
     status: map['status'] as String? ?? 'pending',
-    createdAt: DateTime.parse(map['created_at'] as String),
+    createdAt: DateTime.parse(map['created_at'] as String).toLocal(),
   );
 
   Map<String, dynamic> toMap() => {

@@ -27,6 +27,7 @@ import 'screens/my_communities_screen.dart';
 import 'screens/my_registrations_screen.dart';
 import 'screens/my_payments_screen.dart';
 import 'screens/payment_detail_screen.dart';
+import 'screens/ticket_screen.dart';
 import 'screens/wishlist_screen.dart';
 import 'screens/consent_gate.dart';
 
@@ -164,6 +165,12 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
             paymentId: state.pathParameters['id']!,
           ),
         ),
+        GoRoute(
+          path: '/ticket/:id',
+          builder: (context, state) => TicketScreen(
+            registrationId: state.pathParameters['id']!,
+          ),
+        ),
         StatefulShellRoute.indexedStack(
           builder: (context, state, navigationShell) =>
               MainShell(navigationShell: navigationShell),
@@ -298,9 +305,6 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
       _router.refresh();
     });
     ref.read(notificationsRealtimeProvider).sync(ref.read(authProvider).session?.user.id);
-    if (ref.read(authProvider).session != null) {
-      ref.read(consentProvider.notifier).check();
-    }
     return MaterialApp.router(
       key: navigatorKey,
       title: 'Cluvo',
