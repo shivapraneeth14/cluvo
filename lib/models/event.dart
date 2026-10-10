@@ -57,8 +57,8 @@ class Event {
       title: map['title'] as String,
       description: map['description'] as String?,
       imageUrl: map['image_url'] as String?,
-      startDate: DateTime.parse(map['start_date'] as String),
-      endDate: map['end_date'] != null ? DateTime.parse(map['end_date'] as String) : null,
+      startDate: DateTime.parse(map['start_date'] as String).toLocal(),
+      endDate: map['end_date'] != null ? DateTime.parse(map['end_date'] as String).toLocal() : null,
       location: map['location'] as String?,
       latitude: (map['latitude'] as num?)?.toDouble(),
       longitude: (map['longitude'] as num?)?.toDouble(),
@@ -67,9 +67,9 @@ class Event {
       bookedCount: map['booked_count'] as int? ?? 0,
       status: map['status'] as String? ?? 'draft',
       createdBy: map['created_by'] as String?,
-      createdAt: DateTime.parse(map['created_at'] as String),
-      updatedAt: DateTime.parse(map['updated_at'] as String),
-      deletedAt: map['deleted_at'] != null ? DateTime.parse(map['deleted_at'] as String) : null,
+      createdAt: DateTime.parse(map['created_at'] as String).toLocal(),
+      updatedAt: DateTime.parse(map['updated_at'] as String).toLocal(),
+      deletedAt: map['deleted_at'] != null ? DateTime.parse(map['deleted_at'] as String).toLocal() : null,
       communityName: communityName,
     );
   }

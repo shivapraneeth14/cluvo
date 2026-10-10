@@ -20,7 +20,7 @@ class CommunityMember {
     permissions: map['permissions'] != null
         ? Map<String, bool>.from(map['permissions'] as Map)
         : {},
-    joinedAt: DateTime.parse(map['joined_at'] as String),
+    joinedAt: DateTime.parse(map['joined_at'] as String).toLocal(),
   );
 
   Map<String, dynamic> toMap() => {

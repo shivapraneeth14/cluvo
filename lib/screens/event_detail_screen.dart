@@ -216,7 +216,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
       final session = supabase.auth.currentSession;
       final eventFuture = supabase
           .from('events')
-          .select('*, communities!inner(name, community_avatar_url, commission_percent)')
+          .select('*, communities!inner(name, community_avatar_url, platform_fee_amount)')
           .eq('id', widget.id)
           .eq('communities.is_hidden', false)
           .inFilter('status', ['published', 'completed', 'cancelled'])
@@ -345,12 +345,16 @@ class _EventDetailScreenState extends State<EventDetailScreen>
         return;
       }
 
-      // Cancellation-policy acknowledgement — no order is created until the
-      // attendee explicitly accepts the 24-hour cancellation rule.
+      // Payment review — breakdown + cancellation policy. No order is created
+      // until the attendee explicitly confirms and accepts the 24-hour rule.
+      final ticketPaise = ((_event?['price'] as num?) ?? 0).toInt();
       final acknowledged = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
-        builder: (ctx) => const _CancellationPolicyDialog(),
+        builder: (ctx) => _CancellationPolicyDialog(
+          ticketPaise: ticketPaise,
+          feeNetPaise: _feeNetPaise(),
+        ),
       );
       if (!mounted) return;
       if (acknowledged != true) {
@@ -473,11 +477,10 @@ class _EventDetailScreenState extends State<EventDetailScreen>
       return;
     }
 
-    final community = _event?['communities'] as Map<String, dynamic>?;
     final reg = supabase.auth.currentUser != null
         ? await supabase
             .from('registrations')
-            .select('payments(amount, refund_status)')
+            .select('payments(amount, platform_fee, refund_status)')
             .eq('event_id', widget.id)
             .eq('user_id', supabase.auth.currentUser!.id)
             .eq('status', 'confirmed')
@@ -492,8 +495,12 @@ class _EventDetailScreenState extends State<EventDetailScreen>
       payment = payRaw.first as Map<String, dynamic>?;
     }
     final paid = (payment?['amount'] as num?)?.toInt() ?? 0;
-    final pct = ((community?['commission_percent'] as num?) ?? 10).toInt();
-    final expectedRefund = paid > 0 ? paid - ((paid * pct) / 100).toInt() : 0;
+    // Self-cancel refunds the ticket; the fee (persisted at order creation)
+    // stays with the platform.
+    final feeKept = paid > 0
+        ? ((payment?['platform_fee'] as num?)?.toInt() ?? 0)
+        : 0;
+    final expectedRefund = paid > 0 ? (paid - feeKept).clamp(0, paid) : 0;
 
     final confirmed = !mounted ? null : await showDialog<bool>(
       context: context,
@@ -510,8 +517,8 @@ class _EventDetailScreenState extends State<EventDetailScreen>
             if (paid > 0) ...[
               const SizedBox(height: 12),
               Text(
-                'Refund: ₹${(expectedRefund / 100).toStringAsFixed(0)} '
-                '(booking fee ₹${((paid - expectedRefund) / 100).toStringAsFixed(0)} is not refundable on self-cancel).',
+                'Refund: ${formatRupees(expectedRefund)} '
+                '(platform fee ${formatRupees(feeKept)} is not refundable on self-cancel).',
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: 12),
@@ -764,7 +771,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                'Price',
+                                price > 0 ? 'Ticket price' : 'Price',
                                 style: TextStyle(
                                   fontSize: 11,
                                   color: context.cluvoTextSecondary,
@@ -772,9 +779,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                price > 0
-                                    ? '₹${(price / 100).toStringAsFixed(0)}'
-                                    : 'Free',
+                                price > 0 ? formatRupees(price) : 'Free',
                                 style: const TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
@@ -1177,14 +1182,23 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     );
   }
 
-  Widget _buildRefundDisclosure(num price) {
+  // Flat platform fee (paise, pre-GST) for this event's community.
+  int _feeNetPaise() {
     final community = _event?['communities'] as Map<String, dynamic>?;
-    final pct = ((community?['commission_percent'] as num?) ?? 10).toInt();
-    final fee = ((price * pct) / 100).toInt();
-    final refund = price.toInt() - fee;
+    return (community?['platform_fee_amount'] as num?)?.toInt() ??
+        kDefaultPlatformFeePaise;
+  }
+
+  // Flat platform fee + 18% GST for this event's community (paise).
+  int _feeAmountPaise() => platformFeeTotal(_feeNetPaise());
+
+  Widget _buildRefundDisclosure(num price) {
+    final fee = _feeAmountPaise();
+    final total = price + fee;
     return Text(
-      'Free cancellation with refund up to 24h before start. Self-cancelling refunds ₹${(refund / 100).toStringAsFixed(0)} '
-      '(₹${(fee / 100).toStringAsFixed(0)} booking fee kept); if the organizer cancels, you get the full amount back.',
+      'Free cancellation with refund up to 24h before start. Self-cancelling refunds your ticket '
+      '${formatRupees(price)} (platform fee ${formatRupees(fee)} is kept); if the organizer cancels, '
+      'you get the full ${formatRupees(total)} back.',
       style: TextStyle(fontSize: 10.5, color: context.cluvoTextSecondary),
     );
   }
@@ -1396,7 +1410,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           label: Text(
             (_registering || _processingPayment)
                 ? 'Processing…'
-                : 'Pay ₹${(price / 100).toStringAsFixed(0)}',
+                : 'Pay ${formatRupees(price)}',
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
           style: ElevatedButton.styleFrom(
@@ -1673,7 +1687,13 @@ class _EventDetailScreenState extends State<EventDetailScreen>
 }
 
 class _CancellationPolicyDialog extends StatefulWidget {
-  const _CancellationPolicyDialog();
+  final int ticketPaise;
+  final int feeNetPaise;
+
+  const _CancellationPolicyDialog({
+    required this.ticketPaise,
+    required this.feeNetPaise,
+  });
 
   @override
   State<_CancellationPolicyDialog> createState() => _CancellationPolicyDialogState();
@@ -1682,20 +1702,55 @@ class _CancellationPolicyDialog extends StatefulWidget {
 class _CancellationPolicyDialogState extends State<_CancellationPolicyDialog> {
   bool _acknowledged = false;
 
+  Widget _row(String label, String value, {bool bold = false}) {
+    final style = TextStyle(
+      fontSize: bold ? 14.5 : 13.5,
+      fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+      color: bold ? null : const Color(0xFF374151),
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: style),
+          Text(value, style: style),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final gst = gstForPlatformFee(widget.feeNetPaise);
+    final total = widget.ticketPaise + widget.feeNetPaise + gst;
     return AlertDialog(
       title: const Text('Before you pay'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _row('Ticket price', formatRupees(widget.ticketPaise)),
+          _row('Platform fee', formatRupees(widget.feeNetPaise)),
+          _row('GST (18%)', formatRupees(gst)),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 6),
+            child: Divider(height: 1),
+          ),
+          _row('Total you pay', formatRupees(total), bold: true),
+          const SizedBox(height: 14),
           const Text(
             'Cancellations are allowed only until 24 hours before the event starts. '
             'Inside 24 hours, cancellation closes and your booking becomes non-refundable.',
-            style: TextStyle(fontSize: 14),
+            style: TextStyle(fontSize: 13.5),
           ),
           const SizedBox(height: 8),
+          const Text(
+            'If you cancel yourself, the ticket price is refunded but the platform fee is kept. '
+            'If the organizer cancels the event, you get the full amount back.',
+            style: TextStyle(fontSize: 12.5, color: Colors.grey),
+          ),
+          const SizedBox(height: 4),
           CheckboxListTile(
             value: _acknowledged,
             onChanged: (v) => setState(() => _acknowledged = v ?? false),
@@ -1716,7 +1771,7 @@ class _CancellationPolicyDialogState extends State<_CancellationPolicyDialog> {
         ),
         FilledButton(
           onPressed: _acknowledged ? () => Navigator.of(context).pop(true) : null,
-          child: const Text('Proceed to Pay'),
+          child: Text('Confirm payment ${formatRupees(total)}'),
         ),
       ],
     );

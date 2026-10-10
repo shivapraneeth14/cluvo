@@ -26,8 +26,8 @@ class EventMessage {
       eventId: map['event_id'] as String,
       userId: map['user_id'] as String,
       content: map['content'] as String,
-      createdAt: DateTime.parse(map['created_at'] as String),
-      updatedAt: DateTime.parse(map['updated_at'] as String),
+      createdAt: DateTime.parse(map['created_at'] as String).toLocal(),
+      updatedAt: DateTime.parse(map['updated_at'] as String).toLocal(),
       senderName: profile != null
           ? '${profile['first_name'] ?? ''} ${profile['last_name'] ?? ''}'.trim()
           : null,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme.dart';
 import '../supabase_client.dart';
+import '../utils.dart';
 
 class PaymentDetailScreen extends StatefulWidget {
   final String paymentId;
@@ -155,7 +156,7 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
     if (dateStr == null) return '';
     final dt = DateTime.tryParse(dateStr);
     if (dt == null) return dateStr;
-    return '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    return formatDateTime(dt);
   }
 
   @override
@@ -189,6 +190,8 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
     final title = ev?['title'] as String? ?? 'Unknown Event';
     final startDate = ev?['start_date'] as String?;
     final amount = (_payment!['amount'] as num?)?.toInt() ?? 0;
+    final platformFee = (_payment!['platform_fee'] as num?)?.toInt();
+    final feeGst = (_payment!['platform_fee_gst'] as num?)?.toInt();
     final status = _payment!['status'] as String? ?? 'pending';
     final refundStatus = _payment!['refund_status'] as String?;
     final razorpayOrderId = _payment!['razorpay_order_id'] as String?;
@@ -218,7 +221,17 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
         ),
         const SizedBox(height: 12),
         _sectionCard('Payment', [
-          _row('Amount', '₹${(amount / 100).toStringAsFixed(0)}'),
+          if (platformFee != null) ...[
+            _row('Ticket', formatRupees(amount - platformFee)),
+            _row(
+              'Platform fee',
+              feeGst != null
+                  ? '${formatRupees(platformFee)} (incl. GST ${formatRupees(feeGst)})'
+                  : formatRupees(platformFee),
+            ),
+            _row('Total', formatRupees(amount)),
+          ] else
+            _row('Amount', formatRupees(amount)),
           _row('Payment ID', widget.paymentId),
           if (razorpayOrderId != null) _row('Order ID', razorpayOrderId),
           if (razorpayPaymentId != null) _row('Razorpay ID', razorpayPaymentId),
