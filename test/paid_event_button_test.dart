@@ -181,17 +181,16 @@ void main() {
     );
   });
 
-  testWidgets('paid event shows a disabled "Coming Soon" button',
-      (tester) async {
+  testWidgets('paid event shows an enabled "Pay" button', (tester) async {
     _fakeEvent['price'] = 10000;
 
     await _pumpScreen(tester);
 
     final button = tester.widget<ElevatedButton>(
-      find.widgetWithText(ElevatedButton, 'Coming Soon'),
+      find.widgetWithText(ElevatedButton, 'Pay ₹100'),
     );
     expect(button, isNotNull);
-    expect(button.onPressed, isNull);
+    expect(button.onPressed, isNotNull);
     expect(
       find.widgetWithText(ElevatedButton, 'Register & Pay'),
       findsNothing,
