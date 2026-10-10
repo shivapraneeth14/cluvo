@@ -186,6 +186,12 @@ class ProfileScreen extends ConsumerWidget {
                       }
                     },
                   ),
+                  ActivityCard(
+                    leading: _menuLeading(Icons.delete_outline),
+                    title: 'Delete Account',
+                    subtitle: 'Permanently remove your account',
+                    onTap: () => _confirmDeleteAccount(context, ref),
+                  ),
                   const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,
