@@ -11,7 +11,6 @@ import 'providers/theme_provider.dart';
 import 'theme.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
-import 'screens/reset_password_screen.dart';
 import 'screens/main_shell.dart';
 import 'screens/communities_screen.dart';
 import 'screens/community_detail_screen.dart';
@@ -112,19 +111,6 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
                   parent: animation,
                   curve: Curves.easeOut,
                 )),
-                child: child,
-              );
-            },
-          ),
-        ),
-        GoRoute(
-          path: '/reset-password',
-          pageBuilder: (context, state) => CustomTransitionPage(
-            key: state.pageKey,
-            child: const ResetPasswordScreen(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return FadeTransition(
-                opacity: animation,
                 child: child,
               );
             },
@@ -234,16 +220,7 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
       '/splash',
       '/login',
       '/signup',
-      '/reset-password',
     ];
-
-    if (auth.isRecovery) {
-      ref.read(pendingRouteProvider.notifier).state = null;
-      unawaited(clearPendingRoute());
-      if (location != '/reset-password') {
-        return '/reset-password';
-      }
-    }
 
     if (!loggedIn &&
         !authPaths.contains(location) &&
@@ -259,7 +236,7 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
       return location == pendingRoute ? null : pendingRoute;
     }
 
-    if (loggedIn && !auth.isRecovery && authPaths.contains(location)) {
+    if (loggedIn && authPaths.contains(location)) {
       return '/communities';
     }
     if (!loggedIn && !authPaths.contains(location)) {
