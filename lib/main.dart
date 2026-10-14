@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'services/secure_local_storage.dart';
 import 'app.dart';
 import 'config.dart';
 import 'supabase_client.dart';
@@ -54,6 +56,13 @@ Future<void> _bootstrap() async {
     await Supabase.initialize(
       url: supabaseUrl,
       publishableKey: supabaseAnonKey,
+      // Native builds keep the session in the platform keystore; the web build
+      // has no native keystore, so it keeps supabase_flutter's default storage.
+      authOptions: kIsWeb
+          ? const FlutterAuthClientOptions()
+          : FlutterAuthClientOptions(
+              localStorage: SecureLocalStorage(const FlutterSecureStorage()),
+            ),
     );
   } catch (e) {
     runApp(_ErrorApp(

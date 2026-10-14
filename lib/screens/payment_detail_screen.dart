@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../theme.dart';
 import '../supabase_client.dart';
 import '../utils.dart';
+import '../widgets/payment_receipt.dart';
 
 class PaymentDetailScreen extends StatefulWidget {
   final String paymentId;
@@ -19,14 +19,6 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
   bool _loading = true;
   String? _error;
   RealtimeChannel? _channel;
-
-  static const _refundLabels = {
-    'processed': 'Refunded',
-    'pending': 'Refund Processing',
-    'queued': 'Refund Queued',
-    'requested': 'Refund Requested',
-    'failed': 'Refund Failed',
-  };
 
   @override
   void initState() {
@@ -73,7 +65,7 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
           )
           .subscribe();
     } catch (_) {
-      // realtime unavailable — pull-to-refresh / manual navigation still works
+      // realtime unavailable — manual navigation still works
     }
   }
 
@@ -81,7 +73,7 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
     try {
       final payment = await supabase
           .from('payments')
-          .select('*, registrations!inner(*, events!inner(title, start_date, status))')
+          .select('*, registrations!inner(*, events!inner(title, start_date, image_url, status))')
           .eq('id', widget.paymentId)
           .single();
       final timeline = await _fetchTimeline();
@@ -118,53 +110,10 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
     } catch (_) {}
   }
 
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'success':
-      case 'confirmed':
-      case 'processed':
-        return Colors.green;
-      case 'pending':
-        return Colors.orange;
-      case 'failed':
-      case 'refunded':
-      case 'reversed':
-        return Colors.red;
-      default:
-        return context.cluvoTextSecondary;
-    }
-  }
-
-  IconData _statusIcon(String status) {
-    switch (status) {
-      case 'success':
-      case 'confirmed':
-      case 'processed':
-        return Icons.check_circle;
-      case 'pending':
-        return Icons.schedule;
-      case 'failed':
-      case 'refunded':
-      case 'reversed':
-        return Icons.cancel;
-      default:
-        return Icons.help;
-    }
-  }
-
-  String _formatDate(String? dateStr) {
-    if (dateStr == null) return '';
-    final dt = DateTime.tryParse(dateStr);
-    if (dt == null) return dateStr;
-    return formatDateTime(dt);
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Payment Details'),
-      ),
+      appBar: AppBar(title: const Text('Payment Details')),
       body: _buildBody(),
     );
   }
@@ -187,175 +136,21 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
 
     final reg = _payment!['registrations'] as Map<String, dynamic>?;
     final ev = reg?['events'] as Map<String, dynamic>?;
-    final title = ev?['title'] as String? ?? 'Unknown Event';
-    final startDate = ev?['start_date'] as String?;
-    final amount = (_payment!['amount'] as num?)?.toInt() ?? 0;
-    final platformFee = (_payment!['platform_fee'] as num?)?.toInt();
-    final feeGst = (_payment!['platform_fee_gst'] as num?)?.toInt();
-    final status = _payment!['status'] as String? ?? 'pending';
-    final refundStatus = _payment!['refund_status'] as String?;
-    final razorpayOrderId = _payment!['razorpay_order_id'] as String?;
-    final razorpayPaymentId = _payment!['razorpay_payment_id'] as String?;
-    final createdAt = _payment!['created_at'] as String?;
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-                if (startDate != null) ...[
-                  const SizedBox(height: 4),
-                  Text(_formatDate(startDate),
-                      style: TextStyle(fontSize: 13, color: context.cluvoTextSecondary)),
-                ],
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        _sectionCard('Payment', [
-          if (platformFee != null) ...[
-            _row('Ticket', formatRupees(amount - platformFee)),
-            _row(
-              'Platform fee',
-              feeGst != null
-                  ? '${formatRupees(platformFee)} (incl. GST ${formatRupees(feeGst)})'
-                  : formatRupees(platformFee),
-            ),
-            _row('Total', formatRupees(amount)),
-          ] else
-            _row('Amount', formatRupees(amount)),
-          _row('Payment ID', widget.paymentId),
-          if (razorpayOrderId != null) _row('Order ID', razorpayOrderId),
-          if (razorpayPaymentId != null) _row('Razorpay ID', razorpayPaymentId),
-          _row('Date', _formatDate(createdAt)),
-          _statusRow('Status', status),
-          if (refundStatus != null) _statusRow('Refund', _refundLabels[refundStatus] ?? refundStatus),
-        ]),
-        if (_timeline != null && _timeline!.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          _sectionCard('Activity', [
-            for (final entry in _timeline!)
-              _timelineEntry(entry as Map<String, dynamic>),
-          ]),
-        ],
-      ],
-    );
-  }
-
-  Widget _sectionCard(String title, List<Widget> children) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title,
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 10),
-            ...children,
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _row(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(label,
-                style: TextStyle(fontSize: 13, color: context.cluvoTextSecondary)),
-          ),
-          Expanded(
-            child: Text(value,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _statusRow(String label, String status) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(label,
-                style: TextStyle(fontSize: 13, color: context.cluvoTextSecondary)),
-          ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(_statusIcon(status), size: 14, color: _statusColor(status)),
-              const SizedBox(width: 4),
-              Text(
-                status[0].toUpperCase() + status.substring(1),
-                style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: _statusColor(status)),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _timelineEntry(Map<String, dynamic> entry) {
-    final type = entry['type'] as String? ?? '';
-    final body = entry['body'] as String? ?? '';
-    final entryDate = entry['created_at'] as String?;
-    final isRefund = type.startsWith('refund_');
-    final isCompleted = type == 'refund_completed';
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            margin: const EdgeInsets.only(top: 5),
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: isCompleted
-                  ? Colors.green
-                  : isRefund
-                      ? Colors.orange
-                      : context.cluvoTextSecondary,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(body,
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-                Text(_formatDate(entryDate),
-                    style: TextStyle(fontSize: 11, color: context.cluvoTextSecondary)),
-              ],
-            ),
-          ),
-        ],
-      ),
+    return PaymentReceipt(
+      status: _payment!['status'] as String? ?? 'pending',
+      refundStatus: _payment!['refund_status'] as String?,
+      amountPaise: (_payment!['amount'] as num?)?.toInt() ?? 0,
+      platformFeePaise: (_payment!['platform_fee'] as num?)?.toInt(),
+      feeGstPaise: (_payment!['platform_fee_gst'] as num?)?.toInt(),
+      eventTitle: ev?['title'] as String? ?? 'Unknown Event',
+      eventImageUrl: ev?['image_url'] as String?,
+      eventDateText: formatDayDate(ev?['start_date'] as String?),
+      paymentId: widget.paymentId,
+      orderId: _payment!['razorpay_order_id'] as String?,
+      razorpayId: _payment!['razorpay_payment_id'] as String?,
+      createdAtText: formatDateTime(safeParseDate(_payment!['created_at'] as String?)),
+      timeline: (_timeline ?? []).whereType<Map<String, dynamic>>().toList(),
     );
   }
 }

@@ -208,6 +208,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                       : () async {
                           setState(() => _googleLoading = true);
                           try {
+                            await clearLocalSessionForOAuth();
                             await supabase.auth.signInWithOAuth(
                               OAuthProvider.google,
                               redirectTo:

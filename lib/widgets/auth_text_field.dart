@@ -11,6 +11,7 @@ class AuthTextField extends StatefulWidget {
   final String? errorText;
   final String? helperText;
   final void Function(String)? onChanged;
+  final FocusNode? focusNode;
 
   const AuthTextField({
     super.key,
@@ -23,6 +24,7 @@ class AuthTextField extends StatefulWidget {
     this.errorText,
     this.helperText,
     this.onChanged,
+    this.focusNode,
   });
 
   @override
@@ -55,6 +57,7 @@ class _AuthTextFieldState extends State<AuthTextField> {
         const SizedBox(height: 6),
         TextField(
           controller: widget.controller,
+          focusNode: widget.focusNode,
           obscureText: widget.showToggle ? _obscured : widget.obscureText,
           keyboardType: widget.keyboardType,
           onChanged: widget.onChanged,

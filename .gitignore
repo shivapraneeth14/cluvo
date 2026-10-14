@@ -49,6 +49,9 @@ app.*.map.json
 .env
 .env.*
 !.env.example
+env.test.json
+env.prod.json
+!.env.example.json
 *.log
 coverage/
 

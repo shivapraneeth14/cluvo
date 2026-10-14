@@ -3,7 +3,7 @@ import '../theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
+import '../utils/external_links.dart';
 import '../providers/auth_provider.dart';
 import '../providers/profile_provider.dart';
 import '../supabase_client.dart';
@@ -173,12 +173,10 @@ class ProfileScreen extends ConsumerWidget {
                     title: 'Contact Us',
                     subtitle: 'supp.cluvo@gmail.com',
                     onTap: () async {
-                      final uri = Uri.parse(
-                          'mailto:supp.cluvo@gmail.com?subject=Cluvo%20Support');
-                      if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri,
-                            mode: LaunchMode.externalApplication);
-                      } else if (context.mounted) {
+                      final opened = await openExternalLink(
+                          'mailto:supp.cluvo@gmail.com?subject=Cluvo%20Support',
+                          allowMailto: true);
+                      if (!opened && context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                               content: Text('No email app found on this device.')),
