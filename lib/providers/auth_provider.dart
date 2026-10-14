@@ -7,14 +7,6 @@ import 'community_provider.dart';
 import 'notification_provider.dart';
 import 'wishlist_provider.dart';
 
-final _capitalLetter = RegExp(r'[A-Z]');
-
-String? validatePassword(String password) {
-  if (password.length < 8) return 'Password must be at least 8 characters.';
-  if (!_capitalLetter.hasMatch(password)) return 'Password needs at least one capital letter.';
-  return null;
-}
-
 class AuthState {
   final bool isLoading;
   final String? error;
@@ -142,30 +134,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  Future<void> signIn(String email, String password) async {
-    if (state.isLoading) return;
-    state = state.copyWith(isLoading: true, clearError: true, clearSuccess: true);
-    try {
-      final result = await supabase.auth.signInWithPassword(
-        email: email.trim(),
-        password: password,
-      ).timeout(const Duration(seconds: 15));
-      state = state.copyWith(isLoading: false, session: result.session);
-    } on AuthException catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: _friendlyAuthError(e.message),
-      );
-    } on TimeoutException {
-      state = state.copyWith(isLoading: false, error: 'Request timed out. Try again.');
-    } catch (_) {
-      state = state.copyWith(
-        isLoading: false,
-        error: 'Connection error. Check your internet and try again.',
-      );
-    }
-  }
-
   Future<bool> checkUsername(String username) async {
     state = state.copyWith(checkingUsername: true);
     try {
@@ -193,191 +161,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  Future<void> signUp(
-    String email,
-    String password,
-    String firstName,
-    String lastName,
-    String username, {
-    required bool consentAccepted,
-    required String consentVersion,
-    required String source,
-  }) async {
-    if (state.isLoading) return;
-    state = state.copyWith(isLoading: true, clearError: true, clearSuccess: true);
-
-    try {
-      final response = await supabase.functions.invoke(
-        'register',
-        body: {
-          'email': email.trim(),
-          'password': password,
-          'first_name': firstName.trim(),
-          'last_name': lastName.trim(),
-          'username': username.trim(),
-          'consent_accepted': consentAccepted,
-          'consent_version': consentVersion,
-          'source': source,
-        },
-      ).timeout(const Duration(seconds: 15));
-
-      if (response.data['success'] == true) {
-        state = state.copyWith(
-          isLoading: false,
-          successMessage: 'Account created! Sign in to continue.',
-        );
-      } else {
-        state = state.copyWith(
-          isLoading: false,
-          error: response.data['error'] ?? 'Something went wrong. Try again.',
-        );
-      }
-    } on FunctionException catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: _functionErrorMessage(e),
-      );
-    } on TimeoutException {
-      state = state.copyWith(isLoading: false, error: 'Request timed out. Try again.');
-    } catch (_) {
-      state = state.copyWith(
-        isLoading: false,
-        error: 'Connection error. Check your internet and try again.',
-      );
-    }
-  }
-
-  Future<({bool sent, String? message, bool unified})> sendOtp(String email) async {
-    try {
-      final response = await supabase.functions.invoke(
-        'forgot-password',
-        body: {'email': email.trim()},
-      ).timeout(const Duration(seconds: 15));
-      final data = (response.data as Map<String, dynamic>?) ?? const {};
-      final sent = data['sent'] == true;
-      if (sent) return (sent: true, message: null, unified: false);
-      // sent:false + 200 = the deliberate no-enumeration copy (shown as neutral
-      // info, not an error).
-      return (
-        sent: false,
-        message: data['message'] as String?,
-        unified: true,
-      );
-    } on FunctionException catch (e) {
-      return (sent: false, message: _functionErrorMessage(e), unified: false);
-    } on TimeoutException {
-      return (sent: false, message: 'Request timed out. Try again.', unified: false);
-    } catch (_) {
-      return (
-        sent: false,
-        message: 'Connection error. Check your internet and try again.',
-        unified: false,
-      );
-    }
-  }
-
-  Future<({String? token, String? error})> verifyOtp(
-    String email,
-    String code,
-  ) async {
-    try {
-      final response = await supabase.functions.invoke(
-        'verify-otp',
-        body: {'email': email.trim(), 'code': code.trim()},
-      ).timeout(const Duration(seconds: 15));
-      final data = (response.data as Map<String, dynamic>?) ?? const {};
-      final ok = response.status >= 200 && response.status < 300;
-      if (!ok) {
-        return (
-          token: null,
-          error: data['error'] as String? ?? 'Invalid or expired code. Try again.',
-        );
-      }
-      final token = data['token'] as String?;
-      if (token == null || token.isEmpty) {
-        return (token: null, error: 'Invalid or expired code. Try again.');
-      }
-      return (token: token, error: null);
-    } on FunctionException catch (e) {
-      return (token: null, error: _functionErrorMessage(e));
-    } on TimeoutException {
-      return (token: null, error: 'Request timed out. Try again.');
-    } catch (_) {
-      return (token: null, error: 'Connection error. Check your internet and try again.');
-    }
-  }
-
-  Future<({bool ok, String? error})> changePasswordForReset(
-    String token,
-    String newPassword,
-  ) async {
-    final validationError = validatePassword(newPassword);
-    if (validationError != null) {
-      return (ok: false, error: validationError);
-    }
-    try {
-      final response = await supabase.functions.invoke(
-        'change-password',
-        body: {'token': token, 'password': newPassword},
-      ).timeout(const Duration(seconds: 15));
-      final data = (response.data as Map<String, dynamic>?) ?? const {};
-      if (response.status >= 200 && response.status < 300 && data['ok'] == true) {
-        return (ok: true, error: null);
-      }
-      return (
-        ok: false,
-        error: data['error'] as String? ?? 'Could not update your password. Try again.',
-      );
-    } on FunctionException catch (e) {
-      return (ok: false, error: _functionErrorMessage(e));
-    } on TimeoutException {
-      return (ok: false, error: 'Request timed out. Try again.');
-    } catch (_) {
-      return (ok: false, error: 'Connection error. Check your internet and try again.');
-    }
-  }
-
-  Future<void> resetPassword(String newPassword) async {
-    if (state.isLoading) return;
-    final validationError = validatePassword(newPassword);
-    if (validationError != null) {
-      state = state.copyWith(error: validationError);
-      return;
-    }
-
-    state = state.copyWith(isLoading: true, clearError: true, clearSuccess: true);
-    try {
-      await supabase.auth.updateUser(UserAttributes(password: newPassword))
-          .timeout(const Duration(seconds: 15));
-      // End the temporary recovery session before emitting success so the
-      // router sends the user to /login instead of bouncing them to
-      // /communities (logged-in users cannot stay on /login).
-      try {
-        await supabase.auth.signOut().timeout(const Duration(seconds: 10));
-      } catch (_) {
-        // Sign-out is best-effort — local state is cleared below regardless.
-      }
-      state = state.copyWith(
-        isLoading: false,
-        clearSession: true,
-        isRecovery: false,
-        successMessage: 'Password updated — sign in with your new password.',
-      );
-    } on AuthException catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: _friendlyAuthError(e.message),
-      );
-    } on TimeoutException {
-      state = state.copyWith(isLoading: false, error: 'Request timed out. Try again.');
-    } catch (_) {
-      state = state.copyWith(
-        isLoading: false,
-        error: 'Connection error. Check your internet and try again.',
-      );
-    }
-  }
-
   Future<void> signOut() async {
     state = state.copyWith(isLoading: true, clearError: true, clearSuccess: true);
     try {
@@ -391,16 +174,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
       // Network error — still clear local state
     }
     state = state.copyWith(isLoading: false, clearSession: true);
-  }
-
-  String _functionErrorMessage(FunctionException e) {
-    final details = e.details;
-    final message = details is Map ? details['error'] : null;
-    if (message is String && message.isNotEmpty) return message;
-    if (e.status == 429) {
-      return 'Too many requests. Please wait a few minutes and try again.';
-    }
-    return 'Something went wrong. Please try again.';
   }
 
   String _friendlyAuthError(String message) {
