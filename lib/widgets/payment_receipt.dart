@@ -10,6 +10,7 @@ class PaymentReceipt extends StatelessWidget {
   final int amountPaise;
   final int? platformFeePaise;
   final int? feeGstPaise;
+  final int? refundedAmountPaise;
   final String eventTitle;
   final String? eventImageUrl;
   final String? eventDateText;
@@ -26,6 +27,7 @@ class PaymentReceipt extends StatelessWidget {
     required this.amountPaise,
     this.platformFeePaise,
     this.feeGstPaise,
+    this.refundedAmountPaise,
     required this.eventTitle,
     this.eventImageUrl,
     this.eventDateText,
@@ -47,29 +49,46 @@ class PaymentReceipt extends StatelessWidget {
   bool get _isSuccess => const ['success', 'confirmed', 'processed'].contains(status);
   bool get _isRefunded => const ['refunded', 'reversed'].contains(status);
 
+  // The refund only actually completed when Razorpay processed it. The payment
+  // row is marked status=refunded the moment a refund is issued, so gating the
+  // "Refunded" title on refundStatus (not status) avoids a receipt that reads
+  // "Refunded" while the refund row still says "processing".
+  bool get _refundProcessed => refundStatus == 'processed';
+  bool get _refunding =>
+      refundStatus != null && refundStatus != 'processed' && refundStatus != 'failed';
+
   @override
   Widget build(BuildContext context) {
-    final color = _isRefunded
+    final color = _refundProcessed
         ? const Color(0xFFF59E0B)
         : _isSuccess
             ? CluvoTheme.success
             : status == 'failed'
                 ? CluvoTheme.error
                 : const Color(0xFFF59E0B);
-    final icon = _isRefunded
+    final icon = _refundProcessed
         ? Icons.replay_circle_filled_outlined
         : _isSuccess
             ? Icons.check_circle
             : status == 'failed'
                 ? Icons.cancel
                 : Icons.schedule;
-    final title = _isRefunded
+    final title = _refundProcessed
         ? 'Refunded'
         : _isSuccess
             ? 'Payment Successful'
             : status == 'failed'
                 ? 'Payment Failed'
-                : 'Payment Pending';
+                : _refunding
+                    ? 'Refund in progress'
+                    : _isRefunded
+                        ? 'Refunded'
+                        : 'Payment Pending';
+    // When a refund exists, the headline figure is what the customer actually
+    // gets back: the ticket only on a self-cancel (platform fee kept) or the
+    // full amount when the organizer cancelled the event.
+    final headlineAmount =
+        (refundStatus != null && refundedAmountPaise != null) ? refundedAmountPaise! : amountPaise;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -89,9 +108,16 @@ class PaymentReceipt extends StatelessWidget {
               Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
               Text(
-                formatRupees(amountPaise),
+                formatRupees(headlineAmount),
                 style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w700, letterSpacing: -0.5),
               ),
+              if (refundStatus != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  _refundProcessed ? 'Refunded to you' : (_refunding ? 'Refund in progress' : 'Refund failed'),
+                  style: TextStyle(fontSize: 12.5, color: context.cluvoTextSecondary),
+                ),
+              ],
               const SizedBox(height: 18),
               DottedDivider(color: context.cluvoBorder),
               const SizedBox(height: 16),
@@ -204,6 +230,16 @@ class PaymentReceipt extends StatelessWidget {
         Container(height: 1, color: context.cluvoBorder),
         const SizedBox(height: 12),
         _amountRow(context, 'Total', formatRupees(amountPaise), bold: true),
+        if (refundStatus != null && refundedAmountPaise != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: _amountRow(
+              context,
+              _refundProcessed ? 'Refunded to you' : 'Refund (processing)',
+              formatRupees(refundedAmountPaise!),
+              bold: true,
+            ),
+          ),
       ],
     );
   }
@@ -241,7 +277,11 @@ class PaymentReceipt extends StatelessWidget {
     if (createdAtText != null) r.add(_detailRow(context, 'Date', createdAtText!));
     r.add(_statusRow(context, 'Status', _statusLabel()));
     if (refundStatus != null) {
-      r.add(_statusRow(context, 'Refund', _refundLabels[refundStatus] ?? refundStatus!));
+      final label = _refundLabels[refundStatus] ?? refundStatus!;
+      final value = (refundedAmountPaise != null && refundedAmountPaise! > 0)
+          ? '$label · ${formatRupees(refundedAmountPaise!)}'
+          : label;
+      r.add(_statusRow(context, 'Refund', value));
     }
     return Column(
       children: [
@@ -287,7 +327,7 @@ class PaymentReceipt extends StatelessWidget {
   }
 
   Widget _statusRow(BuildContext context, String label, String value) {
-    final color = _isRefunded
+    final color = _refundProcessed
         ? const Color(0xFFF59E0B)
         : _isSuccess
             ? CluvoTheme.success
@@ -305,7 +345,7 @@ class PaymentReceipt extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.end,
             mainAxisSize: MainAxisSize.max,
             children: [
-              Icon(_isRefunded
+              Icon(_refundProcessed
                   ? Icons.replay
                   : _isSuccess
                       ? Icons.check_circle
