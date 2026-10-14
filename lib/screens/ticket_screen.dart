@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import '../supabase_client.dart';
-import '../theme.dart';
 import '../utils.dart';
+import '../widgets/ticket_card.dart';
 
 class TicketScreen extends StatefulWidget {
   final String registrationId;
@@ -15,6 +14,7 @@ class TicketScreen extends StatefulWidget {
 
 class _TicketScreenState extends State<TicketScreen> {
   Map<String, dynamic>? _registration;
+  String? _attendeeName;
   bool _loading = true;
   String? _error;
 
@@ -28,12 +28,14 @@ class _TicketScreenState extends State<TicketScreen> {
     try {
       final res = await supabase
           .from('registrations')
-          .select('*, events!inner(title, start_date, status), payments(status, refund_status)')
+          .select(
+              '*, profiles(first_name, last_name), events!inner(title, start_date, end_date, location, image_url, status, communities(name, community_avatar_url))')
           .eq('id', widget.registrationId)
           .single();
       if (!mounted) return;
       setState(() {
         _registration = res;
+        _attendeeName = _nameFrom(res['profiles'] as Map<String, dynamic>?);
         _loading = false;
       });
     } catch (e) {
@@ -43,6 +45,14 @@ class _TicketScreenState extends State<TicketScreen> {
         _loading = false;
       });
     }
+  }
+
+  String? _nameFrom(Map<String, dynamic>? profile) {
+    if (profile == null) return null;
+    final first = (profile['first_name'] as String?)?.trim() ?? '';
+    final last = (profile['last_name'] as String?)?.trim() ?? '';
+    final full = '$first $last'.trim();
+    return full.isEmpty ? null : full;
   }
 
   @override
@@ -69,92 +79,38 @@ class _TicketScreenState extends State<TicketScreen> {
       return const Center(child: Text('Ticket not found'));
     }
 
-    final events = _registration!['events'] as Map<String, dynamic>?;
-    final title = events?['title'] as String? ?? 'Event';
-    final startDate = events?['start_date'] as String?;
-    final qrCode = _registration!['qr_code'] as String?;
-    final status = _registration!['status'] as String?;
-    final eventStatus = (events?['status'] as String?) ?? 'confirmed';
-    final cancelled = status == 'cancelled';
-    final eventCancelled = eventStatus == 'cancelled';
+    final reg = _registration!;
+    final event = reg['events'] as Map<String, dynamic>?;
+    final community = event?['communities'] as Map<String, dynamic>?;
+    final title = event?['title'] as String? ?? 'Event';
+    final startDate = event?['start_date'] as String?;
+    final endDate = event?['end_date'] as String?;
+    final qrCode = reg['qr_code'] as String?;
+    final regStatus = reg['status'] as String?;
+    final eventStatus = event?['status'] as String? ?? 'published';
     final userEmail = supabase.auth.currentUser?.email ?? '';
 
+    final status = (regStatus == 'cancelled' || eventStatus == 'cancelled')
+        ? 'cancelled'
+        : (regStatus == 'attended' ? 'attended' : 'confirmed');
+
+    final attendee = _attendeeName ??
+        (userEmail.isNotEmpty ? userEmail.split('@').first : null);
+
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
       children: [
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: context.cluvoSurface,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(title,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-              if (startDate != null) ...[
-                const SizedBox(height: 4),
-                Text(formatDate(startDate),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 13, color: context.cluvoTextSecondary)),
-              ],
-              const SizedBox(height: 20),
-              if (cancelled || eventCancelled) ...[
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: context.cluvoSurface,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(Icons.block, size: 64, color: context.cluvoTextSecondary),
-                      const SizedBox(height: 8),
-                      Text(
-                        eventCancelled ? 'Event cancelled' : 'Registration cancelled — this ticket is no longer valid',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                      ),
-                    ],
-                  ),
-                ),
-              ] else
-                Center(
-                  child: qrCode != null
-                      ? QrImageView(
-                          data: qrCode,
-                          version: QrVersions.auto,
-                          size: 200,
-                          backgroundColor: Colors.white,
-                          padding: const EdgeInsets.all(8),
-                        )
-                      : Icon(Icons.qr_code_2, size: 120, color: context.cluvoTextSecondary),
-                ),
-              const SizedBox(height: 16),
-              Text('Ticket #${widget.registrationId.split('-').first}',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: context.cluvoTextSecondary)),
-              if (userEmail.isNotEmpty)
-                Text(userEmail,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Show this QR code at the event entrance. A screenshot works too.',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 12, color: context.cluvoTextSecondary),
+        TicketCard(
+          title: title,
+          imageUrl: event?['image_url'] as String?,
+          communityName: community?['name'] as String?,
+          communityAvatarUrl: community?['community_avatar_url'] as String?,
+          dateText: formatDayDateRange(startDate, endDate),
+          venue: event?['location'] as String?,
+          attendeeName: attendee,
+          bookingId: widget.registrationId.split('-').first.toUpperCase(),
+          qrData: qrCode,
+          status: status,
         ),
       ],
     );
