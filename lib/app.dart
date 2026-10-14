@@ -11,8 +11,6 @@ import 'providers/theme_provider.dart';
 import 'theme.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
-import 'screens/signup_screen.dart';
-import 'screens/forgot_password_screen.dart';
 import 'screens/reset_password_screen.dart';
 import 'screens/main_shell.dart';
 import 'screens/communities_screen.dart';
@@ -104,26 +102,7 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
           path: '/signup',
           pageBuilder: (context, state) => CustomTransitionPage(
             key: state.pageKey,
-            child: const SignupScreen(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 1),
-                  end: Offset.zero,
-                ).animate(CurvedAnimation(
-                  parent: animation,
-                  curve: Curves.easeOut,
-                )),
-                child: child,
-              );
-            },
-          ),
-        ),
-        GoRoute(
-          path: '/forgot-password',
-          pageBuilder: (context, state) => CustomTransitionPage(
-            key: state.pageKey,
-            child: const ForgotPasswordScreen(),
+            child: const LoginScreen(),
             transitionsBuilder: (context, animation, secondaryAnimation, child) {
               return SlideTransition(
                 position: Tween<Offset>(
@@ -255,7 +234,6 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
       '/splash',
       '/login',
       '/signup',
-      '/forgot-password',
       '/reset-password',
     ];
 

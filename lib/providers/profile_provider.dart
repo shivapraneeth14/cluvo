@@ -9,11 +9,15 @@ final profileProvider = FutureProvider<Profile?>((ref) async {
   if (session == null) return null;
   final response = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, first_name, last_name, username, avatar_url, created_at, updated_at')
       .eq('id', session.user.id)
       .single();
   final map = response as Map<String, dynamic>?;
-  return map != null ? Profile.fromMap(map) : null;
+  if (map == null) return null;
+  // email / is_admin are no longer readable from profiles by clients
+  // (202610120005); the signed-in user's own email comes from the session.
+  map['email'] = session.user.email ?? '';
+  return Profile.fromMap(map);
 });
 
 final profileNotifierProvider =

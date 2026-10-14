@@ -4,8 +4,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
-import '../widgets/auth_text_field.dart';
-import '../widgets/auth_button.dart';
 import '../widgets/google_logo.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../supabase_client.dart';
@@ -18,8 +16,6 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
   bool _googleLoading = false;
 
   @override
@@ -31,28 +27,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         context.go('/communities');
       }
     });
-  }
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
-
-  void _signIn() {
-    final email = _emailController.text;
-    final password = _passwordController.text;
-    final notifier = ref.read(authProvider.notifier);
-    if (email.isEmpty) {
-      notifier.setError('Please enter your email address.');
-      return;
-    }
-    if (password.isEmpty) {
-      notifier.setError('Please enter your password.');
-      return;
-    }
-    ref.read(authProvider.notifier).signIn(email, password);
   }
 
   @override
@@ -73,7 +47,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
               const SizedBox(height: 24),
               const Text(
-                'Welcome back',
+                'Welcome to Cluvo',
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.w700,
@@ -81,7 +55,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Sign in to your account',
+                'Continue with Google to sign in or create your account',
                 style: TextStyle(
                   fontSize: 15,
                   color: context.cluvoTextSecondary,
@@ -106,33 +80,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ),
                 ),
-              AuthTextField(
-                label: 'Email',
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 20),
-              AuthTextField(
-                label: 'Password',
-                controller: _passwordController,
-                obscureText: true,
-                showToggle: true,
-              ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => context.go('/forgot-password'),
-                  child: const Text('Forgot password?'),
-                ),
-              ),
-              const SizedBox(height: 16),
-              AuthButton(
-                label: 'Sign In',
-                isLoading: state.isLoading,
-                onPressed: _signIn,
-              ),
-              const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
                 height: 48,
@@ -142,6 +89,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       : () async {
                           setState(() => _googleLoading = true);
                           try {
+                            await clearLocalSessionForOAuth();
                             await supabase.auth.signInWithOAuth(
                               OAuthProvider.google,
                               redirectTo:
@@ -164,7 +112,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         )
                       : const GoogleLogo(size: 18),
                   label: Text(
-                    _googleLoading ? 'Connecting...' : 'Sign in with Google',
+                    _googleLoading ? 'Connecting...' : 'Continue with Google',
                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
                   ),
                   style: OutlinedButton.styleFrom(
@@ -175,20 +123,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    "Don't have an account? ",
-                    style: TextStyle(color: context.cluvoTextSecondary),
-                  ),
-                  TextButton(
-                    onPressed: () => context.go('/signup'),
-                    child: const Text('Sign up'),
-                  ),
-                ],
               ),
               const SizedBox(height: 32),
             ],

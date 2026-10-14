@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../supabase_client.dart';
@@ -24,7 +23,6 @@ class AuthState {
   final bool usernameAvailable;
   final bool isRecovery;
   final bool checkingUsername;
-  final bool googleOnly;
 
   const AuthState({
     this.isLoading = false,
@@ -34,7 +32,6 @@ class AuthState {
     this.usernameAvailable = true,
     this.isRecovery = false,
     this.checkingUsername = false,
-    this.googleOnly = false,
   });
 
   AuthState copyWith({
@@ -45,7 +42,6 @@ class AuthState {
     bool? usernameAvailable,
     bool? isRecovery,
     bool? checkingUsername,
-    bool? googleOnly,
     bool clearError = false,
     bool clearSuccess = false,
     bool clearSession = false,
@@ -58,7 +54,6 @@ class AuthState {
       usernameAvailable: usernameAvailable ?? this.usernameAvailable,
       isRecovery: clearSession ? false : isRecovery ?? this.isRecovery,
       checkingUsername: checkingUsername ?? this.checkingUsername,
-      googleOnly: googleOnly ?? this.googleOnly,
     );
   }
 }
@@ -129,10 +124,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   void setError(String message) {
     state = state.copyWith(error: message, clearSuccess: true);
-  }
-
-  void setGoogleOnly(bool value) {
-    state = state.copyWith(googleOnly: value);
   }
 
   void clearMessages() {
@@ -256,44 +247,93 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  Future<void> sendResetLink(String email) async {
-    if (state.isLoading) return;
-    state = state.copyWith(isLoading: true, clearError: true, clearSuccess: true);
+  Future<({bool sent, String? message, bool unified})> sendOtp(String email) async {
     try {
       final response = await supabase.functions.invoke(
         'forgot-password',
-        body: {
-          'email': email.trim(),
-          'redirectTo': kIsWeb ? Uri.base.origin : 'cluvo://login',
-        },
+        body: {'email': email.trim()},
       ).timeout(const Duration(seconds: 15));
-
       final data = (response.data as Map<String, dynamic>?) ?? const {};
-      final kind = data['kind'] as String? ?? 'none';
-      if (kind == 'google') {
-        state = state.copyWith(
-          isLoading: false,
-          googleOnly: true,
-          error: 'This account uses Google sign-in. Continue with Google instead.',
-        );
-      } else {
-        state = state.copyWith(
-          isLoading: false,
-          successMessage: 'Check your email for the reset link.',
+      final sent = data['sent'] == true;
+      if (sent) return (sent: true, message: null, unified: false);
+      // sent:false + 200 = the deliberate no-enumeration copy (shown as neutral
+      // info, not an error).
+      return (
+        sent: false,
+        message: data['message'] as String?,
+        unified: true,
+      );
+    } on FunctionException catch (e) {
+      return (sent: false, message: _functionErrorMessage(e), unified: false);
+    } on TimeoutException {
+      return (sent: false, message: 'Request timed out. Try again.', unified: false);
+    } catch (_) {
+      return (
+        sent: false,
+        message: 'Connection error. Check your internet and try again.',
+        unified: false,
+      );
+    }
+  }
+
+  Future<({String? token, String? error})> verifyOtp(
+    String email,
+    String code,
+  ) async {
+    try {
+      final response = await supabase.functions.invoke(
+        'verify-otp',
+        body: {'email': email.trim(), 'code': code.trim()},
+      ).timeout(const Duration(seconds: 15));
+      final data = (response.data as Map<String, dynamic>?) ?? const {};
+      final ok = response.status >= 200 && response.status < 300;
+      if (!ok) {
+        return (
+          token: null,
+          error: data['error'] as String? ?? 'Invalid or expired code. Try again.',
         );
       }
+      final token = data['token'] as String?;
+      if (token == null || token.isEmpty) {
+        return (token: null, error: 'Invalid or expired code. Try again.');
+      }
+      return (token: token, error: null);
     } on FunctionException catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: _functionErrorMessage(e),
-      );
+      return (token: null, error: _functionErrorMessage(e));
     } on TimeoutException {
-      state = state.copyWith(isLoading: false, error: 'Request timed out. Try again.');
+      return (token: null, error: 'Request timed out. Try again.');
     } catch (_) {
-      state = state.copyWith(
-        isLoading: false,
-        error: 'Connection error. Check your internet and try again.',
+      return (token: null, error: 'Connection error. Check your internet and try again.');
+    }
+  }
+
+  Future<({bool ok, String? error})> changePasswordForReset(
+    String token,
+    String newPassword,
+  ) async {
+    final validationError = validatePassword(newPassword);
+    if (validationError != null) {
+      return (ok: false, error: validationError);
+    }
+    try {
+      final response = await supabase.functions.invoke(
+        'change-password',
+        body: {'token': token, 'password': newPassword},
+      ).timeout(const Duration(seconds: 15));
+      final data = (response.data as Map<String, dynamic>?) ?? const {};
+      if (response.status >= 200 && response.status < 300 && data['ok'] == true) {
+        return (ok: true, error: null);
+      }
+      return (
+        ok: false,
+        error: data['error'] as String? ?? 'Could not update your password. Try again.',
       );
+    } on FunctionException catch (e) {
+      return (ok: false, error: _functionErrorMessage(e));
+    } on TimeoutException {
+      return (ok: false, error: 'Request timed out. Try again.');
+    } catch (_) {
+      return (ok: false, error: 'Connection error. Check your internet and try again.');
     }
   }
 
