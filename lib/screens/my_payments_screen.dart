@@ -50,10 +50,27 @@ class MyPaymentsScreen extends ConsumerWidget {
     final ev = reg?['events'] as Map<String, dynamic>?;
     final title = ev?['title'] as String? ?? 'Unknown Event';
     final amount = (p['amount'] as num?)?.toDouble() ?? 0;
+    final platformFee = (p['platform_fee'] as num?)?.toDouble();
+    final refundedAmount = (p['refunded_amount'] as num?)?.toDouble();
     final status = p['status'] as String? ?? 'pending';
     final refundStatus = p['refund_status'] as String?;
+    final eventCancelled = ev?['status'] == 'cancelled';
     final date = p['created_at'] as String?;
     final paymentId = p['id'] as String?;
+
+    // A refunded row shows what the buyer gets back, not the gross payment:
+    // the ticket only on a self-cancel (platform fee kept), the full amount when
+    // the organizer cancelled the event.
+    var displayAmount = amount;
+    if (refundStatus != null && refundStatus != 'failed') {
+      if (refundedAmount != null && refundedAmount > 0) {
+        displayAmount = refundedAmount;
+      } else if (eventCancelled) {
+        displayAmount = amount;
+      } else if (platformFee != null && amount - platformFee > 0) {
+        displayAmount = amount - platformFee;
+      }
+    }
 
     final refundLabels = {
       'processed': 'Refunded',
@@ -96,7 +113,7 @@ class MyPaymentsScreen extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            amount == 0 ? 'Free' : '₹${(amount / 100).toStringAsFixed(0)}',
+            displayAmount == 0 ? 'Free' : '₹${(displayAmount / 100).toStringAsFixed(0)}',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,

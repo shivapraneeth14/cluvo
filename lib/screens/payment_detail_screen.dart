@@ -137,12 +137,35 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
     final reg = _payment!['registrations'] as Map<String, dynamic>?;
     final ev = reg?['events'] as Map<String, dynamic>?;
 
+    final amountPaise = (_payment!['amount'] as num?)?.toInt() ?? 0;
+    final platformFeePaise = (_payment!['platform_fee'] as num?)?.toInt();
+    final refundStatus = _payment!['refund_status'] as String?;
+    final refundedAmountPaise = (_payment!['refunded_amount'] as num?)?.toInt();
+    final eventCancelled = ev?['status'] == 'cancelled';
+
+    // What the buyer actually gets back: the recorded refund when we have it,
+    // otherwise the full amount for an organizer-cancelled event, otherwise the
+    // ticket price (platform fee kept) for a self-cancel.
+    int? refundDisplayPaise;
+    if (refundStatus != null) {
+      if (refundedAmountPaise != null && refundedAmountPaise > 0) {
+        refundDisplayPaise = refundedAmountPaise;
+      } else if (eventCancelled) {
+        refundDisplayPaise = amountPaise;
+      } else if (platformFeePaise != null && amountPaise - platformFeePaise > 0) {
+        refundDisplayPaise = amountPaise - platformFeePaise;
+      } else {
+        refundDisplayPaise = amountPaise;
+      }
+    }
+
     return PaymentReceipt(
       status: _payment!['status'] as String? ?? 'pending',
-      refundStatus: _payment!['refund_status'] as String?,
-      amountPaise: (_payment!['amount'] as num?)?.toInt() ?? 0,
-      platformFeePaise: (_payment!['platform_fee'] as num?)?.toInt(),
+      refundStatus: refundStatus,
+      amountPaise: amountPaise,
+      platformFeePaise: platformFeePaise,
       feeGstPaise: (_payment!['platform_fee_gst'] as num?)?.toInt(),
+      refundedAmountPaise: refundDisplayPaise,
       eventTitle: ev?['title'] as String? ?? 'Unknown Event',
       eventImageUrl: ev?['image_url'] as String?,
       eventDateText: formatDayDate(ev?['start_date'] as String?),

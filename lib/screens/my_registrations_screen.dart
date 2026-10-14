@@ -69,6 +69,7 @@ class MyRegistrationsScreen extends ConsumerWidget {
     final refundStatus = payment?['refund_status'] as String?;
     final paidAmount = payment?['amount'] as num?;
     final refundedAmount = payment?['refunded_amount'] as num?;
+    final platformFee = payment?['platform_fee'] as num?;
     final qrCode = r['qr_code'] as String?;
 
     final refundLabels = {
@@ -79,22 +80,36 @@ class MyRegistrationsScreen extends ConsumerWidget {
       'failed': 'Refund failed — support will contact you',
     };
 
+    // Amount the buyer gets back: the recorded refund, else the full amount for
+    // an organizer-cancelled event, else the ticket price (platform fee kept)
+    // for a self-cancel.
+    num? refundDisplay;
+    if (refundedAmount is num && refundedAmount > 0) {
+      refundDisplay = refundedAmount;
+    } else if (isEventCancelled && paidAmount is num) {
+      refundDisplay = paidAmount;
+    } else if (paidAmount is num && platformFee is num && paidAmount - platformFee > 0) {
+      refundDisplay = paidAmount - platformFee;
+    } else if (paidAmount is num) {
+      refundDisplay = paidAmount;
+    }
+    final amtText =
+        (refundDisplay is num && refundDisplay > 0) ? ' ₹${(refundDisplay / 100).toStringAsFixed(0)}' : '';
+
     String? refundNotice;
     final effectiveRefundLabel = (refundStatus != null) ? refundLabels[refundStatus] : null;
     if (isEventCancelled) {
       if (refundStatus == 'processed') {
-        final shown = refundedAmount is num && refundedAmount > 0 ? refundedAmount : paidAmount;
-        refundNotice = shown is num && shown > 0 ? 'Refunded · ₹${(shown / 100).toStringAsFixed(0)}' : 'Refunded';
+        refundNotice = 'Refunded$amtText';
       } else if (effectiveRefundLabel != null) {
-        refundNotice = effectiveRefundLabel;
+        refundNotice = '$effectiveRefundLabel$amtText';
       } else {
         refundNotice = 'Event cancelled — money will be refunded';
       }
     } else if (status == 'cancelled' && paymentStatus == 'refunded') {
-      final shown = refundedAmount is num && refundedAmount > 0 ? refundedAmount : paidAmount;
-      refundNotice = shown is num && shown > 0 ? 'Cancelled · refunded ₹${(shown / 100).toStringAsFixed(0)}' : 'Cancelled · refunded';
+      refundNotice = 'Cancelled · refunded$amtText';
     } else if (status == 'cancelled' && effectiveRefundLabel != null) {
-      refundNotice = 'Cancelled · $effectiveRefundLabel';
+      refundNotice = 'Cancelled · $effectiveRefundLabel$amtText';
     }
 
     final hasTicket = status == 'confirmed' && qrCode != null && !isEventCancelled;

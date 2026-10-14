@@ -6,7 +6,7 @@ Future<List<Map<String, dynamic>>> _fetchMyRegistrations() async {
   if (session == null) return [];
   final res = await supabase
       .from('registrations')
-      .select('*, events!inner(title, start_date, status, communities!inner(name)), payments(status, refund_status, amount, refunded_amount))')
+      .select('*, events!inner(title, start_date, status, communities!inner(name)), payments(status, refund_status, amount, refunded_amount, platform_fee))')
       .eq('user_id', session.user.id)
       .eq('events.communities.is_hidden', false)
       .order('registered_at', ascending: false);
@@ -22,7 +22,7 @@ Future<List<Map<String, dynamic>>> _fetchMyPayments() async {
   if (session == null) return [];
   final res = await supabase
       .from('payments')
-      .select('*, registrations!inner(user_id, events!inner(title, start_date))')
+      .select('*, registrations!inner(user_id, events!inner(title, start_date, status))')
       .eq('registrations.user_id', session.user.id)
       .order('created_at', ascending: false);
   return (res as List).cast<Map<String, dynamic>>();
