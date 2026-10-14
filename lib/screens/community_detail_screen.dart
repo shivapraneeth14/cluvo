@@ -25,7 +25,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:url_launcher/url_launcher.dart';
+import '../utils/external_links.dart';
 import '../theme.dart';
 import '../config.dart';
 import '../supabase_client.dart';
@@ -563,9 +563,13 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
   Widget _socialGlassIcon(String svg, String url) {
     return Padding(
       padding: const EdgeInsets.only(right: 8),
-      child: GestureDetector(
-        onTap: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
-        child: Container(
+      child: Semantics(
+        label: "Open social link in browser",
+        button: true,
+        onTap: () => openExternalLink(url),
+        child: GestureDetector(
+          onTap: () => openExternalLink(url),
+          child: Container(
           width: 30,
           height: 30,
           decoration: BoxDecoration(
@@ -576,6 +580,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
           child: SvgPicture.string(
             svg,
             colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+          ),
           ),
         ),
       ),

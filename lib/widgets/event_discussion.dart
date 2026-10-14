@@ -39,6 +39,7 @@ class _EventDiscussionState extends State<EventDiscussion> {
   String? _error;
   RealtimeChannel? _channel;
   String? _editingId;
+  final Set<String> _blockedUserIds = {};
 
   @override
   void initState() {
@@ -89,10 +90,24 @@ class _EventDiscussionState extends State<EventDiscussion> {
           removed = memberRes == null;
         } catch (_) {}
       }
+      final blocked = <String>{};
+      try {
+        final blockRes = await supabase
+            .from('user_blocks')
+            .select('blocked_id')
+            .eq('blocker_id', widget.currentUserId);
+        for (final r in (blockRes as List)) {
+          final id = (r as Map<String, dynamic>)['blocked_id'] as String?;
+          if (id != null) blocked.add(id);
+        }
+      } catch (_) {}
       setState(() {
         _messages = messages;
         _isBanned = banned;
         _isRemoved = removed;
+        _blockedUserIds
+          ..clear()
+          ..addAll(blocked);
         _loading = false;
       });
       _scrollToBottom();
@@ -120,6 +135,7 @@ class _EventDiscussionState extends State<EventDiscussion> {
         if (!mounted) return;
         final msg = EventMessage.fromMap(
             payload.newRecord);
+        if (_blockedUserIds.contains(msg.userId)) return;
         setState(() => _messages.add(msg));
         _scrollToBottom();
       },
@@ -280,6 +296,25 @@ class _EventDiscussionState extends State<EventDiscussion> {
                   _restrictUser(msg.userId);
                 },
               ),
+            if (!isOwn) ...[
+              ListTile(
+                leading: const Icon(Icons.flag_outlined, color: Colors.red),
+                title:
+                    const Text('Report', style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _report(msg);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.visibility_off_outlined),
+                title: Text('Block ${msg.senderName ?? 'user'}'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _blockUser(msg.userId);
+                },
+              ),
+            ],
             ListTile(
               leading: const Icon(Icons.close),
               title: const Text('Cancel'),
@@ -309,6 +344,91 @@ class _EventDiscussionState extends State<EventDiscussion> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString()), backgroundColor: Colors.red[700]),
+      );
+    }
+  }
+
+  Future<void> _report(EventMessage msg) async {
+    const reasons = [
+      'Spam',
+      'Harassment or bullying',
+      'Inappropriate content',
+      'Other',
+    ];
+    final reason = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(12),
+              child: Text('Report message',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+            ),
+            for (final r in reasons)
+              ListTile(
+                title: Text(r),
+                onTap: () => Navigator.pop(ctx, r),
+              ),
+            ListTile(
+              leading: const Icon(Icons.close),
+              title: const Text('Cancel'),
+              onTap: () => Navigator.pop(ctx),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (reason == null || !mounted) return;
+    try {
+      await supabase.from('content_reports').insert({
+        'reporter_id': widget.currentUserId,
+        'target_type': 'event_message',
+        'target_id': msg.id,
+        'target_user_id': msg.userId,
+        'reason': reason,
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Thanks — your report has been submitted.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Could not submit report. You may have already reported this message.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _blockUser(String userId) async {
+    try {
+      await supabase.from('user_blocks').insert({
+        'blocker_id': widget.currentUserId,
+        'blocked_id': userId,
+      });
+      if (!mounted) return;
+      setState(() => _blockedUserIds.add(userId));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('User blocked. Their messages are now hidden.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not block this user.'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -346,10 +466,16 @@ class _EventDiscussionState extends State<EventDiscussion> {
       );
     }
 
+    final visibleMessages = _blockedUserIds.isEmpty
+        ? _messages
+        : _messages
+            .where((m) => !_blockedUserIds.contains(m.userId))
+            .toList();
+
     return Column(
       children: [
         Expanded(
-          child: _messages.isEmpty
+          child: visibleMessages.isEmpty
               ? Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -364,9 +490,9 @@ class _EventDiscussionState extends State<EventDiscussion> {
               : ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.symmetric(horizontal: 4),
-                  itemCount: _messages.length,
+                  itemCount: visibleMessages.length,
                   itemBuilder: (context, index) {
-                    final msg = _messages[index];
+                    final msg = visibleMessages[index];
                     final isOwn = msg.userId == widget.currentUserId;
                     return _buildMessageBubble(msg, isOwn);
                   },

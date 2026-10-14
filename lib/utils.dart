@@ -38,6 +38,34 @@ String formatDateTime(DateTime? dt) {
   return '${local.day}/${local.month}/${local.year} ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
 }
 
+const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+String formatTime(DateTime? dt) {
+  if (dt == null) return '';
+  final local = dt.isUtc ? dt.toLocal() : dt;
+  final h12 = local.hour % 12 == 0 ? 12 : local.hour % 12;
+  final minute = local.minute.toString().padLeft(2, '0');
+  return '$h12:$minute ${local.hour < 12 ? 'AM' : 'PM'}';
+}
+
+String formatDayDate(String? iso) {
+  final dt = safeParseDate(iso);
+  if (dt == null) return '';
+  return '${_weekdays[dt.weekday - 1]}, ${dt.day} ${_months[dt.month - 1]} ${dt.year} · ${formatTime(dt)}';
+}
+
+String formatDayDateRange(String? startIso, String? endIso) {
+  final start = safeParseDate(startIso);
+  if (start == null) return '';
+  final base = '${_weekdays[start.weekday - 1]}, ${start.day} ${_months[start.month - 1]} ${start.year} · ${formatTime(start)}';
+  final end = safeParseDate(endIso);
+  if (end != null && end.isAfter(start)) {
+    return '$base – ${formatTime(end)}';
+  }
+  return base;
+}
+
 // ── Fee-on-top money math (all paise) ─────────────────────────────────────
 // Mirrors supabase/functions/_shared/fees.ts — keep both in sync:
 //   total charged = ticket + flat fee + 18% GST on the fee

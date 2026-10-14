@@ -5,13 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
+import '../utils/external_links.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../config.dart';
 import '../supabase_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/razorpay_web.dart';
 import '../widgets/community_photo_grid.dart';
+import '../widgets/dotted_divider.dart';
 import '../widgets/event_discussion.dart';
 import '../widgets/wishlist_button.dart';
 import '../widgets/lifecycle_ticker.dart';
@@ -35,10 +36,12 @@ class _EventDetailScreenState extends State<EventDetailScreen>
   String? _error;
   bool _isRegistered = false;
   String? _registrationStatus;
+  String? _registrationId;
   bool _checkingRegistration = true;
   bool _registering = false;
   bool _processingPayment = false;
   bool _pollActive = false;
+  bool _paidButUnconfirmed = false;
   bool _discussionEnabled = false;
   bool _discussionRestricted = false;
   bool _isAdmin = false;
@@ -129,14 +132,14 @@ class _EventDetailScreenState extends State<EventDetailScreen>
   }
 
   void _handlePaymentSuccess(PaymentSuccessResponse response) {
-    debugPrint('Razorpay success: payment_id=${response.paymentId}, order_id=${response.orderId}');
+    if (kDebugMode) debugPrint('Razorpay payment success');
     if (!mounted) return;
     setState(() => _processingPayment = true);
     _pollRegistrationStatus();
   }
 
   void _handlePaymentError(PaymentFailureResponse response) {
-    debugPrint('Razorpay error: code=${response.code}, message=${response.message}');
+    if (kDebugMode) debugPrint('Razorpay error code=${response.code}');
     if (!mounted) return;
     setState(() {
       _processingPayment = false;
@@ -155,7 +158,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
   }
 
   void _handleExternalWallet(ExternalWalletResponse response) {
-    debugPrint('Razorpay external wallet: ${response.walletName}');
+    if (kDebugMode) debugPrint('Razorpay external wallet used');
     if (!mounted) return;
     setState(() => _processingPayment = true);
     _pollRegistrationStatus();
@@ -171,7 +174,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
         if (session == null) continue;
         final res = await supabase
             .from('registrations')
-            .select('status')
+            .select('id, status')
             .eq('event_id', widget.id)
             .eq('user_id', session.user.id)
             .maybeSingle();
@@ -179,6 +182,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           _pollActive = false;
           setState(() {
             _isRegistered = true;
+            _registrationId = res['id'] as String?;
             _processingPayment = false;
             _registering = false;
           });
@@ -205,10 +209,77 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     }
     _pollActive = false;
     if (!mounted) return;
+    if (_isRegistered) {
+      setState(() => _processingPayment = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Registration confirmed!'), backgroundColor: Color(0xFF10B981)),
+      );
+      return;
+    }
+    // Poll exhausted without a confirmed registration — ask the server (it
+    // checks Razorpay directly, so a lost payment.captured webhook can still
+    // be resolved here instead of leaving the user stuck).
+    await _verifyPayment();
+    if (!mounted) return;
     setState(() => _processingPayment = false);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Payment verification taking longer than expected. Check your registrations.'), backgroundColor: Colors.orange),
     );
+  }
+
+  // Server-side verification: resolves a payment whose status transition may
+  // have been lost (webhook miss). Confirms against Razorpay directly. It only
+  // confirms — refunds stay server-side. Never throws; state is best-effort.
+  Future<void> _verifyPayment() async {
+    try {
+      final session = supabase.auth.currentSession;
+      if (session == null) return;
+      final res = await supabase.functions
+          .invoke('verify-payment', body: {'event_id': widget.id})
+          .timeout(const Duration(seconds: 15));
+      if (!mounted) return;
+      final state = res.data['state'] as String?;
+      if (state == 'confirmed') {
+        setState(() {
+          _isRegistered = true;
+          _registrationStatus = 'confirmed';
+          _processingPayment = false;
+          _registering = false;
+        });
+      } else if (state == 'paid_needs_repair') {
+        // Money was captured but the booking row is unconfirmed — a legacy
+        // stuck row. Never show Pay for it again; the server repairs it.
+        setState(() {
+          _paidButUnconfirmed = true;
+          _processingPayment = false;
+          _registering = false;
+        });
+      }
+    } catch (_) {
+      // Best-effort — the poll/reload will retry.
+    }
+  }
+
+  Future<void> _openTicket() async {
+    var id = _registrationId;
+    if (id == null) {
+      final session = supabase.auth.currentSession;
+      if (session == null) return;
+      try {
+        final res = await supabase
+            .from('registrations')
+            .select('id')
+            .eq('event_id', widget.id)
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+        id = res?['id'] as String?;
+        if (id != null && mounted) setState(() => _registrationId = id);
+      } catch (_) {
+        return;
+      }
+    }
+    if (id == null || !mounted) return;
+    context.push('/ticket/$id');
   }
 
   Future<void> _load() async {
@@ -245,6 +316,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
         final regData = results[2] as Map<String, dynamic>?;
         registered = ['confirmed', 'attended'].contains(regData?['status']);
         _registrationStatus = regData?['status'] as String?;
+        _registrationId = regData?['id'] as String?;
         final event = results[0] as Map<String, dynamic>?;
         if (event != null) {
           getParsedDate(event, 'start_date');
@@ -268,11 +340,15 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           _isRegistered = registered;
           _registrationStatus = _registrationStatus;
           _isAdmin = isAdmin;
+          _paidButUnconfirmed = false;
           _discussionEnabled = (event?['discussion_enabled'] as bool?) ?? false;
           _discussionRestricted = (event?['discussion_restricted'] as bool?) ?? false;
           _loading = false;
           _checkingRegistration = false;
         });
+        if (regData != null && regData['status'] == 'pending') {
+          _verifyPayment();
+        }
       } else {
         final results = await Future.wait([eventFuture, mediaFuture]).timeout(const Duration(seconds: 30));
         if (!mounted) return;
@@ -314,7 +390,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
         );
       }
     } catch (e) {
-      debugPrint('Cleanup booking failed: $e');
+      if (kDebugMode) debugPrint('Cleanup booking failed: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -367,6 +443,32 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           .invoke('create-payment', body: {'event_id': widget.id})
           .timeout(const Duration(seconds: 30));
       if (!mounted) return;
+
+      // Path C: the server discovered the money already landed (webhook was
+      // lost) and confirmed the booking — no checkout step needed.
+      final existsResponse = paymentRes.data['exists'] == true;
+      final serverPaymentStatus = paymentRes.data['payment_status'] as String?;
+      if (existsResponse && serverPaymentStatus == 'confirmed') {
+        setState(() {
+          _isRegistered = true;
+          _registrationStatus = 'confirmed';
+          _registering = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Registration confirmed!'), backgroundColor: Color(0xFF10B981)),
+        );
+        return;
+      }
+
+      final errorCode = paymentRes.data['code'] as String?;
+      if (errorCode == 'already_paid' || errorCode == 'refund_in_progress') {
+        // Payment already captured — the Pay button must never re-surface.
+        // Resolve with the server and mirror its real state.
+        setState(() => _registering = false);
+        await _verifyPayment();
+        return;
+      }
+
       final registrationId = paymentRes.data['registration_id'] as String?;
       final orderId = paymentRes.data['razorpay_order_id'] as String?;
       final amount = paymentRes.data['amount'] as int?;
@@ -420,7 +522,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
         _razorpay?.open(options);
       }
     } catch (e) {
-      debugPrint('Payment flow error: $e');
+      if (kDebugMode) debugPrint('Payment flow error: $e');
       if (!mounted) return;
       _showError('Payment failed. Please check your connection and try again.');
       setState(() {
@@ -757,43 +859,39 @@ class _EventDetailScreenState extends State<EventDetailScreen>
                   ),
                 ],
               ),
-              child: SafeArea(
-                top: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: ClipRRect(
+                // Clips the perforation notch circles into semicircles at the edges.
+                borderRadius: BorderRadius.circular(20),
+                child: SafeArea(
+                  top: false,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Row(
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
+                      if (_isRegistered)
+                        _registeredActionArea(price, _registrationStatus == 'attended')
+                      else
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              Text(
-                                price > 0 ? 'Ticket price' : 'Price',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: context.cluvoTextSecondary,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                price > 0 ? formatRupees(price) : 'Free',
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
+                              _priceColumn(price),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: _buildActionButton(price, isFull, eventStatus, lifecycle),
                                 ),
                               ),
                             ],
                           ),
-                          const Spacer(),
-                          _buildActionButton(price, isFull, eventStatus, lifecycle),
-                        ],
-                      ),
+                        ),
                       if (price > 0 && !_isRegistered && eventStatus != 'cancelled') ...[
                         const SizedBox(height: 8),
-                        _buildRefundDisclosure(price),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                          child: _buildRefundDisclosure(price),
+                        ),
                       ],
                     ],
                   ),
@@ -928,7 +1026,9 @@ class _EventDetailScreenState extends State<EventDetailScreen>
       if (start != null)
         _infoChip(Icons.calendar_today_outlined, _formatDateTime(e, 'start_date')),
       if (location != null && location.isNotEmpty)
-        _locationChip(location, lat: lat, lng: lng),
+        _locationChip(location, lat: lat, lng: lng)
+      else if (lat != null && lng != null)
+        _locationChip('View on map', lat: lat, lng: lng),
       if (communityName != null)
         _communityChip(communityName, communityAvatarUrl),
       _priceChip(price),
@@ -1025,9 +1125,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
       ),
     );
     if (open == true) {
-      try {
-        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-      } catch (_) {}
+      await openExternalLink(url);
     }
   }
 
@@ -1044,7 +1142,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           Icon(icon, size: 15, color: context.cluvoPrimaryText),
           const SizedBox(width: 6),
           ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 170),
+            constraints: const BoxConstraints(maxWidth: 220),
             child: Text(
               value,
               maxLines: 1,
@@ -1261,76 +1359,9 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     }
 
     if (_isRegistered) {
-      final isAttended = _registrationStatus == 'attended';
-      final cancellationClosed = _cancellationClosed();
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isAttended
-                      ? Colors.blue.withValues(alpha: 0.1)
-                      : Colors.green.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isAttended ? Icons.star : Icons.check_circle,
-                      size: 16,
-                      color: isAttended ? Colors.blue : Colors.green,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      isAttended ? 'Attended' : 'Registered',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: isAttended ? Colors.blue : Colors.green,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (!isAttended) ...[
-                const SizedBox(width: 8),
-                SizedBox(
-                  height: 36,
-                  child: OutlinedButton(
-                    onPressed: (_registering || cancellationClosed) ? null : _cancelRegistration,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red,
-                      side: BorderSide(color: cancellationClosed ? Colors.grey.shade400 : Colors.red),
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    child: _registering
-                        ? const SizedBox(
-                            width: 14, height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red),
-                          )
-                        : Text('Cancel', style: TextStyle(fontSize: 13, color: cancellationClosed ? Colors.grey.shade500 : null)),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          if (!isAttended && cancellationClosed) ...[
-            const SizedBox(height: 6),
-            Text(
-              'Cancellation closed — event starts within 24 hours',
-              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-            ),
-          ],
-        ],
-      );
+      // Rendered by _registeredActionArea() in the bottom bar; never reached via
+      // _buildActionButton, which only handles the non-registered states.
+      return const SizedBox.shrink();
     }
 
     if (lifecycle == EventLifecycle.live) {
@@ -1394,6 +1425,29 @@ class _EventDetailScreenState extends State<EventDetailScreen>
       );
     }
 
+    if (_paidButUnconfirmed) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFC2185B).withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.hourglass_top, size: 16, color: Color(0xFFC2185B)),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                'Payment received — we are confirming your booking.',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.cluvoTextPrimary),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     if (price > 0) {
       return SizedBox(
         height: 44,
@@ -1448,6 +1502,139 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           padding: const EdgeInsets.symmetric(horizontal: 28),
         ),
       ),
+    );
+  }
+
+  Widget _priceColumn(num price) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          price > 0 ? 'Ticket price' : 'Price',
+          style: TextStyle(fontSize: 11, color: context.cluvoTextSecondary),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          price > 0 ? formatRupees(price) : 'Free',
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+      ],
+    );
+  }
+
+  Widget _statusPill(bool isAttended) {
+    final color = isAttended ? const Color(0xFF2563EB) : CluvoTheme.success;
+    final label = isAttended ? 'Attended' : 'Registered';
+    final icon = isAttended ? Icons.verified_outlined : Icons.check_circle;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Two-row "ticket stub" bottom bar shown once the user is registered: status +
+  // paid amount on top, a dotted perforation with semicircular edge notches, then
+  // the View ticket / Cancel actions.
+  Widget _registeredActionArea(num price, bool isAttended) {
+    final cancellationClosed = _cancellationClosed();
+
+    final cancelButton = OutlinedButton(
+      onPressed: (_registering || cancellationClosed) ? null : _cancelRegistration,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: CluvoTheme.error,
+        minimumSize: const Size(0, 46),
+        shape: const StadiumBorder(),
+        side: BorderSide(
+          color: cancellationClosed ? context.cluvoBorder : CluvoTheme.error,
+        ),
+      ),
+      child: _registering
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: CluvoTheme.error),
+            )
+          : Text(
+              'Cancel',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: cancellationClosed ? context.cluvoTextSecondary : null,
+              ),
+            ),
+    );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: Row(
+            children: [
+              _statusPill(isAttended),
+              const Spacer(),
+              Text(
+                price > 0 ? '${formatRupees(price)} paid' : 'Free',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: context.cluvoTextSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        _TicketPerforation(
+          lineColor: context.cluvoBorder,
+          notchColor: context.cluvoBackground,
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _openTicket,
+                  icon: const Icon(Icons.confirmation_number_outlined, size: 18),
+                  label: const Text('View ticket'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: CluvoTheme.primary,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(0, 46),
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    shape: const StadiumBorder(),
+                  ),
+                ),
+              ),
+              if (!isAttended) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: cancellationClosed
+                      ? Tooltip(
+                          message: 'Cancellations close 24 hours before the event starts.',
+                          child: cancelButton,
+                        )
+                      : cancelButton,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -1776,4 +1963,39 @@ class _CancellationPolicyDialogState extends State<_CancellationPolicyDialog> {
       ],
     );
   }
+}
+
+// Full-width ticket perforation: a dotted line with a semicircular bite at each
+// edge. The bites are circles centred on the bar's left/right edges; the parent
+// ClipRRect slices them into half-circles.
+class _TicketPerforation extends StatelessWidget {
+  final Color lineColor;
+  final Color notchColor;
+
+  const _TicketPerforation({required this.lineColor, required this.notchColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 22,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: DottedDivider(color: lineColor),
+          ),
+          Positioned(left: -11, child: _notch()),
+          Positioned(right: -11, child: _notch()),
+        ],
+      ),
+    );
+  }
+
+  Widget _notch() => Container(
+        width: 22,
+        height: 22,
+        decoration: BoxDecoration(color: notchColor, shape: BoxShape.circle),
+      );
 }
