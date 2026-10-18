@@ -15,32 +15,30 @@ Future<void> showLegalDialog(
       title: Text(title),
       content: SizedBox(
         width: double.maxFinite,
-        child: Flexible(
-          child: ListView.separated(
-            shrinkWrap: true,
-            itemCount: sections.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 12),
-            itemBuilder: (_, i) {
-              final section = sections[i];
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    section.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
-                    ),
+        child: ListView.separated(
+          shrinkWrap: true,
+          itemCount: sections.length,
+          separatorBuilder: (_, _) => const SizedBox(height: 12),
+          itemBuilder: (_, i) {
+            final section = sections[i];
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  section.title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    section.body,
-                    style: const TextStyle(fontSize: 13.5, height: 1.45),
-                  ),
-                ],
-              );
-            },
-          ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  section.body,
+                  style: const TextStyle(fontSize: 13.5, height: 1.45),
+                ),
+              ],
+            );
+          },
         ),
       ),
       actions: [

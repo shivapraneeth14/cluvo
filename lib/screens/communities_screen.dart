@@ -1,17 +1,26 @@
 import 'dart:async';
-import '../theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import '../theme.dart';
+import '../supabase_client.dart';
 import '../providers/community_provider.dart';
+import '../providers/location_provider.dart';
 import '../providers/paginated_provider.dart';
+import '../services/location_matching.dart';
 import '../widgets/notification_bell.dart';
-import '../widgets/theme_toggle_button.dart';
-import '../widgets/wishlist_button.dart';
-import '../providers/wishlist_provider.dart';
+import '../widgets/home/section_header.dart';
+import '../widgets/list_page_scaffold.dart' show ActivityCard;
+import '../widgets/communities/communities_search_header.dart';
+import '../widgets/communities/community_location_button.dart';
+import '../widgets/communities/community_category_chips.dart';
+import '../widgets/communities/community_discovery_card.dart';
+import '../widgets/communities/community_image.dart';
 import '../models/models.dart';
 
+/// Communities discovery page:
+/// compact header → title + search → category chips → Popular carousel →
+/// Your communities. The full catalogue lives at "/communities/all".
 class CommunitiesScreen extends ConsumerStatefulWidget {
   const CommunitiesScreen({super.key});
 
@@ -21,474 +30,465 @@ class CommunitiesScreen extends ConsumerStatefulWidget {
 
 class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
   final _searchController = TextEditingController();
-  final _scrollController = ScrollController();
-  final _filterKey = GlobalKey();
   Timer? _debounce;
   String _query = '';
   String? _selectedCategory;
 
   @override
-  void initState() {
-    super.initState();
-    _scrollController.addListener(_onScroll);
-  }
-
-  @override
   void dispose() {
     _searchController.dispose();
-    _scrollController.dispose();
     _debounce?.cancel();
     super.dispose();
   }
 
-  void _onScroll() {
-    if (_scrollController.position.pixels < _scrollController.position.maxScrollExtent - 200) return;
-    ref.read(communitiesProvider.notifier).fetchNextPage();
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () {
+      if (!mounted) return;
+      setState(() => _query = value.trim());
+    });
   }
 
-  List<Community> _filter(List<Community> data) {
-    if (_query.isEmpty) return data;
-    final q = _query.toLowerCase();
-    return data.where((c) {
-      return c.name.toLowerCase().contains(q)
-          || (c.description ?? '').toLowerCase().contains(q)
-          || (c.city ?? '').toLowerCase().contains(q)
-          || (c.country ?? '').toLowerCase().contains(q)
-          || (c.category ?? '').toLowerCase().contains(q);
-    }).toList();
+  void _clearSearch() {
+    _debounce?.cancel();
+    _searchController.clear();
+    setState(() => _query = '');
   }
 
-  Future<void> _openFilterMenu() async {
-    final box = _filterKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null) return;
-    final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox;
-    final position = RelativeRect.fromRect(
-      Rect.fromPoints(
-        box.localToGlobal(Offset.zero, ancestor: overlay),
-        box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay),
-      ),
-      Offset.zero & overlay.size,
-    );
-
-    List<String> categories;
-    try {
-      categories = await ref.read(categoriesProvider.future);
-    } catch (_) {
-      categories = const [];
-    }
-    if (!mounted) return;
-
-    final result = await showMenu<String>(
-      context: context,
-      position: position,
-      elevation: 8,
-      color: context.cluvoSurface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      items: [
-        PopupMenuItem<String>(
-          value: '',
-          child: _filterMenuItem('All', _selectedCategory == null),
-        ),
-        ...categories.map(
-          (c) => PopupMenuItem<String>(
-            value: c,
-            child: _filterMenuItem(c, _selectedCategory == c),
-          ),
-        ),
-      ],
-    );
-    if (result == null || !mounted) return;
-    final next = result.isEmpty ? null : result;
-    if (next == _selectedCategory) return;
-    setState(() => _selectedCategory = next);
-    ref.read(communitiesProvider.notifier).setCategory(next);
+  void _selectCategory(String? category) {
+    if (_selectedCategory == category) return;
+    setState(() => _selectedCategory = category);
+    ref.read(communitiesProvider.notifier).setCategory(category);
   }
 
-  Widget _filterMenuItem(String label, bool selected) {
-    return Row(
-      children: [
-        Icon(
-          selected ? Icons.check : Icons.category_outlined,
-          size: 16,
-          color: selected ? CluvoTheme.primary : context.cluvoTextSecondary,
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            label,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-              color: context.cluvoTextPrimary,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _emptyMessage() {
-    if (_query.isEmpty && _selectedCategory == null) return 'No communities yet.';
-    if (_query.isEmpty) return 'No communities in "$_selectedCategory".';
-    return 'No communities match "$_query".';
+  Future<void> _refresh() async {
+    ref.invalidate(categoriesProvider);
+    ref.invalidate(locationOptionsProvider);
+    ref.invalidate(myMembershipsProvider);
+    await ref.read(communitiesProvider.notifier).refresh();
   }
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(communitiesProvider);
+    final signedIn = supabase.auth.currentSession != null;
+    final searchLoading =
+        _query.trim().isNotEmpty &&
+        ref.watch(searchCommunitiesProvider(_query)).isLoading;
 
     return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        title: Text(
-          'CLUVO',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            letterSpacing: 2,
-            color: const Color(0xFFC2185B),
+      backgroundColor: context.cluvoBackground,
+      body: SafeArea(
+        bottom: false,
+        child: RefreshIndicator(
+          color: CluvoTheme.primary,
+          onRefresh: _refresh,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(child: _header(context)),
+              SliverToBoxAdapter(
+                child: CommunitiesSearchHeader(
+                  controller: _searchController,
+                  onChanged: _onSearchChanged,
+                  onClear: _clearSearch,
+                  searching: searchLoading,
+                ),
+              ),
+              ...(_query.trim().isNotEmpty
+                  ? _searchSlivers()
+                  : [
+                      ..._categoriesSliver(),
+                      ..._popularSlivers(context),
+                      ..._yourCommunitiesSlivers(context, signedIn),
+                    ]),
+              const SliverToBoxAdapter(child: SizedBox(height: 40)),
+            ],
           ),
         ),
-        actions: const [ThemeToggleButton(), NotificationBell()],
       ),
-      body: state.loading
-          ? _buildSkeleton()
-          : state.error != null && state.items.isEmpty
-              ? _buildError(state.error!)
-              : _buildContent(state),
     );
   }
 
-  Widget _buildContent(PaginatedList<Community> state) {
-    final filtered = _filter(state.items);
-    final notifier = ref.read(communitiesProvider.notifier);
+  // ── Header ─────────────────────────────────────────────────────────────
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-          child: Row(
+  Widget _header(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(CluvoTheme.screenPadding, 10, 8, 0),
+      child: Row(
+        children: [
+          Row(
             children: [
-              Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (v) {
-                    _debounce?.cancel();
-                    _debounce = Timer(const Duration(milliseconds: 300), () {
-                      setState(() => _query = v.trim());
-                    });
-                  },
-                  decoration: InputDecoration(
-                    hintText: 'Search communities...',
-                    prefixIcon: const Icon(Icons.search, size: 20),
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear, size: 18),
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() => _query = '');
-                            },
-                          )
-                        : null,
-                    filled: true,
-                    fillColor: context.cluvoChipFill,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
-                  ),
+              Text(
+                'Cluvo',
+                style: TextStyle(
+                  color: CluvoTheme.primary,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
                 ),
               ),
-              const SizedBox(width: 8),
-              SizedBox(
-                key: _filterKey,
-                child: IconButton(
-                  onPressed: _openFilterMenu,
-                  icon: const Icon(Icons.filter_list),
-                  style: IconButton.styleFrom(
-                    backgroundColor: _selectedCategory != null
-                        ? CluvoTheme.primary.withValues(alpha: 0.12)
-                        : context.cluvoChipFill,
-                    foregroundColor: _selectedCategory != null
-                        ? CluvoTheme.primary
-                        : context.cluvoTextSecondary,
-                  ),
+              const SizedBox(width: 3),
+              Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  color: CluvoTheme.electricViolet,
+                  shape: BoxShape.circle,
                 ),
               ),
             ],
           ),
-        ),
-        Expanded(
-          child: RefreshIndicator(
-              onRefresh: () async {
-                ref.invalidate(categoriesProvider);
-                await notifier.refresh();
-              },
-              child: filtered.isEmpty
-                  ? ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      children: [
-                        const SizedBox(height: 200),
-                        Center(
-                          child: Text(
-                            _emptyMessage(),
-                            style: TextStyle(color: context.cluvoTextSecondary),
-                          ),
-                        ),
-                      ],
-                    )
-                : ListView.builder(
-                    controller: _scrollController,
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(16),
-                    itemCount: filtered.length + (state.hasMore ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (index == filtered.length) {
-                        return const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 20),
-                          child: Center(
-                            child: SizedBox(
-                              width: 20, height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          ),
-                        );
-                      }
-                      final c = filtered[index];
-                      final bannerUrl = c.bannerUrl;
-                      final name = c.name;
-
-                      return RepaintBoundary(
-                        child: Padding(
-                          padding: const EdgeInsets.only(bottom: 16),
-                          child: InkWell(
-                            onTap: () => context.push('/communities/${c.id}'),
-                            borderRadius: BorderRadius.circular(20),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Stack(
-                                  children: [
-                                    Container(
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(20),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color:
-                                                Colors.black.withValues(alpha: 0.15),
-                                            blurRadius: 14,
-                                            offset: const Offset(0, 6),
-                                          ),
-                                        ],
-                                      ),
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(20),
-                                        child: AspectRatio(
-                                          aspectRatio: 16 / 9,
-                                          child:
-                                              bannerUrl != null &&
-                                                      bannerUrl.isNotEmpty
-                                                  ? CachedNetworkImage(
-                                                      imageUrl: bannerUrl,
-                                                      fit: BoxFit.cover,
-                                                      width: double.infinity,
-                                                      errorWidget: (_, _, _) =>
-                                                          _buildBannerFallback(
-                                                            name,
-                                                          ),
-                                                    )
-                                                  : _buildBannerFallback(name),
-                                        ),
-                                      ),
-                                    ),
-                                    Positioned(
-                                      top: 10,
-                                      right: 10,
-                                      child: WishlistButton(
-                                        type: wishlistCommunity,
-                                        id: c.id,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                      12, 12, 12, 0),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        name,
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Row(
-                                        children: [
-                                          if (c.category != null) ...[
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(
-                                                  horizontal: 8, vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFFC2185B)
-                                                    .withValues(alpha: 0.1),
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                              child: Text(
-                                                c.category!,
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  color: context.cluvoPrimaryText,
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                          ],
-                                          Icon(Icons.people,
-                                              size: 14, color: context.cluvoTextSecondary),
-                                          const SizedBox(width: 3),
-                                          Text(
-                                            '${c.memberCount}',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: context.cluvoTextSecondary,
-                                            ),
-                                          ),
-                                          if (c.country != null) ...[
-                                            const Spacer(),
-                                            Icon(Icons.location_on,
-                                                size: 14, color: context.cluvoTextSecondary),
-                                            const SizedBox(width: 2),
-                                            Text(
-                                              '${c.city ?? ''}${c.city != null ? ', ' : ''}${c.country ?? ''}',
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                color: context.cluvoTextSecondary,
-                                              ),
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildError(String errorMsg) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline, size: 40, color: context.cluvoTextSecondary),
-            const SizedBox(height: 12),
-            Text('Could not load communities.\n$errorMsg',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: context.cluvoTextSecondary)),
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: () => ref.read(communitiesProvider.notifier).refresh(),
-              icon: const Icon(Icons.refresh, size: 16),
-              label: const Text('Tap to Retry'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFFC2185B),
-                side: const BorderSide(color: Color(0xFFC2185B)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSkeleton() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: List.generate(3, (_) => _buildSkeletonCard()),
-    );
-  }
-
-  Widget _buildSkeletonCard() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.15),
-                  blurRadius: 14,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: AspectRatio(
-                aspectRatio: 16 / 9,
-                child: Container(color: context.cluvoChipFill),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(height: 14, width: 180, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4))),
-                const SizedBox(height: 8),
-                Container(height: 12, width: 240, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4))),
-              ],
-            ),
-          ),
+          const Spacer(),
+          const CommunityLocationButton(),
+          const NotificationBell(),
         ],
       ),
     );
   }
 
-  Widget _buildBannerFallback(String name) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFFC2185B), Color(0xFFE0407A)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+  // ── Categories ─────────────────────────────────────────────────────────
+
+  List<Widget> _categoriesSliver() {
+    final categories = ref.watch(categoriesProvider).valueOrNull ?? const [];
+    if (categories.isEmpty) return const [];
+    return [
+      const SliverToBoxAdapter(child: SizedBox(height: 20)),
+      SliverToBoxAdapter(
+        child: CommunityCategoryChips(
+          categories: categories,
+          selected: _selectedCategory,
+          onSelected: _selectCategory,
         ),
       ),
-      child: Center(
-        child: Text(
-          name.isNotEmpty ? name[0].toUpperCase() : 'C',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 48,
-            fontWeight: FontWeight.bold,
+    ];
+  }
+
+  // ── Popular ────────────────────────────────────────────────────────────
+
+  List<Widget> _popularSlivers(BuildContext context) {
+    final state = ref.watch(communitiesProvider);
+    return [
+      const SliverToBoxAdapter(
+        child: SizedBox(height: CluvoTheme.sectionSpacing),
+      ),
+      SliverToBoxAdapter(
+        child: SectionHeader(
+          icon: Icons.local_fire_department_outlined,
+          title: 'Popular communities',
+          actionLabel: 'See all',
+          onAction: () => context.push('/communities/all'),
+        ),
+      ),
+      const SliverToBoxAdapter(child: SizedBox(height: 12)),
+      SliverToBoxAdapter(child: _popular(context, state)),
+    ];
+  }
+
+  Widget _popular(BuildContext context, PaginatedList<Community> state) {
+    if (state.loading && state.items.isEmpty) {
+      return const _CarouselSkeleton();
+    }
+    if (state.error != null && state.items.isEmpty) {
+      return _InlineCard(
+        message: 'Could not load communities.',
+        onRetry: () => ref.read(communitiesProvider.notifier).refresh(),
+        retryLabel: 'Tap to retry',
+      );
+    }
+    if (state.items.isEmpty) {
+      return _InlineCard(
+        icon: Icons.groups_outlined,
+        message: _selectedCategory == null
+            ? 'No communities to show yet.'
+            : 'No communities in $_selectedCategory yet.',
+      );
+    }
+    final city = ref.watch(locationControllerProvider.select((s) => s.city));
+    final items = partitionLocalFirst(
+      state.items,
+      (c) => isCommunityLocal(c, city),
+    ).take(12).toList();
+    return SizedBox(
+      height: kCommunityCardHeight,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(
+          horizontal: CluvoTheme.screenPadding,
+        ),
+        itemCount: items.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 14),
+        itemBuilder: (context, i) =>
+            CommunityDiscoveryCard(community: items[i]),
+      ),
+    );
+  }
+
+  // ── Your communities ───────────────────────────────────────────────────
+
+  List<Widget> _yourCommunitiesSlivers(BuildContext context, bool signedIn) {
+    return [
+      const SliverToBoxAdapter(
+        child: SizedBox(height: CluvoTheme.sectionSpacing),
+      ),
+      SliverToBoxAdapter(
+        child: SectionHeader(
+          icon: Icons.groups_2_outlined,
+          title: 'Your communities',
+          actionLabel: signedIn ? 'See all' : null,
+          onAction: signedIn ? () => context.go('/profile/communities') : null,
+        ),
+      ),
+      const SliverToBoxAdapter(child: SizedBox(height: 12)),
+      SliverToBoxAdapter(child: _yourCommunities(context, signedIn)),
+    ];
+  }
+
+  Widget _yourCommunities(BuildContext context, bool signedIn) {
+    if (!signedIn) {
+      return const _InlineCard(
+        message: 'Sign in to see and join communities.',
+        icon: Icons.lock_outline,
+      );
+    }
+    final async = ref.watch(myMembershipsProvider);
+    return async.when(
+      loading: () => const _RowSkeleton(),
+      error: (_, _) => _InlineCard(
+        message: 'Could not load your communities.',
+        onRetry: () => ref.invalidate(myMembershipsProvider),
+        retryLabel: 'Retry',
+      ),
+      data: (memberships) {
+        if (memberships.isEmpty) {
+          return const _InlineCard(
+            icon: Icons.groups_outlined,
+            message:
+                'You have not joined any communities yet. Explore Popular '
+                'and join one to get started.',
+          );
+        }
+        return Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: CluvoTheme.screenPadding,
+          ),
+          child: Column(
+            children: [
+              for (final membership in memberships)
+                _membershipRow(context, membership),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _membershipRow(BuildContext context, JoinedCommunity membership) {
+    final community = membership.community;
+    final role = membership.role.toUpperCase() == 'OWNER' ? 'Owner' : 'Member';
+    final subtitle = [
+      role,
+      if (community.city != null && community.city!.isNotEmpty) community.city!,
+    ].join(' · ');
+
+    return ActivityCard(
+      leading: SizedBox(
+        width: 44,
+        height: 44,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: CommunityImage(community: community, width: 44, height: 44),
+        ),
+      ),
+      title: community.name,
+      subtitle: subtitle,
+      trailing: Text(
+        '${community.memberCount} members',
+        style: TextStyle(fontSize: 11, color: context.cluvoTextSecondary),
+      ),
+      onTap: () => context.push('/communities/${community.id}'),
+    );
+  }
+
+  // ── Search results ─────────────────────────────────────────────────────
+
+  List<Widget> _searchSlivers() {
+    final async = ref.watch(searchCommunitiesProvider(_query));
+    final city = ref.watch(locationControllerProvider.select((s) => s.city));
+    final Widget content = async.when(
+      loading: () => const _RowSkeleton(),
+      error: (e, _) => _InlineCard(
+        message: 'Could not search communities. Please try again.',
+        onRetry: () => ref.invalidate(searchCommunitiesProvider(_query)),
+        retryLabel: 'Retry',
+      ),
+      data: (communities) {
+        if (communities.isEmpty) {
+          return const _InlineCard(
+            icon: Icons.search_off,
+            message: 'No communities match your search.',
+          );
+        }
+        final ordered = partitionLocalFirst(
+          communities,
+          (c) => isCommunityLocal(c, city),
+        );
+        return Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: CluvoTheme.screenPadding,
+          ),
+          child: Column(
+            children: [
+              for (final community in ordered)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: CommunityResultCard(community: community),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+
+    return [
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            CluvoTheme.screenPadding,
+            20,
+            CluvoTheme.screenPadding,
+            12,
+          ),
+          child: Text(
+            'Results for "$_query"',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: context.cluvoTextPrimary,
+            ),
+          ),
+        ),
+      ),
+      SliverToBoxAdapter(child: content),
+    ];
+  }
+}
+
+/// A centred, bordered message card that keeps one section's failure from
+/// breaking the rest of the page. Optionally shows a retry action.
+class _InlineCard extends StatelessWidget {
+  final String message;
+  final IconData? icon;
+  final VoidCallback? onRetry;
+  final String retryLabel;
+
+  const _InlineCard({
+    required this.message,
+    this.icon,
+    this.onRetry,
+    this.retryLabel = 'Retry',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: CluvoTheme.screenPadding),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: context.cluvoSurface,
+          borderRadius: BorderRadius.circular(CluvoTheme.radiusCard),
+          border: Border.all(color: context.cluvoBorder),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 18, color: context.cluvoTextSecondary),
+                  const SizedBox(width: 8),
+                ],
+                Expanded(
+                  child: Text(
+                    message,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: context.cluvoTextSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (onRetry != null) ...[
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: onRetry,
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 32),
+                  foregroundColor: CluvoTheme.primary,
+                ),
+                child: Text(retryLabel),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Skeleton for the Popular carousel.
+class _CarouselSkeleton extends StatelessWidget {
+  const _CarouselSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: kCommunityCardHeight,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(
+          horizontal: CluvoTheme.screenPadding,
+        ),
+        itemCount: 3,
+        separatorBuilder: (_, _) => const SizedBox(width: 14),
+        itemBuilder: (context, _) => Container(
+          width: kCommunityCardWidth,
+          decoration: BoxDecoration(
+            color: context.cluvoChipFill,
+            borderRadius: BorderRadius.circular(20),
           ),
         ),
       ),
     );
   }
 }
+
+/// Skeleton for the "Your communities" rows.
+class _RowSkeleton extends StatelessWidget {
+  const _RowSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: CluvoTheme.screenPadding),
+      child: Column(
+        children: List.generate(
+          3,
+          (_) => Container(
+            height: 72,
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: context.cluvoChipFill,
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Skeleton for the search results.

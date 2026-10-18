@@ -79,14 +79,17 @@ class MyPaymentsScreen extends ConsumerWidget {
       'requested': 'Refund Requested',
       'failed': 'Refund Failed',
     };
-    final refundLabel = refundStatus != null ? refundLabels[refundStatus] : null;
-    final chipLabel = refundLabel ?? status[0].toUpperCase() + status.substring(1);
+    final refundLabel = refundStatus != null
+        ? refundLabels[refundStatus]
+        : null;
+    final chipLabel =
+        refundLabel ?? status[0].toUpperCase() + status.substring(1);
     final chipColor = refundLabel != null
         ? (refundStatus == 'processed'
-            ? Colors.green
-            : refundStatus == 'failed'
-                ? Colors.red
-                : Colors.orange)
+              ? Colors.green
+              : refundStatus == 'failed'
+              ? Colors.red
+              : Colors.orange)
         : payStatusColor(status);
 
     return ActivityCard(
@@ -100,7 +103,9 @@ class MyPaymentsScreen extends ConsumerWidget {
         child: Center(
           child: Icon(
             refundLabel != null
-                ? (refundStatus == 'processed' ? Icons.assignment_turned_in : Icons.schedule)
+                ? (refundStatus == 'processed'
+                      ? Icons.assignment_turned_in
+                      : Icons.schedule)
                 : payStatusIcon(status),
             color: chipColor,
             size: 20,
@@ -113,7 +118,9 @@ class MyPaymentsScreen extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            displayAmount == 0 ? 'Free' : '₹${(displayAmount / 100).toStringAsFixed(0)}',
+            displayAmount == 0
+                ? 'Free'
+                : '₹${(displayAmount / 100).toStringAsFixed(0)}',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -138,7 +145,9 @@ class MyPaymentsScreen extends ConsumerWidget {
           ),
         ],
       ),
-      onTap: paymentId != null ? () => context.push('/payments/$paymentId') : null,
+      onTap: paymentId != null
+          ? () => context.push('/payments/$paymentId')
+          : null,
     );
   }
 }

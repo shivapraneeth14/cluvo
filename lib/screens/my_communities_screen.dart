@@ -30,7 +30,7 @@ class MyCommunitiesScreen extends ConsumerWidget {
     return ListPageScaffold(
       title: 'My Communities',
       onRefresh: () async {
-        ref.invalidate(myCommunitiesProvider);
+        ref.invalidate(myMembershipsProvider);
         await ref.read(myCommunitiesProvider.future);
       },
       child: async.when(
@@ -53,7 +53,8 @@ class MyCommunitiesScreen extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     clipBehavior: Clip.antiAlias,
-                    child: c.communityAvatarUrl != null &&
+                    child:
+                        c.communityAvatarUrl != null &&
                             c.communityAvatarUrl!.isNotEmpty
                         ? CachedNetworkImage(
                             imageUrl: c.communityAvatarUrl!,
@@ -63,7 +64,8 @@ class MyCommunitiesScreen extends ConsumerWidget {
                         : _letterAvatar(c),
                   ),
                   title: c.name,
-                  subtitle: '${c.city ?? ''}${c.city != null && c.country != null ? ', ' : ''}${c.country ?? ''}',
+                  subtitle:
+                      '${c.city ?? ''}${c.city != null && c.country != null ? ', ' : ''}${c.country ?? ''}',
                   trailing: Text(
                     '${c.memberCount} members',
                     style: TextStyle(

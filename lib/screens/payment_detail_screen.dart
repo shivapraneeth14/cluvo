@@ -42,7 +42,11 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
             event: PostgresChangeEvent.update,
             schema: 'public',
             table: 'payments',
-            filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'id', value: widget.paymentId),
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'id',
+              value: widget.paymentId,
+            ),
             callback: (payload) {
               final newRow = payload.newRecord;
               if (!mounted) return;
@@ -55,7 +59,11 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
             event: PostgresChangeEvent.insert,
             schema: 'public',
             table: 'notifications',
-            filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'user_id', value: supabase.auth.currentUser?.id ?? ''),
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'user_id',
+              value: supabase.auth.currentUser?.id ?? '',
+            ),
             callback: (payload) async {
               final row = payload.newRecord;
               final payId = (row['payload'] as Map?)?.remove('payment_id');
@@ -73,7 +81,9 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
     try {
       final payment = await supabase
           .from('payments')
-          .select('*, registrations!inner(*, events!inner(title, start_date, image_url, status))')
+          .select(
+            '*, registrations!inner(*, events!inner(title, start_date, image_url, status))',
+          )
           .eq('id', widget.paymentId)
           .single();
       final timeline = await _fetchTimeline();
@@ -97,7 +107,11 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
         .from('notifications')
         .select('*')
         .contains('payload', {'payment_id': widget.paymentId})
-        .inFilter('type', ['registration_confirmed', 'refund_initiated', 'refund_completed'])
+        .inFilter('type', [
+          'registration_confirmed',
+          'refund_initiated',
+          'refund_completed',
+        ])
         .order('created_at');
     return res as List<dynamic>? ?? [];
   }
@@ -126,7 +140,10 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
-          child: Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 13)),
+          child: Text(
+            _error!,
+            style: const TextStyle(color: Colors.red, fontSize: 13),
+          ),
         ),
       );
     }
@@ -152,7 +169,8 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
         refundDisplayPaise = refundedAmountPaise;
       } else if (eventCancelled) {
         refundDisplayPaise = amountPaise;
-      } else if (platformFeePaise != null && amountPaise - platformFeePaise > 0) {
+      } else if (platformFeePaise != null &&
+          amountPaise - platformFeePaise > 0) {
         refundDisplayPaise = amountPaise - platformFeePaise;
       } else {
         refundDisplayPaise = amountPaise;
@@ -172,7 +190,9 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
       paymentId: widget.paymentId,
       orderId: _payment!['razorpay_order_id'] as String?,
       razorpayId: _payment!['razorpay_payment_id'] as String?,
-      createdAtText: formatDateTime(safeParseDate(_payment!['created_at'] as String?)),
+      createdAtText: formatDateTime(
+        safeParseDate(_payment!['created_at'] as String?),
+      ),
       timeline: (_timeline ?? []).whereType<Map<String, dynamic>>().toList(),
     );
   }

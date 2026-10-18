@@ -95,8 +95,9 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
             fontFamily: 'PlayfairDisplay',
             fontSize: 17,
             fontWeight: FontWeight.w700,
-            color:
-                selected ? context.cluvoTextPrimary : context.cluvoTextSecondary,
+            color: selected
+                ? context.cluvoTextPrimary
+                : context.cluvoTextSecondary,
           ),
         ),
       ),

@@ -1,11 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../supabase_client.dart';
 import '../models/models.dart';
+import 'community_provider.dart';
 
 const wishlistEvent = 'event';
 const wishlistCommunity = 'community';
 
-final wishlistEventsProvider = FutureProvider.autoDispose<List<Event>>((ref) async {
+final wishlistEventsProvider = FutureProvider.autoDispose<List<Event>>((
+  ref,
+) async {
   final saved = ref.watch(wishlistProvider).savedEvents;
   final ids = saved.keys.toList();
   if (ids.isEmpty) return [];
@@ -15,39 +18,49 @@ final wishlistEventsProvider = FutureProvider.autoDispose<List<Event>>((ref) asy
       .inFilter('id', ids)
       .isFilter('deleted_at', null)
       .eq('communities.is_hidden', false);
-  final items = (res as List)
-      .cast<Map<String, dynamic>>()
-      .map((e) => Event.fromMap(e))
-      .toList()
-    ..sort((a, b) => (saved[b.id] ?? DateTime(0))
-        .compareTo(saved[a.id] ?? DateTime(0)));
+  final items =
+      (res as List)
+          .cast<Map<String, dynamic>>()
+          .map((e) => Event.fromMap(e))
+          .toList()
+        ..sort(
+          (a, b) => (saved[b.id] ?? DateTime(0)).compareTo(
+            saved[a.id] ?? DateTime(0),
+          ),
+        );
   return items;
 });
 
-final wishlistCommunitiesProvider =
-    FutureProvider.autoDispose<List<Community>>((ref) async {
-  final saved = ref.watch(wishlistProvider).savedCommunities;
-  final ids = saved.keys.toList();
-  if (ids.isEmpty) return [];
-  final res = await supabase
-      .from('communities')
-      .select('*')
-      .inFilter('id', ids)
-      .isFilter('deleted_at', null)
-      .eq('is_hidden', false);
-  final items = (res as List)
-      .cast<Map<String, dynamic>>()
-      .map((e) => Community.fromMap(e))
-      .toList()
-    ..sort((a, b) => (saved[b.id] ?? DateTime(0))
-        .compareTo(saved[a.id] ?? DateTime(0)));
-  return items;
-});
+final wishlistCommunitiesProvider = FutureProvider.autoDispose<List<Community>>(
+  (ref) async {
+    final saved = ref.watch(wishlistProvider).savedCommunities;
+    final ids = saved.keys.toList();
+    if (ids.isEmpty) return [];
+    final res = await supabase
+        .from('communities')
+        .select(communitySelectColumns)
+        .inFilter('id', ids)
+        .isFilter('deleted_at', null)
+        .eq('is_hidden', false);
+    final items =
+        (res as List)
+            .cast<Map<String, dynamic>>()
+            .map((e) => Community.fromMap(e))
+            .toList()
+          ..sort(
+            (a, b) => (saved[b.id] ?? DateTime(0)).compareTo(
+              saved[a.id] ?? DateTime(0),
+            ),
+          );
+    return items;
+  },
+);
 
-final wishlistProvider =
-    StateNotifierProvider<WishlistNotifier, WishlistState>((ref) {
-  return WishlistNotifier();
-});
+final wishlistProvider = StateNotifierProvider<WishlistNotifier, WishlistState>(
+  (ref) {
+    return WishlistNotifier();
+  },
+);
 
 class WishlistState {
   final Map<String, DateTime> savedEvents;
@@ -96,7 +109,7 @@ class WishlistNotifier extends StateNotifier<WishlistState> {
         final id = row['item_id'] as String;
         final createdAt =
             DateTime.tryParse(row['created_at'] as String? ?? '')?.toLocal() ??
-                DateTime.fromMillisecondsSinceEpoch(0);
+            DateTime.fromMillisecondsSinceEpoch(0);
         if (type == wishlistEvent) {
           events[id] = createdAt;
         } else if (type == wishlistCommunity) {

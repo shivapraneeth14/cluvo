@@ -37,9 +37,15 @@ class Payment {
     id: map['id'] as String,
     registrationId: map['registration_id'] as String,
     amount: (map['amount'] as num).toDouble(),
-    platformFee: map['platform_fee'] != null ? (map['platform_fee'] as num).toDouble() : null,
-    platformFeeGst: map['platform_fee_gst'] != null ? (map['platform_fee_gst'] as num).toDouble() : null,
-    organizerShare: map['organizer_share'] != null ? (map['organizer_share'] as num).toDouble() : null,
+    platformFee: map['platform_fee'] != null
+        ? (map['platform_fee'] as num).toDouble()
+        : null,
+    platformFeeGst: map['platform_fee_gst'] != null
+        ? (map['platform_fee_gst'] as num).toDouble()
+        : null,
+    organizerShare: map['organizer_share'] != null
+        ? (map['organizer_share'] as num).toDouble()
+        : null,
     currency: map['currency'] as String? ?? 'INR',
     couponId: map['coupon_id'] as String?,
     razorpayOrderId: map['razorpay_order_id'] as String?,
@@ -48,7 +54,9 @@ class Payment {
     refundStatus: map['refund_status'] as String?,
     createdAt: DateTime.parse(map['created_at'] as String).toLocal(),
     updatedAt: DateTime.parse(map['updated_at'] as String).toLocal(),
-    deletedAt: map['deleted_at'] != null ? DateTime.parse(map['deleted_at'] as String).toLocal() : null,
+    deletedAt: map['deleted_at'] != null
+        ? DateTime.parse(map['deleted_at'] as String).toLocal()
+        : null,
   );
 
   Map<String, dynamic> toMap() => {

@@ -29,7 +29,7 @@ class SecureLocalStorage extends LocalStorage {
 
   @override
   Future<void> persistSession(String persistSessionString) => _storage.write(
-        key: supabasePersistSessionKey,
-        value: persistSessionString,
-      );
+    key: supabasePersistSessionKey,
+    value: persistSessionString,
+  );
 }

@@ -3,7 +3,9 @@ import '../supabase_client.dart';
 import '../models/models.dart';
 import '../services/notifications_realtime.dart';
 
-final notificationsProvider = FutureProvider<List<AppNotification>>((ref) async {
+final notificationsProvider = FutureProvider<List<AppNotification>>((
+  ref,
+) async {
   final session = supabase.auth.currentSession;
   if (session == null) return [];
   final response = await supabase
@@ -12,7 +14,10 @@ final notificationsProvider = FutureProvider<List<AppNotification>>((ref) async 
       .eq('user_id', session.user.id)
       .order('created_at', ascending: false)
       .limit(50);
-  return (response as List).cast<Map<String, dynamic>>().map((e) => AppNotification.fromMap(e)).toList();
+  return (response as List)
+      .cast<Map<String, dynamic>>()
+      .map((e) => AppNotification.fromMap(e))
+      .toList();
 });
 
 final unreadCountProvider = FutureProvider<int>((ref) async {

@@ -3,12 +3,13 @@ import '../theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../legal_content.dart';
 import '../utils/external_links.dart';
 import '../providers/auth_provider.dart';
 import '../providers/profile_provider.dart';
 import '../supabase_client.dart';
+import '../widgets/legal_dialog.dart';
 import '../widgets/notification_bell.dart';
-import '../widgets/theme_toggle_button.dart';
 import '../widgets/list_page_scaffold.dart';
 import '../utils.dart';
 
@@ -31,7 +32,7 @@ class ProfileScreen extends ConsumerWidget {
             color: CluvoTheme.primary,
           ),
         ),
-        actions: const [ThemeToggleButton(), NotificationBell()],
+        actions: const [NotificationBell()],
       ),
       body: profile.when(
         data: (data) {
@@ -50,10 +51,16 @@ class ProfileScreen extends ConsumerWidget {
                   CircleAvatar(
                     radius: 40,
                     backgroundColor: CluvoTheme.primary.withValues(alpha: 0.15),
-                    backgroundImage: data != null && data.avatarUrl != null && data.avatarUrl!.isNotEmpty
+                    backgroundImage:
+                        data != null &&
+                            data.avatarUrl != null &&
+                            data.avatarUrl!.isNotEmpty
                         ? NetworkImage(data.avatarUrl!)
                         : null,
-                    child: data == null || data.avatarUrl == null || data.avatarUrl!.isEmpty
+                    child:
+                        data == null ||
+                            data.avatarUrl == null ||
+                            data.avatarUrl!.isEmpty
                         ? Text(
                             email.isNotEmpty ? email[0].toUpperCase() : 'U',
                             style: TextStyle(
@@ -77,13 +84,19 @@ class ProfileScreen extends ConsumerWidget {
                   const SizedBox(height: 4),
                   Text(
                     email,
-                    style: TextStyle(color: context.cluvoTextSecondary, fontSize: 14),
+                    style: TextStyle(
+                      color: context.cluvoTextSecondary,
+                      fontSize: 14,
+                    ),
                   ),
                   if (data != null && data.username != null) ...[
                     const SizedBox(height: 2),
                     Text(
                       '@${data.username}',
-                      style: TextStyle(color: context.cluvoTextSecondary, fontSize: 13),
+                      style: TextStyle(
+                        color: context.cluvoTextSecondary,
+                        fontSize: 13,
+                      ),
                     ),
                   ],
                   const SizedBox(height: 12),
@@ -92,7 +105,10 @@ class ProfileScreen extends ConsumerWidget {
                     child: OutlinedButton.icon(
                       onPressed: () => context.push('/edit-profile'),
                       icon: const Icon(Icons.edit, size: 16),
-                      label: const Text('Edit Profile', style: TextStyle(fontSize: 14)),
+                      label: const Text(
+                        'Edit Profile',
+                        style: TextStyle(fontSize: 14),
+                      ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: CluvoTheme.primary,
                         side: BorderSide(color: CluvoTheme.primary),
@@ -119,13 +135,18 @@ class ProfileScreen extends ConsumerWidget {
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.calendar_today,
-                            size: 16, color: context.cluvoTextSecondary),
+                        Icon(
+                          Icons.calendar_today,
+                          size: 16,
+                          color: context.cluvoTextSecondary,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           'Joined ${data != null ? formatDate(data.createdAt.toIso8601String()) : ''}',
                           style: TextStyle(
-                              color: context.cluvoTextSecondary, fontSize: 13),
+                            color: context.cluvoTextSecondary,
+                            fontSize: 13,
+                          ),
                         ),
                       ],
                     ),
@@ -169,17 +190,39 @@ class ProfileScreen extends ConsumerWidget {
                     onTap: () => context.push('/profile/payments'),
                   ),
                   ActivityCard(
+                    leading: _menuLeading(Icons.privacy_tip_outlined),
+                    title: 'Privacy Policy',
+                    subtitle: 'How we collect and use your data',
+                    onTap: () => showLegalDialog(
+                      context,
+                      title: 'Privacy Policy',
+                      sections: privacyPolicySections,
+                    ),
+                  ),
+                  ActivityCard(
+                    leading: _menuLeading(Icons.description_outlined),
+                    title: 'Terms of Service',
+                    subtitle: 'Rules for using Cluvo',
+                    onTap: () => showLegalDialog(
+                      context,
+                      title: 'Terms of Service',
+                      sections: termsSections,
+                    ),
+                  ),
+                  ActivityCard(
                     leading: _menuLeading(Icons.mail_outline),
                     title: 'Contact Us',
                     subtitle: 'supp.cluvo@gmail.com',
                     onTap: () async {
                       final opened = await openExternalLink(
-                          'mailto:supp.cluvo@gmail.com?subject=Cluvo%20Support',
-                          allowMailto: true);
+                        'mailto:supp.cluvo@gmail.com?subject=Cluvo%20Support',
+                        allowMailto: true,
+                      );
                       if (!opened && context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                              content: Text('No email app found on this device.')),
+                            content: Text('No email app found on this device.'),
+                          ),
                         );
                       }
                     },
@@ -224,11 +267,17 @@ class ProfileScreen extends ConsumerWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.error_outline, size: 40, color: context.cluvoTextSecondary),
+                Icon(
+                  Icons.error_outline,
+                  size: 40,
+                  color: context.cluvoTextSecondary,
+                ),
                 const SizedBox(height: 12),
-                Text('Error: $e',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: context.cluvoTextSecondary)),
+                Text(
+                  'Error: $e',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: context.cluvoTextSecondary),
+                ),
                 const SizedBox(height: 16),
                 OutlinedButton.icon(
                   onPressed: () => ref.invalidate(profileProvider),
@@ -250,7 +299,10 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-    Future<void> _confirmDeleteAccount(BuildContext context, WidgetRef ref) async {
+  Future<void> _confirmDeleteAccount(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -286,13 +338,15 @@ class ProfileScreen extends ConsumerWidget {
         );
         context.go('/login');
       } else {
-        final msg = res.data?['error'] as String? ??
+        final msg =
+            res.data?['error'] as String? ??
             'Could not delete your account. Please try again.';
         if (context.mounted) _showErrorDialog(context, msg);
       }
     } catch (e) {
       final msg = e is FunctionException && e.details is Map
-          ? ((e.details as Map)['error'] as String? ?? 'Could not delete your account.')
+          ? ((e.details as Map)['error'] as String? ??
+                'Could not delete your account.')
           : 'Could not delete your account. Check your connection and try again.';
       if (context.mounted) _showErrorDialog(context, msg);
     }
@@ -334,30 +388,67 @@ class ProfileScreen extends ConsumerWidget {
         const SizedBox(height: 20),
         CircleAvatar(radius: 40, backgroundColor: context.cluvoChipFill),
         const SizedBox(height: 16),
-        Center(child: Container(height: 16, width: 160, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4)))),
+        Center(
+          child: Container(
+            height: 16,
+            width: 160,
+            decoration: BoxDecoration(
+              color: context.cluvoChipFill,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ),
         const SizedBox(height: 6),
-        Center(child: Container(height: 12, width: 200, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4)))),
+        Center(
+          child: Container(
+            height: 12,
+            width: 200,
+            decoration: BoxDecoration(
+              color: context.cluvoChipFill,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ),
         const SizedBox(height: 24),
         Container(
           height: 48,
-          decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(16)),
+          decoration: BoxDecoration(
+            color: context.cluvoChipFill,
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
         const SizedBox(height: 28),
-        Container(height: 16, width: 120, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4))),
-        const SizedBox(height: 12),
         Container(
-          height: 76,
-          decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(16)),
+          height: 16,
+          width: 120,
+          decoration: BoxDecoration(
+            color: context.cluvoChipFill,
+            borderRadius: BorderRadius.circular(4),
+          ),
         ),
         const SizedBox(height: 12),
         Container(
           height: 76,
-          decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(16)),
+          decoration: BoxDecoration(
+            color: context.cluvoChipFill,
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
         const SizedBox(height: 12),
         Container(
           height: 76,
-          decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(16)),
+          decoration: BoxDecoration(
+            color: context.cluvoChipFill,
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          height: 76,
+          decoration: BoxDecoration(
+            color: context.cluvoChipFill,
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
       ],
     );

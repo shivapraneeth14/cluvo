@@ -51,10 +51,12 @@ class _FakeHttpRequest implements HttpClientRequest {
   Future<HttpClientResponse> close() async {
     return _FakeHttpResponse(utf8.encode(_bodyFor(url)));
   }
+
   @override
   Future addStream(Stream<List<int>> stream) async {
     await stream.drain<void>();
   }
+
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
 }
@@ -79,7 +81,8 @@ String _bodyFor(Uri url) {
   return '[]';
 }
 
-class _FakeHttpResponse extends Stream<List<int>> implements HttpClientResponse {
+class _FakeHttpResponse extends Stream<List<int>>
+    implements HttpClientResponse {
   _FakeHttpResponse(this._body);
   final List<int> _body;
   @override
@@ -113,6 +116,7 @@ class _FakeHttpResponse extends Stream<List<int>> implements HttpClientResponse 
       cancelOnError: cancelOnError,
     );
   }
+
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
 }
@@ -171,13 +175,22 @@ void main() {
       );
       await tester.pumpAndSettle();
       FlutterError.onError = oldOnError;
-      expect(tester.widgetList(find.byType(ErrorWidget)), isEmpty,
-          reason: 'no ErrorWidget in $mode');
+      expect(
+        tester.widgetList(find.byType(ErrorWidget)),
+        isEmpty,
+        reason: 'no ErrorWidget in $mode',
+      );
       expect(errors, isEmpty, reason: 'no FlutterError in $mode');
-      expect(find.text('Test Event'), findsOneWidget,
-          reason: 'title rendered in $mode');
-      expect(find.text('Pay ₹100'), findsOneWidget,
-          reason: 'action button rendered in $mode');
+      expect(
+        find.text('Test Event'),
+        findsOneWidget,
+        reason: 'title rendered in $mode',
+      );
+      expect(
+        find.text('Pay ₹100'),
+        findsOneWidget,
+        reason: 'action button rendered in $mode',
+      );
     });
   }
 }

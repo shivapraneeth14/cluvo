@@ -33,11 +33,19 @@ class _DottedPainter extends CustomPainter {
     if (notches) {
       final notch = Paint()..color = color;
       canvas.drawPath(
-        Path()..moveTo(0, y - 4)..lineTo(4, y)..lineTo(0, y + 4)..close(),
+        Path()
+          ..moveTo(0, y - 4)
+          ..lineTo(4, y)
+          ..lineTo(0, y + 4)
+          ..close(),
         notch,
       );
       canvas.drawPath(
-        Path()..moveTo(size.width, y - 4)..lineTo(size.width - 4, y)..lineTo(size.width, y + 4)..close(),
+        Path()
+          ..moveTo(size.width, y - 4)
+          ..lineTo(size.width - 4, y)
+          ..lineTo(size.width, y + 4)
+          ..close(),
         notch,
       );
     }

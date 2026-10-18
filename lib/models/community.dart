@@ -84,7 +84,9 @@ class Community {
     rules: map['rules'] as String?,
     createdAt: DateTime.parse(map['created_at'] as String).toLocal(),
     updatedAt: DateTime.parse(map['updated_at'] as String).toLocal(),
-    deletedAt: map['deleted_at'] != null ? DateTime.parse(map['deleted_at'] as String).toLocal() : null,
+    deletedAt: map['deleted_at'] != null
+        ? DateTime.parse(map['deleted_at'] as String).toLocal()
+        : null,
   );
 
   Map<String, dynamic> toMap() => {

@@ -9,7 +9,9 @@ final profileProvider = FutureProvider<Profile?>((ref) async {
   if (session == null) return null;
   final response = await supabase
       .from('profiles')
-      .select('id, first_name, last_name, username, avatar_url, created_at, updated_at')
+      .select(
+        'id, first_name, last_name, username, avatar_url, created_at, updated_at',
+      )
       .eq('id', session.user.id)
       .single();
   final map = response as Map<String, dynamic>?;
@@ -22,8 +24,8 @@ final profileProvider = FutureProvider<Profile?>((ref) async {
 
 final profileNotifierProvider =
     StateNotifierProvider<ProfileNotifier, AsyncValue<void>>((ref) {
-  return ProfileNotifier(ref);
-});
+      return ProfileNotifier(ref);
+    });
 
 class ProfileNotifier extends StateNotifier<AsyncValue<void>> {
   final Ref _ref;
@@ -35,10 +37,7 @@ class ProfileNotifier extends StateNotifier<AsyncValue<void>> {
     if (session == null) return;
     state = const AsyncValue.loading();
     try {
-      await supabase
-          .from('profiles')
-          .update(updates)
-          .eq('id', session.user.id);
+      await supabase.from('profiles').update(updates).eq('id', session.user.id);
       _ref.invalidate(profileProvider);
       state = const AsyncValue.data(null);
     } catch (e) {

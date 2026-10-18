@@ -82,7 +82,8 @@ String _bodyFor(Uri url) {
   return '[]';
 }
 
-class _FakeHttpResponse extends Stream<List<int>> implements HttpClientResponse {
+class _FakeHttpResponse extends Stream<List<int>>
+    implements HttpClientResponse {
   _FakeHttpResponse(this._body);
 
   final List<int> _body;
@@ -191,14 +192,10 @@ void main() {
     );
     expect(button, isNotNull);
     expect(button.onPressed, isNotNull);
-    expect(
-      find.widgetWithText(ElevatedButton, 'Register & Pay'),
-      findsNothing,
-    );
+    expect(find.widgetWithText(ElevatedButton, 'Register & Pay'), findsNothing);
   });
 
-  testWidgets('free event keeps the enabled "Register" button',
-      (tester) async {
+  testWidgets('free event keeps the enabled "Register" button', (tester) async {
     _fakeEvent['price'] = 0;
 
     await _pumpScreen(tester);

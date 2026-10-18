@@ -34,7 +34,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       if (!mounted) return;
       final session = ref.read(authProvider).session;
       if (session != null) {
-        context.go('/communities');
+        context.go('/home');
       } else {
         context.go('/login');
       }

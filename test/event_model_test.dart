@@ -44,12 +44,15 @@ void main() {
       expect(event.createdBy, 'user-1');
     });
 
-    test('parses event whose creator deleted their account (created_by null)', () {
-      final event = Event.fromMap(_eventMap(createdBy: null));
-      expect(event.createdBy, isNull);
-      expect(event.title, 'Retention Event');
-      expect(event.communityName, 'Guard Community');
-    });
+    test(
+      'parses event whose creator deleted their account (created_by null)',
+      () {
+        final event = Event.fromMap(_eventMap(createdBy: null));
+        expect(event.createdBy, isNull);
+        expect(event.title, 'Retention Event');
+        expect(event.communityName, 'Guard Community');
+      },
+    );
   });
 
   group('Registration.fromMap', () {
