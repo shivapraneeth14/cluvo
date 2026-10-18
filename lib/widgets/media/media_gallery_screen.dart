@@ -79,78 +79,80 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
       backgroundColor: CluvoTheme.viewerBackground,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.light,
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: PageView.builder(
-                controller: _pageController,
-                physics: _zoomed
-                    ? const NeverScrollableScrollPhysics()
-                    : const PageScrollPhysics(),
-                itemCount: total,
-                onPageChanged: (i) => setState(() {
-                  _index = i;
-                  _zoomed = false;
-                }),
-                itemBuilder: (_, i) {
-                  final item = widget.items[i];
-                  if (_isVideo(item)) {
-                    return VideoPlaybackView(
-                      url: _urlOf(item) ?? '',
-                      caption: _captionOf(item),
-                      active: i == _index,
+        child: SizedBox.expand(
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: PageView.builder(
+                  controller: _pageController,
+                  physics: _zoomed
+                      ? const NeverScrollableScrollPhysics()
+                      : const PageScrollPhysics(),
+                  itemCount: total,
+                  onPageChanged: (i) => setState(() {
+                    _index = i;
+                    _zoomed = false;
+                  }),
+                  itemBuilder: (_, i) {
+                    final item = widget.items[i];
+                    if (_isVideo(item)) {
+                      return VideoPlaybackView(
+                        url: _urlOf(item) ?? '',
+                        caption: _captionOf(item),
+                        active: i == _index,
+                      );
+                    }
+                    return _ZoomablePhoto(
+                      url: _urlOf(item),
+                      onZoomChanged: (zoomed) {
+                        if (zoomed != _zoomed) setState(() => _zoomed = zoomed);
+                      },
                     );
-                  }
-                  return _ZoomablePhoto(
-                    url: _urlOf(item),
-                    onZoomChanged: (zoomed) {
-                      if (zoomed != _zoomed) setState(() => _zoomed = zoomed);
-                    },
-                  );
-                },
-              ),
-            ),
-
-            // Close (system back stays available too).
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: _ViewerCircleButton(
-                  icon: Icons.arrow_back,
-                  onTap: () => Navigator.of(context).maybePop(),
+                  },
                 ),
               ),
-            ),
 
-            // Real position within the collection — only when it is meaningful.
-            if (total > 1)
+              // Close (system back stays available too).
               SafeArea(
-                child: Align(
-                  alignment: Alignment.topRight,
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.4),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Text(
-                        '${_index + 1} / $total',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: _ViewerCircleButton(
+                    icon: Icons.arrow_back,
+                    onTap: () => Navigator.of(context).maybePop(),
+                  ),
+                ),
+              ),
+
+              // Real position within the collection — only when it is meaningful.
+              if (total > 1)
+                SafeArea(
+                  child: Align(
+                    alignment: Alignment.topRight,
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.4),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Text(
+                          '${_index + 1} / $total',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
