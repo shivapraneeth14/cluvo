@@ -30,10 +30,14 @@ class Registration {
     status: map['status'] as String? ?? 'pending',
     qrCode: map['qr_code'] as String?,
     checkedIn: map['checked_in'] as bool? ?? false,
-    checkedInAt: map['checked_in_at'] != null ? DateTime.parse(map['checked_in_at'] as String).toLocal() : null,
+    checkedInAt: map['checked_in_at'] != null
+        ? DateTime.parse(map['checked_in_at'] as String).toLocal()
+        : null,
     registeredAt: DateTime.parse(map['registered_at'] as String).toLocal(),
     updatedAt: DateTime.parse(map['updated_at'] as String).toLocal(),
-    deletedAt: map['deleted_at'] != null ? DateTime.parse(map['deleted_at'] as String).toLocal() : null,
+    deletedAt: map['deleted_at'] != null
+        ? DateTime.parse(map['deleted_at'] as String).toLocal()
+        : null,
   );
 
   Map<String, dynamic> toMap() => {

@@ -9,7 +9,11 @@ class TermsCheckbox extends StatelessWidget {
   final bool value;
   final ValueChanged<bool> onChanged;
 
-  const TermsCheckbox({super.key, required this.value, required this.onChanged});
+  const TermsCheckbox({
+    super.key,
+    required this.value,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -17,10 +21,7 @@ class TermsCheckbox extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Checkbox(
-          value: value,
-          onChanged: (v) => onChanged(v ?? false),
-        ),
+        Checkbox(value: value, onChanged: (v) => onChanged(v ?? false)),
         Expanded(
           child: Padding(
             padding: const EdgeInsets.only(top: 10),
@@ -42,10 +43,10 @@ class TermsCheckbox extends StatelessWidget {
                     ),
                     recognizer: TapGestureRecognizer()
                       ..onTap = () => showLegalDialog(
-                            context,
-                            title: 'Privacy Policy',
-                            sections: privacyPolicySections,
-                          ),
+                        context,
+                        title: 'Privacy Policy',
+                        sections: privacyPolicySections,
+                      ),
                   ),
                   const TextSpan(text: ' and '),
                   TextSpan(
@@ -57,10 +58,10 @@ class TermsCheckbox extends StatelessWidget {
                     ),
                     recognizer: TapGestureRecognizer()
                       ..onTap = () => showLegalDialog(
-                            context,
-                            title: 'Terms of Service',
-                            sections: termsSections,
-                          ),
+                        context,
+                        title: 'Terms of Service',
+                        sections: termsSections,
+                      ),
                   ),
                 ],
               ),

@@ -11,7 +11,11 @@ extension type RazorpayCheckoutJS._(JSObject _) implements JSObject {
 
 @JS('RazorpayCheckout')
 extension type LegacyRazorpayCheckoutJS(JSObject _) implements JSObject {
-  external void open(JSObject options, JSFunction onSuccess, JSFunction onError);
+  external void open(
+    JSObject options,
+    JSFunction onSuccess,
+    JSFunction onError,
+  );
 }
 
 /// Opens Razorpay Checkout.js (https://checkout.razorpay.com/v1/checkout.js)
@@ -27,20 +31,24 @@ Future<void> openRazorpayCheckoutWeb({
   required void Function(PaymentFailureResponse) onError,
 }) async {
   final onSuccessJs = ((JSAny response) {
-    onSuccess(PaymentSuccessResponse.fromMap(_jsObjectToMap(response as JSObject)));
+    onSuccess(
+      PaymentSuccessResponse.fromMap(_jsObjectToMap(response as JSObject)),
+    );
   }).toJS;
 
   final onErrorJs = ((JSAny response) {
     final map = _jsObjectToMap(response as JSObject);
     final code = map['code'];
     final description = map['description'];
-    final isCancelled = code != null &&
-        code.toString().toUpperCase().contains('CANCELLED');
-    onError(PaymentFailureResponse(
-      isCancelled ? Razorpay.PAYMENT_CANCELLED : 1,
-      description as String?,
-      null,
-    ));
+    final isCancelled =
+        code != null && code.toString().toUpperCase().contains('CANCELLED');
+    onError(
+      PaymentFailureResponse(
+        isCancelled ? Razorpay.PAYMENT_CANCELLED : 1,
+        description as String?,
+        null,
+      ),
+    );
   }).toJS;
 
   if (globalContext['Razorpay'] != null) {
@@ -50,11 +58,13 @@ Future<void> openRazorpayCheckoutWeb({
     modernOptions['modal'] = {
       if (existingModal is Map<String, dynamic>) ...existingModal,
       'ondismiss': (() {
-        onError(PaymentFailureResponse(
-          Razorpay.PAYMENT_CANCELLED,
-          'Payment cancelled.',
-          null,
-        ));
+        onError(
+          PaymentFailureResponse(
+            Razorpay.PAYMENT_CANCELLED,
+            'Payment cancelled.',
+            null,
+          ),
+        );
       }).toJS,
     };
     RazorpayCheckoutJS(_mapToJs(modernOptions)).open();
@@ -64,8 +74,9 @@ Future<void> openRazorpayCheckoutWeb({
   if (globalContext['RazorpayCheckout'] == null) {
     throw StateError('Razorpay Checkout.js is not loaded.');
   }
-  LegacyRazorpayCheckoutJS(globalContext['RazorpayCheckout'] as JSObject)
-      .open(_mapToJs(options), onSuccessJs, onErrorJs);
+  LegacyRazorpayCheckoutJS(
+    globalContext['RazorpayCheckout'] as JSObject,
+  ).open(_mapToJs(options), onSuccessJs, onErrorJs);
 }
 
 JSObject _mapToJs(Map<String, dynamic> map) {
@@ -73,7 +84,10 @@ JSObject _mapToJs(Map<String, dynamic> map) {
   for (final entry in map.entries) {
     final value = entry.value;
     if (value is Map) {
-      obj.setProperty(entry.key.toJS, _mapToJs(Map<String, dynamic>.from(value)));
+      obj.setProperty(
+        entry.key.toJS,
+        _mapToJs(Map<String, dynamic>.from(value)),
+      );
     } else if (_isJsFunction(value)) {
       obj.setProperty(entry.key.toJS, value as JSAny);
     } else if (value is String) {

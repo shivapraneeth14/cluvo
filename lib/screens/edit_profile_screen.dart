@@ -89,16 +89,20 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.gallery, maxWidth: 512, maxHeight: 512);
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 512,
+      maxHeight: 512,
+    );
     if (picked == null) return;
     setState(() => _uploading = true);
     try {
       final url = await uploadToCloudinary(picked);
       if (!mounted) return;
-      await supabase.from('profiles').update({'avatar_url': url}).eq(
-        'id',
-        supabase.auth.currentSession!.user.id,
-      );
+      await supabase
+          .from('profiles')
+          .update({'avatar_url': url})
+          .eq('id', supabase.auth.currentSession!.user.id);
       final _ = await ref.refresh(profileProvider.future);
       setState(() {
         _avatarUrl = url;
@@ -108,7 +112,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       if (!mounted) return;
       setState(() => _uploading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Upload failed: $e'), backgroundColor: Colors.red[700]),
+        SnackBar(
+          content: Text('Upload failed: $e'),
+          backgroundColor: Colors.red[700],
+        ),
       );
     }
   }
@@ -137,11 +144,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
     setState(() => _saving = true);
     try {
-      await supabase.from('profiles').update({
-        'first_name': firstName,
-        'last_name': lastName,
-        if (username != _initialUsername) 'username': username,
-      }).eq('id', supabase.auth.currentSession!.user.id);
+      await supabase
+          .from('profiles')
+          .update({
+            'first_name': firstName,
+            'last_name': lastName,
+            if (username != _initialUsername) 'username': username,
+          })
+          .eq('id', supabase.auth.currentSession!.user.id);
       final _ = await ref.refresh(profileProvider.future);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -153,7 +163,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       if (context.canPop()) {
         context.pop();
       } else {
-        context.go('/communities');
+        context.go('/home');
       }
     } catch (e) {
       _showError('Failed to save: $e');
@@ -180,7 +190,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go('/communities');
+              context.go('/home');
             }
           },
         ),
@@ -197,7 +207,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                   CircleAvatar(
                     radius: 50,
                     backgroundColor: CluvoTheme.primary.withValues(alpha: 0.15),
-                    backgroundImage: _avatarUrl != null && _avatarUrl!.isNotEmpty
+                    backgroundImage:
+                        _avatarUrl != null && _avatarUrl!.isNotEmpty
                         ? NetworkImage(_avatarUrl!)
                         : null,
                     child: _avatarUrl == null || _avatarUrl!.isEmpty
@@ -243,7 +254,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 2),
                       ),
-                      child: const Icon(Icons.camera_alt, size: 16, color: Colors.white),
+                      child: const Icon(
+                        Icons.camera_alt,
+                        size: 16,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ],
@@ -254,7 +269,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               onTap: _uploading ? null : _pickImage,
               child: Text(
                 _uploading ? 'Uploading...' : 'Tap to change photo',
-                style: TextStyle(fontSize: 12, color: context.cluvoTextSecondary),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: context.cluvoTextSecondary,
+                ),
               ),
             ),
             const SizedBox(height: 32),
@@ -288,16 +306,12 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         ),
                       )
                     : _usernameController.text.trim() != _initialUsername
-                        ? Icon(
-                            _usernameAvailable
-                                ? Icons.check_circle
-                                : Icons.cancel,
-                            color: _usernameAvailable
-                                ? Colors.green
-                                : Colors.red,
-                            size: 20,
-                          )
-                        : null,
+                    ? Icon(
+                        _usernameAvailable ? Icons.check_circle : Icons.cancel,
+                        color: _usernameAvailable ? Colors.green : Colors.red,
+                        size: 20,
+                      )
+                    : null,
               ),
             ),
             const SizedBox(height: 32),

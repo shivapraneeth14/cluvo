@@ -51,6 +51,8 @@ dependencies:
   gotrue: ^2.26.0
   qr_flutter: ^4.1.0
   flutter_secure_storage: ^10.3.4
+  geolocator: ^14.0.2
+  geocoding: ^5.0.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

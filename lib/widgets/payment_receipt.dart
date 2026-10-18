@@ -46,7 +46,8 @@ class PaymentReceipt extends StatelessWidget {
     'failed': 'Refund failed',
   };
 
-  bool get _isSuccess => const ['success', 'confirmed', 'processed'].contains(status);
+  bool get _isSuccess =>
+      const ['success', 'confirmed', 'processed'].contains(status);
   bool get _isRefunded => const ['refunded', 'reversed'].contains(status);
 
   // The refund only actually completed when Razorpay processed it. The payment
@@ -55,40 +56,43 @@ class PaymentReceipt extends StatelessWidget {
   // "Refunded" while the refund row still says "processing".
   bool get _refundProcessed => refundStatus == 'processed';
   bool get _refunding =>
-      refundStatus != null && refundStatus != 'processed' && refundStatus != 'failed';
+      refundStatus != null &&
+      refundStatus != 'processed' &&
+      refundStatus != 'failed';
 
   @override
   Widget build(BuildContext context) {
     final color = _refundProcessed
         ? const Color(0xFFF59E0B)
         : _isSuccess
-            ? CluvoTheme.success
-            : status == 'failed'
-                ? CluvoTheme.error
-                : const Color(0xFFF59E0B);
+        ? CluvoTheme.success
+        : status == 'failed'
+        ? CluvoTheme.error
+        : const Color(0xFFF59E0B);
     final icon = _refundProcessed
         ? Icons.replay_circle_filled_outlined
         : _isSuccess
-            ? Icons.check_circle
-            : status == 'failed'
-                ? Icons.cancel
-                : Icons.schedule;
+        ? Icons.check_circle
+        : status == 'failed'
+        ? Icons.cancel
+        : Icons.schedule;
     final title = _refundProcessed
         ? 'Refunded'
         : _isSuccess
-            ? 'Payment Successful'
-            : status == 'failed'
-                ? 'Payment Failed'
-                : _refunding
-                    ? 'Refund in progress'
-                    : _isRefunded
-                        ? 'Refunded'
-                        : 'Payment Pending';
+        ? 'Payment Successful'
+        : status == 'failed'
+        ? 'Payment Failed'
+        : _refunding
+        ? 'Refund in progress'
+        : _isRefunded
+        ? 'Refunded'
+        : 'Payment Pending';
     // When a refund exists, the headline figure is what the customer actually
     // gets back: the ticket only on a self-cancel (platform fee kept) or the
     // full amount when the organizer cancelled the event.
-    final headlineAmount =
-        (refundStatus != null && refundedAmountPaise != null) ? refundedAmountPaise! : amountPaise;
+    final headlineAmount = (refundStatus != null && refundedAmountPaise != null)
+        ? refundedAmountPaise!
+        : amountPaise;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -101,21 +105,39 @@ class PaymentReceipt extends StatelessWidget {
               Container(
                 width: 58,
                 height: 58,
-                decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
                 child: Icon(icon, color: color, size: 32),
               ),
               const SizedBox(height: 14),
-              Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const SizedBox(height: 8),
               Text(
                 formatRupees(headlineAmount),
-                style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w700, letterSpacing: -0.5),
+                style: const TextStyle(
+                  fontSize: 34,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.5,
+                ),
               ),
               if (refundStatus != null) ...[
                 const SizedBox(height: 4),
                 Text(
-                  _refundProcessed ? 'Refunded to you' : (_refunding ? 'Refund in progress' : 'Refund failed'),
-                  style: TextStyle(fontSize: 12.5, color: context.cluvoTextSecondary),
+                  _refundProcessed
+                      ? 'Refunded to you'
+                      : (_refunding ? 'Refund in progress' : 'Refund failed'),
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: context.cluvoTextSecondary,
+                  ),
                 ),
               ],
               const SizedBox(height: 18),
@@ -141,7 +163,10 @@ class PaymentReceipt extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Activity', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                const Text(
+                  'Activity',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
                 const SizedBox(height: 14),
                 _activity(context),
               ],
@@ -173,7 +198,8 @@ class PaymentReceipt extends StatelessWidget {
                     imageUrl: eventImageUrl!,
                     fit: BoxFit.cover,
                     errorWidget: (_, _, _) => _eventThumbFallback(),
-                    placeholder: (_, _) => Container(color: context.cluvoChipFill),
+                    placeholder: (_, _) =>
+                        Container(color: context.cluvoChipFill),
                   )
                 : _eventThumbFallback(),
           ),
@@ -183,13 +209,25 @@ class PaymentReceipt extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(eventTitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, height: 1.25)),
+              Text(
+                eventTitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  height: 1.25,
+                ),
+              ),
               if (eventDateText != null && eventDateText!.isNotEmpty) ...[
                 const SizedBox(height: 3),
-                Text(eventDateText!, style: TextStyle(fontSize: 12.5, color: context.cluvoTextSecondary)),
+                Text(
+                  eventDateText!,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: context.cluvoTextSecondary,
+                  ),
+                ),
               ],
             ],
           ),
@@ -201,27 +239,43 @@ class PaymentReceipt extends StatelessWidget {
   Widget _eventThumbFallback() {
     return Container(
       decoration: const BoxDecoration(
-        gradient: LinearGradient(colors: [CluvoTheme.primary, CluvoTheme.primaryLight]),
+        gradient: LinearGradient(
+          colors: [CluvoTheme.primary, CluvoTheme.primaryLight],
+        ),
       ),
-      child: const Icon(Icons.local_activity_outlined, color: Colors.white70, size: 22),
+      child: const Icon(
+        Icons.local_activity_outlined,
+        color: Colors.white70,
+        size: 22,
+      ),
     );
   }
 
   Widget _breakup(BuildContext context) {
     final rows = <Widget>[];
     if (platformFeePaise != null) {
-      rows.add(_amountRow(context, 'Ticket', formatRupees(amountPaise - platformFeePaise!)));
+      rows.add(
+        _amountRow(
+          context,
+          'Ticket',
+          formatRupees(amountPaise - platformFeePaise!),
+        ),
+      );
       rows.add(const SizedBox(height: 10));
-      rows.add(_amountRow(
-        context,
-        'Platform fee',
-        feeGstPaise != null
-            ? '${formatRupees(platformFeePaise!)} (incl. GST ${formatRupees(feeGstPaise!)})'
-            : formatRupees(platformFeePaise!),
-        muted: true,
-      ));
+      rows.add(
+        _amountRow(
+          context,
+          'Platform fee',
+          feeGstPaise != null && feeGstPaise! > 0
+              ? '${formatRupees(platformFeePaise!)} (incl. GST ${formatRupees(feeGstPaise!)})'
+              : formatRupees(platformFeePaise!),
+          muted: true,
+        ),
+      );
     } else {
-      rows.add(_amountRow(context, 'Amount', formatRupees(amountPaise), muted: true));
+      rows.add(
+        _amountRow(context, 'Amount', formatRupees(amountPaise), muted: true),
+      );
     }
     return Column(
       children: [
@@ -244,7 +298,13 @@ class PaymentReceipt extends StatelessWidget {
     );
   }
 
-  Widget _amountRow(BuildContext context, String label, String value, {bool bold = false, bool muted = false}) {
+  Widget _amountRow(
+    BuildContext context,
+    String label,
+    String value, {
+    bool bold = false,
+    bool muted = false,
+  }) {
     return Row(
       children: [
         Expanded(
@@ -273,8 +333,12 @@ class PaymentReceipt extends StatelessWidget {
     final r = <Widget>[];
     if (paymentId != null) r.add(_detailRow(context, 'Payment ID', paymentId!));
     if (orderId != null) r.add(_detailRow(context, 'Order ID', orderId!));
-    if (razorpayId != null) r.add(_detailRow(context, 'Razorpay ID', razorpayId!));
-    if (createdAtText != null) r.add(_detailRow(context, 'Date', createdAtText!));
+    if (razorpayId != null) {
+      r.add(_detailRow(context, 'Razorpay ID', razorpayId!));
+    }
+    if (createdAtText != null) {
+      r.add(_detailRow(context, 'Date', createdAtText!));
+    }
     r.add(_statusRow(context, 'Status', _statusLabel()));
     if (refundStatus != null) {
       final label = _refundLabels[refundStatus] ?? refundStatus!;
@@ -313,7 +377,10 @@ class PaymentReceipt extends StatelessWidget {
       children: [
         SizedBox(
           width: 96,
-          child: Text(label, style: TextStyle(fontSize: 13, color: context.cluvoTextSecondary)),
+          child: Text(
+            label,
+            style: TextStyle(fontSize: 13, color: context.cluvoTextSecondary),
+          ),
         ),
         Expanded(
           child: Text(
@@ -330,31 +397,44 @@ class PaymentReceipt extends StatelessWidget {
     final color = _refundProcessed
         ? const Color(0xFFF59E0B)
         : _isSuccess
-            ? CluvoTheme.success
-            : status == 'failed'
-                ? CluvoTheme.error
-                : const Color(0xFFF59E0B);
+        ? CluvoTheme.success
+        : status == 'failed'
+        ? CluvoTheme.error
+        : const Color(0xFFF59E0B);
     return Row(
       children: [
         SizedBox(
           width: 96,
-          child: Text(label, style: TextStyle(fontSize: 13, color: context.cluvoTextSecondary)),
+          child: Text(
+            label,
+            style: TextStyle(fontSize: 13, color: context.cluvoTextSecondary),
+          ),
         ),
         Expanded(
           child: Row(
             mainAxisAlignment: MainAxisAlignment.end,
             mainAxisSize: MainAxisSize.max,
             children: [
-              Icon(_refundProcessed
-                  ? Icons.replay
-                  : _isSuccess
-                      ? Icons.check_circle
-                      : status == 'failed'
-                          ? Icons.cancel
-                          : Icons.schedule,
-                  size: 14, color: color),
+              Icon(
+                _refundProcessed
+                    ? Icons.replay
+                    : _isSuccess
+                    ? Icons.check_circle
+                    : status == 'failed'
+                    ? Icons.cancel
+                    : Icons.schedule,
+                size: 14,
+                color: color,
+              ),
               const SizedBox(width: 4),
-              Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color)),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              ),
             ],
           ),
         ),
@@ -367,12 +447,20 @@ class PaymentReceipt extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         for (var i = 0; i < timeline.length; i++)
-          _activityEntry(context, timeline[i], isLast: i == timeline.length - 1),
+          _activityEntry(
+            context,
+            timeline[i],
+            isLast: i == timeline.length - 1,
+          ),
       ],
     );
   }
 
-  Widget _activityEntry(BuildContext context, Map<String, dynamic> entry, {required bool isLast}) {
+  Widget _activityEntry(
+    BuildContext context,
+    Map<String, dynamic> entry, {
+    required bool isLast,
+  }) {
     final type = entry['type'] as String? ?? '';
     final body = entry['body'] as String? ?? '';
     final rawDate = entry['created_at'] as String?;
@@ -381,8 +469,8 @@ class PaymentReceipt extends StatelessWidget {
     final color = isCompleted
         ? CluvoTheme.success
         : isRefund
-            ? const Color(0xFFF59E0B)
-            : CluvoTheme.primary;
+        ? const Color(0xFFF59E0B)
+        : CluvoTheme.primary;
 
     return IntrinsicHeight(
       child: Row(
@@ -397,7 +485,13 @@ class PaymentReceipt extends StatelessWidget {
                 decoration: BoxDecoration(color: color, shape: BoxShape.circle),
               ),
               if (!isLast)
-                Expanded(child: Container(width: 2, margin: const EdgeInsets.symmetric(vertical: 3), color: context.cluvoBorder)),
+                Expanded(
+                  child: Container(
+                    width: 2,
+                    margin: const EdgeInsets.symmetric(vertical: 3),
+                    color: context.cluvoBorder,
+                  ),
+                ),
             ],
           ),
           const SizedBox(width: 12),
@@ -407,12 +501,21 @@ class PaymentReceipt extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(body, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500)),
+                  Text(
+                    body,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                   if (rawDate != null) ...[
                     const SizedBox(height: 2),
                     Text(
                       formatDateTime(safeParseDate(rawDate)),
-                      style: TextStyle(fontSize: 11.5, color: context.cluvoTextSecondary),
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: context.cluvoTextSecondary,
+                      ),
                     ),
                   ],
                 ],

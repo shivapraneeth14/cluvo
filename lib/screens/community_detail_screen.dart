@@ -1,26 +1,26 @@
 // ============================================================================
 // REDESIGNED — Community Detail Screen
-// Design direction: "Editorial Overlap" — a full-bleed photographic hero with
-// the community name set directly into the image (magazine-cover style),
-// floating glass controls, and a rounded content sheet that overlaps the
-// hero by 28px to create depth. Segmented Events/Photos control gets an
-// animated underline instead of pill buttons. Event cards become bigger,
-// image-led cards with on-image price/date badges (Airbnb/Eventbrite-style)
-// instead of tiny caption text. Photos move from a horizontal filmstrip to a
-// proper two-column grid so they get real visual weight.
 //
-// Every data query, the follow-toggle logic, model classes, theme tokens,
-// routes, and share/social behavior are UNCHANGED from the original file —
-// only the visual layer was redesigned.
+// Layout order (top → bottom):
+//   1. Safe-area-aware action bar  (back · follow · share · bookmark)
+//   2. Full-width community cover
+//   3. Community name + tagline + social links over the cover
+//   4. Community information cards (location · category · members)
+//   5. Community guidelines / tags
+//   6. Existing Events / Photos tabs
+//   7. Media heading, real count, All/Photos/Videos filters, Grid/List toggle
 //
-// NOTE: This intentionally does NOT modify widgets/media_gallery.dart, since
-// that shared widget may be used elsewhere in the app. Photos here use a new,
-// page-scoped widget (community_photo_grid.dart) instead.
+// All data queries, the follow-toggle logic, model classes, theme tokens,
+// routes and share/social behavior are UNCHANGED — only the visual layer was
+// redesigned. The Events tab content and the existing full-screen viewers
+// remain intact; the media gallery reuses `CommunityMediaSection` which opens
+// the view-only photo viewer and the real video player.
 // ============================================================================
 
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
@@ -30,19 +30,16 @@ import '../theme.dart';
 import '../config.dart';
 import '../supabase_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../widgets/community_photo_grid.dart';
-import '../widgets/event_status_chip.dart';
+import '../widgets/media/community_media_section.dart';
+import '../widgets/events/event_grid_card.dart';
 import '../widgets/lifecycle_ticker.dart';
 import '../widgets/wishlist_button.dart';
 import '../providers/wishlist_provider.dart';
+import '../providers/community_provider.dart';
 import '../models/models.dart';
 
-const _months = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-];
-
-const double _heroHeight = 300;
+const double _coverMaxHeight = 300;
+const double _coverMinHeight = 220;
 
 // Community events tab ordering: live first, active next, closed after,
 // cancelled last — each by most recent start_date.
@@ -148,7 +145,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
       final session = supabase.auth.currentSession;
       final communityFuture = supabase
           .from('communities')
-          .select('*')
+          .select(communityProfileColumns)
           .eq('id', widget.id)
           .eq('is_hidden', false)
           .single();
@@ -190,9 +187,11 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
           isMember = true;
           isOwner = (memberRes as Map<String, dynamic>)['role'] == 'OWNER';
         }
-        final events = _sortCommunityEvents((results[1] as List)
-            .map((e) => Event.fromMap(e as Map<String, dynamic>))
-            .toList());
+        final events = _sortCommunityEvents(
+          (results[1] as List)
+              .map((e) => Event.fromMap(e as Map<String, dynamic>))
+              .toList(),
+        );
         setState(() {
           _community = results[0] as Map<String, dynamic>?;
           _events = events;
@@ -208,9 +207,11 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
           mediaFuture,
         ]).timeout(const Duration(seconds: 30));
         if (!mounted) return;
-        final events = _sortCommunityEvents((results[1] as List)
-            .map((e) => Event.fromMap(e as Map<String, dynamic>))
-            .toList());
+        final events = _sortCommunityEvents(
+          (results[1] as List)
+              .map((e) => Event.fromMap(e as Map<String, dynamic>))
+              .toList(),
+        );
         setState(() {
           _community = results[0] as Map<String, dynamic>?;
           _events = events;
@@ -233,40 +234,67 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
     if (session == null) return;
     setState(() => _followToggling = true);
 
+    final wasMember = _isMember;
     try {
-      if (_isMember) {
+      if (wasMember) {
         await supabase
             .from('community_members')
             .delete()
             .eq('community_id', widget.id)
             .eq('user_id', session.user.id);
-        if (!mounted) return;
-        setState(() {
-          _isMember = false;
-          _community!['member_count'] =
-              ((_community!['member_count'] as num?) ?? 1) - 1;
-        });
       } else {
         await supabase.from('community_members').insert({
           'community_id': widget.id,
           'user_id': session.user.id,
           'role': 'MEMBER',
         });
-        if (!mounted) return;
-        setState(() {
-          _isMember = true;
-          _community!['member_count'] =
-              ((_community!['member_count'] as num?) ?? 0) + 1;
-        });
       }
-    } catch (_) {}
+      // Re-read the row so the count comes from the database-maintained
+      // column (updated by trigger), not client-side arithmetic.
+      final refreshed = await supabase
+          .from('communities')
+          .select(communitySelectColumns)
+          .eq('id', widget.id)
+          .maybeSingle();
+      if (!mounted) return;
+      setState(() {
+        _isMember = !wasMember;
+        if (refreshed != null) _community = refreshed;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              wasMember
+                  ? 'You left this community.'
+                  : 'You joined this community!',
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            wasMember
+                ? 'Could not leave community. Please try again.'
+                : 'Could not join community. Please try again.',
+          ),
+          backgroundColor: context.cluvoErrorText,
+        ),
+      );
+    }
 
     if (mounted) setState(() => _followToggling = false);
   }
 
   String _categorize(Event event, DateTime today) {
-    final startDay =
-        DateTime(event.startDate.year, event.startDate.month, event.startDate.day);
+    final startDay = DateTime(
+      event.startDate.year,
+      event.startDate.month,
+      event.startDate.day,
+    );
     if (startDay.isBefore(today)) return 'past';
     if (startDay.isAtSameMomentAs(today)) return 'today';
     return 'upcoming';
@@ -293,98 +321,27 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
         onRefresh: _load,
         child: CustomScrollView(
           slivers: [
-            // ── App bar: back + follow + share ───────────────────────────
-            SliverAppBar(
-              pinned: true,
-              elevation: 0,
-              scrolledUnderElevation: 0,
-              backgroundColor: context.cluvoBackground,
-              foregroundColor: context.cluvoTextPrimary,
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () {
-                  if (context.canPop()) {
-                    context.pop();
-                  } else {
-                    context.go('/communities');
-                  }
-                },
-              ),
-              actions: [
-                if (session != null && !_isOwner) ...[
-                  Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: Center(child: _buildGlassFollowButton()),
-                  ),
-                ],
-                IconButton(
-                  icon: const Icon(Icons.share_outlined),
-                  onPressed: () {
-                    final url = buildShareUrl('communities', widget.id);
-                    Share.share('Join ${c['name']} on Cluvo!\n$url',
-                        subject: 'Join ${c['name']} on Cluvo');
-                  },
-                ),
-                WishlistButton(type: wishlistCommunity, id: widget.id),
-                const SizedBox(width: 4),
-              ],
-            ),
+            // ── 1. Action bar: back · follow · share · bookmark ──────────
+            _buildActionBar(c, session),
 
-            // ── Hero: floating rounded image with name set into the photo ──
-            SliverToBoxAdapter(child: _buildHero(c)),
+            // ── 2–3. Full-width cover with name / tagline / socials ──────
+            SliverToBoxAdapter(child: _buildCover(c)),
 
-            // ── Content sheet ─────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: context.cluvoBackground,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(28),
-                    topRight: Radius.circular(28),
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildQuickInfoRow(c),
-                      if (c['description'] != null &&
-                          (c['description'] as String).isNotEmpty) ...[
-                        const SizedBox(height: 20),
-                        Text(
-                          c['description'] as String,
-                          style: TextStyle(
-                            color: context.cluvoTextSecondary,
-                            fontSize: 15,
-                            height: 1.5,
-                          ),
-                        ),
-                      ],
-                      if (c['tags'] != null &&
-                          (c['tags'] as List).isNotEmpty) ...[
-                        const SizedBox(height: 18),
-                        _buildTags(c),
-                      ],
-                      if (c['rules'] != null &&
-                          (c['rules'] as String).isNotEmpty) ...[
-                        const SizedBox(height: 22),
-                        _buildRules(c),
-                      ],
-                      const SizedBox(height: 28),
-                      _buildSegmentedControl(),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+            // ── 4. Community information cards ───────────────────────────
+            SliverToBoxAdapter(child: _buildInfoCards(c)),
 
-            // ── Section body ──────────────────────────────────────────────
+            // ── 5. Guidelines + tags (existing content, compact) ─────────
+            SliverToBoxAdapter(child: _buildExtraInfo(c)),
+
+            // ── 6. Existing Events / Photos tabs ─────────────────────────
+            SliverToBoxAdapter(child: _buildTabs()),
+
+            // ── 7. Section body (events or media gallery) ────────────────
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 32),
               sliver: _selectedSection == 'photos'
                   ? SliverToBoxAdapter(
-                      child: CommunityPhotoGrid(media: _media),
+                      child: CommunityMediaSection(media: _media),
                     )
                   : _buildEventsSliver(),
             ),
@@ -394,88 +351,187 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
     );
   }
 
-  // ── HERO ───────────────────────────────────────────────────────────────
+  // ── 1. ACTION BAR ───────────────────────────────────────────────────────
 
-  Widget _buildHero(Map<String, dynamic> c) {
-    final bannerUrl = c['banner_url'] as String?;
-    final name = c['name'] as String;
+  SliverAppBar _buildActionBar(Map<String, dynamic> c, Session? session) {
+    final canFollow = session != null && !_isOwner;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: Container(
-        height: _heroHeight,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 14,
-              offset: const Offset(0, 6),
-            ),
-          ],
+    return SliverAppBar(
+      pinned: true,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
+      backgroundColor: Colors.white,
+      foregroundColor: CluvoTheme.textPrimaryColor,
+      systemOverlayStyle: SystemUiOverlayStyle.dark,
+      shape: const Border(
+        bottom: BorderSide(
+          color: CluvoTheme.borderLavender,
+          width: CluvoTheme.hairline,
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
+      ),
+      automaticallyImplyLeading: false,
+      toolbarHeight: 64,
+      leadingWidth: 62,
+      leading: Padding(
+        padding: const EdgeInsets.only(left: 16),
+        child: Center(
+          child: _CircleIconButton(
+            icon: Icons.arrow_back_rounded,
+            tooltip: 'Back',
+            onTap: _goBack,
+          ),
+        ),
+      ),
+      actions: [
+        if (canFollow) ...[
+          Center(
+            child: _FollowPillButton(
+              busy: _followToggling,
+              following: _isMember,
+              onTap: _toggleFollow,
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+        Center(
+          child: _CircleIconButton(
+            icon: Icons.ios_share,
+            tooltip: 'Share',
+            onTap: () => _shareCommunity(c),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Center(
+          child: WishlistButton(
+            type: wishlistCommunity,
+            id: widget.id,
+            size: 44,
+            variant: WishlistButtonVariant.light,
+          ),
+        ),
+        const SizedBox(width: 12),
+      ],
+    );
+  }
+
+  void _goBack() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/communities');
+    }
+  }
+
+  void _shareCommunity(Map<String, dynamic> c) {
+    final url = buildShareUrl('communities', widget.id);
+    Share.share(
+      'Join ${c['name']} on Cluvo!\n$url',
+      subject: 'Join ${c['name']} on Cluvo',
+    );
+  }
+
+  // ── 2–3. COVER ──────────────────────────────────────────────────────────
+
+  Widget _buildCover(Map<String, dynamic> c) {
+    final bannerUrl = c['banner_url'] as String?;
+    final name = (c['name'] as String?) ?? '';
+    final tagline = (c['description'] as String?)?.trim();
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final height = (constraints.maxWidth / 1.5).clamp(
+          _coverMinHeight,
+          _coverMaxHeight,
+        );
+        return SizedBox(
+          height: height,
+          width: double.infinity,
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // Image or gradient fallback
               bannerUrl != null && bannerUrl.isNotEmpty
                   ? CachedNetworkImage(
                       imageUrl: bannerUrl,
                       fit: BoxFit.cover,
+                      placeholder: (_, _) => _heroFallback(name),
                       errorWidget: (_, _, _) => _heroFallback(name),
                     )
                   : _heroFallback(name),
 
-              // Scrim for text legibility — stronger toward the bottom
+              // Bottom-to-top scrim so the white overlay text stays readable
+              // without hiding the cover art.
               Container(
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Colors.black38,
                       Colors.transparent,
-                      Colors.transparent,
-                      Colors.black87,
+                      Colors.black.withValues(alpha: 0.18),
+                      Colors.black.withValues(alpha: 0.62),
                     ],
-                    stops: [0.0, 0.28, 0.55, 1.0],
+                    stops: const [0.35, 0.62, 1.0],
                   ),
                 ),
               ),
 
-              // Name + social row, set directly into the image
               Positioned(
-                left: 20,
-                right: 20,
-                bottom: 20,
+                left: 16,
+                right: 16,
+                bottom: 16,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontFamily: 'PlayfairDisplay',
-                        fontSize: 34,
-                        height: 1.05,
+                        fontSize: 30,
+                        height: 1.08,
                         fontWeight: FontWeight.w700,
                         color: Colors.white,
                         shadows: [
-                          Shadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 2)),
-                          Shadow(color: Colors.black26, blurRadius: 14, offset: Offset(0, 6)),
+                          Shadow(
+                            color: Colors.black45,
+                            blurRadius: 6,
+                            offset: Offset(0, 2),
+                          ),
                         ],
                       ),
                     ),
+                    if (tagline != null && tagline.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          tagline,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 14.5,
+                            height: 1.3,
+                            color: Colors.white,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black45,
+                                blurRadius: 6,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     _buildSocialRow(c),
                   ],
                 ),
               ),
             ],
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -483,7 +539,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFFC2185B), Color(0xFFE0407A)],
+          colors: [CluvoTheme.primary, CluvoTheme.primaryLight],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -498,32 +554,6 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildGlassFollowButton() {
-    final busy = _followToggling;
-    return _GlassPillButton(
-      onTap: busy ? null : _toggleFollow,
-      filled: !_isMember,
-      child: busy
-          ? const SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-            )
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(_isMember ? Icons.check : Icons.add, size: 15, color: Colors.white),
-                const SizedBox(width: 4),
-                Text(
-                  _isMember ? 'Following' : 'Follow',
-                  style: const TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white),
-                ),
-              ],
-            ),
     );
   }
 
@@ -544,7 +574,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
     if (social.isEmpty) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.only(top: 12),
       child: Row(
         children: [
           if (social.containsKey('instagram_url'))
@@ -564,79 +594,199 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: Semantics(
-        label: "Open social link in browser",
+        label: 'Open social link in browser',
         button: true,
         onTap: () => openExternalLink(url),
         child: GestureDetector(
           onTap: () => openExternalLink(url),
           child: Container(
-          width: 30,
-          height: 30,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.18),
-            shape: BoxShape.circle,
-          ),
-          padding: const EdgeInsets.all(7),
-          child: SvgPicture.string(
-            svg,
-            colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
-          ),
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.35),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+            ),
+            padding: const EdgeInsets.all(10),
+            child: SvgPicture.string(
+              svg,
+              colorFilter: const ColorFilter.mode(
+                Colors.white,
+                BlendMode.srcIn,
+              ),
+            ),
           ),
         ),
       ),
     );
   }
 
-  // ── QUICK INFO — horizontal scrollable chip row instead of stacked boxes
+  // ── 4. INFORMATION CARDS ────────────────────────────────────────────────
 
-  Widget _buildQuickInfoRow(Map<String, dynamic> c) {
-    final location =
-        '${c['city'] ?? ''}${c['city'] != null && c['country'] != null ? ', ' : ''}${c['country'] ?? ''}';
-    final chips = <Widget>[
-      if (location.isNotEmpty) _infoChip(Icons.location_on_outlined, location),
-      _infoChip(Icons.category_outlined, c['category'] as String? ?? '—'),
-      _infoChip(Icons.people_outline, '${c['member_count'] ?? 0} members'),
-      if (c['contact_email'] != null)
-        _infoChip(Icons.mail_outline, c['contact_email'] as String),
+  Widget _buildInfoCards(Map<String, dynamic> c) {
+    final city = (c['city'] as String?)?.trim();
+    final country = (c['country'] as String?)?.trim();
+    var location = [
+      city,
+      country,
+    ].where((v) => v != null && v.isNotEmpty).join(', ');
+    if (location.isEmpty) {
+      location = (c['location'] as String?)?.trim() ?? '';
+    }
+    final category = (c['category'] as String?)?.trim();
+
+    final cards = <Widget>[
+      if (location.isNotEmpty)
+        _infoCard(Icons.location_on_outlined, 'Location', location),
+      if (category != null && category.isNotEmpty)
+        _infoCard(Icons.category_outlined, 'Category', category),
+      _infoCard(
+        Icons.people_alt_outlined,
+        'Members',
+        _formatCount(c['member_count']),
+      ),
     ];
 
-    return SizedBox(
-      height: 44,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: chips.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (_, i) => chips[i],
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < cards.length; i++) ...[
+              if (i > 0) const SizedBox(width: 8),
+              Expanded(child: cards[i]),
+            ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _infoChip(IconData icon, String value) {
+  Widget _infoCard(IconData icon, String label, String value) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: context.cluvoChipFill,
-        borderRadius: BorderRadius.circular(22),
+        color: context.cluvoLavenderFill,
+        borderRadius: BorderRadius.circular(16),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 15, color: context.cluvoPrimaryText),
-          const SizedBox(width: 6),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 160),
-            child: Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-                color: context.cluvoTextPrimary,
-              ),
+          Icon(icon, size: 18, color: CluvoTheme.primary),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: context.cluvoTextPrimary,
             ),
           ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 12.5, color: context.cluvoTextSecondary),
+          ),
         ],
+      ),
+    );
+  }
+
+  String _formatCount(Object? value) {
+    if (value is num) {
+      final n = value.round();
+      final digits = n.abs().toString();
+      final buffer = StringBuffer();
+      for (var i = 0; i < digits.length; i++) {
+        if (i > 0 && (digits.length - i) % 3 == 0) buffer.write(',');
+        buffer.write(digits[i]);
+      }
+      return n < 0 ? '-$buffer' : buffer.toString();
+    }
+    return '—';
+  }
+
+  // ── 5. GUIDELINES + TAGS (existing content) ─────────────────────────────
+
+  Widget _buildExtraInfo(Map<String, dynamic> c) {
+    final hasTags = c['tags'] != null && (c['tags'] as List).isNotEmpty;
+    final hasRules =
+        c['rules'] != null && (c['rules'] as String).trim().isNotEmpty;
+    if (!hasTags && !hasRules) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (hasTags) _buildTags(c),
+          if (hasTags && hasRules) const SizedBox(height: 18),
+          if (hasRules) _buildRules(c),
+        ],
+      ),
+    );
+  }
+
+  // ── 6. TABS ─────────────────────────────────────────────────────────────
+
+  Widget _buildTabs() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+      child: Column(
+        children: [
+          SizedBox(
+            height: 44,
+            child: Row(
+              children: [
+                Expanded(child: _tab('Events', 'events')),
+                Expanded(child: _tab('Photos', 'photos')),
+              ],
+            ),
+          ),
+          Divider(height: 1, thickness: 1, color: context.cluvoBorder),
+        ],
+      ),
+    );
+  }
+
+  Widget _tab(String label, String section) {
+    final selected = _selectedSection == section;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => setState(() => _selectedSection = section),
+      child: Center(
+        child: IntrinsicWidth(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: selected
+                      ? CluvoTheme.primary
+                      : context.cluvoTextSecondary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOut,
+                height: 2.5,
+                color: selected ? CluvoTheme.primary : Colors.transparent,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -645,13 +795,15 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Tags',
-            style: TextStyle(
-              fontFamily: 'PlayfairDisplay',
-              fontWeight: FontWeight.w600,
-              fontSize: 15,
-              color: context.cluvoTextPrimary,
-            )),
+        Text(
+          'Tags',
+          style: TextStyle(
+            fontFamily: 'PlayfairDisplay',
+            fontWeight: FontWeight.w600,
+            fontSize: 15,
+            color: context.cluvoTextPrimary,
+          ),
+        ),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
@@ -663,8 +815,13 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
                 border: Border.all(color: context.cluvoBorder),
                 borderRadius: BorderRadius.circular(18),
               ),
-              child: Text(t.toString(),
-                  style: TextStyle(fontSize: 12.5, color: context.cluvoTextSecondary)),
+              child: Text(
+                t.toString(),
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: context.cluvoTextSecondary,
+                ),
+              ),
             );
           }).toList(),
         ),
@@ -686,63 +843,37 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
         children: [
           Row(
             children: [
-              Icon(Icons.info_outline, size: 16, color: context.cluvoPrimaryText),
+              Icon(
+                Icons.info_outline,
+                size: 16,
+                color: context.cluvoPrimaryText,
+              ),
               const SizedBox(width: 6),
-              Text('Community Guidelines',
+              Expanded(
+                child: Text(
+                  'Community Guidelines',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: 'PlayfairDisplay',
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
                     color: context.cluvoTextPrimary,
-                  )),
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 6),
-          Text(c['rules'] as String,
-              style: TextStyle(
-                  color: context.cluvoTextSecondary, fontSize: 13, height: 1.5)),
-        ],
-      ),
-    );
-  }
-
-  // ── SEGMENTED CONTROL — animated underline instead of pill toggle ───────
-
-  Widget _buildSegmentedControl() {
-    return Row(
-      children: [
-        _segmentTab('Events', 'events'),
-        const SizedBox(width: 28),
-        _segmentTab('Photos', 'photos'),
-      ],
-    );
-  }
-
-  Widget _segmentTab(String label, String section) {
-    final selected = _selectedSection == section;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedSection = section),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-        padding: const EdgeInsets.only(bottom: 10),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: selected ? CluvoTheme.primary : Colors.transparent,
-              width: 2.5,
+          Text(
+            c['rules'] as String,
+            style: TextStyle(
+              color: context.cluvoTextSecondary,
+              fontSize: 13,
+              height: 1.5,
             ),
           ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontFamily: 'PlayfairDisplay',
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-            color: selected ? context.cluvoTextPrimary : context.cluvoTextSecondary,
-          ),
-        ),
+        ],
       ),
     );
   }
@@ -815,8 +946,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
   Future<void> _openEventFilterMenu() async {
     final box = _filterKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null) return;
-    final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     final position = RelativeRect.fromRect(
       Rect.fromPoints(
         box.localToGlobal(Offset.zero, ancestor: overlay),
@@ -847,17 +977,26 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
         PopupMenuItem<String>(
           value: 'high',
           child: _filterMenuItem(
-              'Price: High to Low', 'high', _priceSort == 'high'),
+            'Price: High to Low',
+            'high',
+            _priceSort == 'high',
+          ),
         ),
         PopupMenuItem<String>(
           value: 'low',
           child: _filterMenuItem(
-              'Price: Low to High', 'low', _priceSort == 'low'),
+            'Price: Low to High',
+            'low',
+            _priceSort == 'low',
+          ),
         ),
         PopupMenuItem<String>(
           value: 'date',
           child: _filterMenuItem(
-              dateLabel ?? 'Pick Date', 'date', _pickedDate != null),
+            dateLabel ?? 'Pick Date',
+            'date',
+            _pickedDate != null,
+          ),
         ),
       ],
     );
@@ -893,12 +1032,12 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
           selected
               ? Icons.check
               : option == 'date'
-                  ? Icons.calendar_today_outlined
-                  : option == 'free'
-                      ? Icons.volunteer_activism_outlined
-                      : option == 'all'
-                          ? Icons.filter_list
-                          : Icons.currency_rupee,
+              ? Icons.calendar_today_outlined
+              : option == 'free'
+              ? Icons.volunteer_activism_outlined
+              : option == 'all'
+              ? Icons.filter_list
+              : Icons.currency_rupee,
           size: 16,
           color: selected ? CluvoTheme.primary : context.cluvoTextSecondary,
         ),
@@ -953,11 +1092,17 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
     }
 
     if (_pickedDate != null) {
-      final pickDay =
-          DateTime(_pickedDate!.year, _pickedDate!.month, _pickedDate!.day);
+      final pickDay = DateTime(
+        _pickedDate!.year,
+        _pickedDate!.month,
+        _pickedDate!.day,
+      );
       filtered = filtered.where((e) {
         final day = DateTime(
-            e.startDate.year, e.startDate.month, e.startDate.day);
+          e.startDate.year,
+          e.startDate.month,
+          e.startDate.day,
+        );
         return day.isAtSameMomentAs(pickDay);
       }).toList();
     }
@@ -965,9 +1110,11 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
     if (_priceSort != null) {
       final ascending = _priceSort == 'low';
       filtered = List.of(filtered)
-        ..sort((a, b) => ascending
-            ? a.price.compareTo(b.price)
-            : b.price.compareTo(a.price));
+        ..sort(
+          (a, b) => ascending
+              ? a.price.compareTo(b.price)
+              : b.price.compareTo(a.price),
+        );
     }
 
     if (filtered.isEmpty) {
@@ -994,7 +1141,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
         crossAxisSpacing: 14,
         childAspectRatio: 0.72,
       ),
-      itemBuilder: (_, i) => _EventCard(
+      itemBuilder: (_, i) => EventGridCard(
         event: filtered[i],
         onTap: () => context.push('/events/${filtered[i].id}'),
       ),
@@ -1023,11 +1170,17 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.error_outline, size: 40, color: context.cluvoTextSecondary),
+              Icon(
+                Icons.error_outline,
+                size: 40,
+                color: context.cluvoTextSecondary,
+              ),
               const SizedBox(height: 12),
-              Text(_error != null ? 'Error: $_error' : 'Not found',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: context.cluvoTextSecondary)),
+              Text(
+                _error != null ? 'Error: $_error' : 'Not found',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: context.cluvoTextSecondary),
+              ),
               const SizedBox(height: 16),
               OutlinedButton.icon(
                 onPressed: () {
@@ -1039,7 +1192,9 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
                 style: OutlinedButton.styleFrom(
                   foregroundColor: CluvoTheme.primary,
                   side: const BorderSide(color: CluvoTheme.primary),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
             ],
@@ -1050,78 +1205,149 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
   }
 
   Widget _buildSkeleton() {
+    final chip = context.cluvoLavenderFill;
     return ListView(
       physics: const NeverScrollableScrollPhysics(),
       children: [
-        const SizedBox(height: kToolbarHeight + 8),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-          child: Container(
-            height: _heroHeight,
-            decoration: BoxDecoration(
-              color: context.cluvoChipFill,
-              borderRadius: BorderRadius.circular(20),
-            ),
-          ),
+        // Action bar height + status bar
+        SizedBox(height: MediaQuery.paddingOf(context).top + 64),
+        // Cover
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final height = (constraints.maxWidth / 1.5).clamp(
+              _coverMinHeight,
+              _coverMaxHeight,
+            );
+            return Container(height: height, color: chip);
+          },
         ),
-        Container(
-          decoration: BoxDecoration(
-            color: context.cluvoBackground,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(28),
-              topRight: Radius.circular(28),
-            ),
-          ),
-          padding: const EdgeInsets.all(20),
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: List.generate(3, (i) => Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: Container(
-                          height: 36,
-                          width: 90,
-                          decoration: BoxDecoration(
-                            color: context.cluvoChipFill,
-                            borderRadius: BorderRadius.circular(22),
-                          ),
-                        ),
-                      )),
-                ),
-                const SizedBox(height: 20),
-                ...List.generate(3, (_) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Container(
-                        height: 14,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: context.cluvoChipFill,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: List.generate(
+                3,
+                (i) => Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(left: i == 0 ? 0 : 8),
+                    child: Container(
+                      height: 86,
+                      decoration: BoxDecoration(
+                        color: chip,
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                    )),
-                const SizedBox(height: 24),
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: 4,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 16,
-                    crossAxisSpacing: 14,
-                    childAspectRatio: 0.72,
-                  ),
-                  itemBuilder: (_, _) => Container(
-                    decoration: BoxDecoration(
-                      color: context.cluvoChipFill,
-                      borderRadius: BorderRadius.circular(16),
                     ),
                   ),
                 ),
-              ],
+              ),
             ),
           ),
+        ),
+        // Tabs
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Center(
+                      child: Container(
+                        height: 18,
+                        width: 90,
+                        decoration: BoxDecoration(
+                          color: chip,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Container(
+                        height: 18,
+                        width: 90,
+                        decoration: BoxDecoration(
+                          color: chip,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Divider(height: 1, thickness: 1, color: context.cluvoBorder),
+            ],
+          ),
+        ),
+        // Media heading + chips + grid placeholders
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      height: 20,
+                      width: 120,
+                      decoration: BoxDecoration(
+                        color: chip,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    height: 44,
+                    width: 92,
+                    decoration: BoxDecoration(
+                      color: chip,
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: List.generate(
+                  3,
+                  (i) => Padding(
+                    padding: EdgeInsets.only(left: i == 0 ? 0 : 8),
+                    child: Container(
+                      height: 38,
+                      width: 84,
+                      decoration: BoxDecoration(
+                        color: chip,
+                        borderRadius: BorderRadius.circular(19),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: 4,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 4 / 3,
+                ),
+                itemBuilder: (_, _) => Container(
+                  decoration: BoxDecoration(
+                    color: chip,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -1141,175 +1367,114 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
 // Small, page-scoped supporting widgets
 // ============================================================================
 
-/// Frosted-glass pill button (used for Follow in the app bar).
-class _GlassPillButton extends StatelessWidget {
-  final VoidCallback? onTap;
-  final bool filled;
-  final Widget child;
-  const _GlassPillButton({required this.onTap, required this.filled, required this.child});
+/// Circular white action-bar button (back, share) with a subtle border.
+class _CircleIconButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  const _CircleIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 38,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(
-          color: filled
-              ? CluvoTheme.primary.withValues(alpha: 0.92)
-              : Colors.black.withValues(alpha: 0.28),
-          borderRadius: BorderRadius.circular(19),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+    return Semantics(
+      button: true,
+      label: tooltip,
+      child: Tooltip(
+        message: tooltip,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: CluvoTheme.borderLavender),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Icon(icon, size: 20, color: CluvoTheme.deepNavy),
+          ),
         ),
-        alignment: Alignment.center,
-        child: child,
       ),
     );
   }
 }
 
-/// Image-led event card: image fills most of the card, price + date badges
-/// float directly on the photo, title sits below in serif type.
-class _EventCard extends StatelessWidget {
-  final Event event;
+/// Follow pill: filled purple with a plus when not following, lavender with a
+/// check when following. Reflects (and reuses) the real follow state.
+class _FollowPillButton extends StatelessWidget {
+  final bool busy;
+  final bool following;
   final VoidCallback onTap;
-  const _EventCard({required this.event, required this.onTap});
+  const _FollowPillButton({
+    required this.busy,
+    required this.following,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final lifecycle = event.lifecycle();
-    final dormant = lifecycle == EventLifecycle.closed ||
-        lifecycle == EventLifecycle.cancelled;
-    final imageUrl = event.imageUrl;
-    final months = _months;
-
-    return Opacity(
-      opacity: dormant ? 0.55 : 1.0,
+    final foreground = following ? CluvoTheme.primary : Colors.white;
+    return Semantics(
+      button: true,
+      label: following ? 'Following' : 'Follow',
       child: GestureDetector(
-        onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Stack(
-                  fit: StackFit.expand,
+        onTap: busy ? null : onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          height: 46,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: following ? context.cluvoLavenderFill : CluvoTheme.primary,
+            borderRadius: BorderRadius.circular(23),
+            border: Border.all(
+              color: following ? CluvoTheme.borderLavender : CluvoTheme.primary,
+            ),
+          ),
+          alignment: Alignment.center,
+          child: busy
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: CluvoTheme.primary,
+                  ),
+                )
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    imageUrl != null && imageUrl.isNotEmpty
-                        ? CachedNetworkImage(
-                            imageUrl: imageUrl,
-                            fit: BoxFit.cover,
-                            errorWidget: (_, _, _) => _fallback(event.title),
-                          )
-                        : _fallback(event.title),
-                    // subtle bottom scrim so badges stay legible
-                    Container(
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [Colors.transparent, Colors.black45],
-                          stops: [0.6, 1.0],
-                        ),
-                      ),
+                    Icon(
+                      following ? Icons.check : Icons.add,
+                      size: 17,
+                      color: foreground,
                     ),
-                    // Date badge, top-left
-                    Positioned(
-                      top: 8,
-                      left: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.92),
-                          borderRadius: BorderRadius.circular(8),
+                    const SizedBox(width: 5),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 84),
+                      child: Text(
+                        following ? 'Following' : 'Follow',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: foreground,
                         ),
-                        child: Text(
-                          '${event.startDate.day} ${months[event.startDate.month - 1]}',
-                          style: const TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF171717),
-                          ),
-                        ),
-                      ),
-                    ),
-                    // Status chip above the price badge, bottom-right
-                    Positioned(
-                      bottom: 34,
-                      right: 8,
-                      child: EventStatusChip(lifecycle: lifecycle),
-                    ),
-                    // Price badge, bottom-right
-                    Positioned(
-                      bottom: 8,
-                      right: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: event.price > 0
-                              ? CluvoTheme.primary
-                              : const Color(0xFF10B981),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          event.price > 0
-                              ? '₹${(event.price / 100).toStringAsFixed(0)}'
-                              : 'Free',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                    // Wishlist save toggle, top-right
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: WishlistButton(
-                        type: wishlistEvent,
-                        id: event.id,
                       ),
                     ),
                   ],
                 ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              event.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontFamily: 'PlayfairDisplay',
-                fontSize: 13.5,
-                fontWeight: FontWeight.w700,
-                height: 1.2,
-                color: context.cluvoTextPrimary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _fallback(String title) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFFC2185B), Color(0xFFE0407A)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Center(
-        child: Text(
-          title.isNotEmpty ? title[0].toUpperCase() : 'E',
-          style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
         ),
       ),
     );
@@ -1331,8 +1496,13 @@ class _EmptyState extends StatelessWidget {
           children: [
             Icon(icon, size: 36, color: context.cluvoTextSecondary),
             const SizedBox(height: 10),
-            Text(message,
-                style: TextStyle(color: context.cluvoTextSecondary, fontSize: 13.5)),
+            Text(
+              message,
+              style: TextStyle(
+                color: context.cluvoTextSecondary,
+                fontSize: 13.5,
+              ),
+            ),
           ],
         ),
       ),

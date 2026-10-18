@@ -9,15 +9,21 @@ class DeepLinkService {
   DeepLinkService({required this.navigatorKey});
 
   void init() {
-    _appLinks.getInitialLink().then((uri) {
-      if (uri != null) _handleUri(uri);
-    }).catchError((_) {
-      // AppLinks initial link failed — app continues without initial deep link
-    });
+    _appLinks
+        .getInitialLink()
+        .then((uri) {
+          if (uri != null) _handleUri(uri);
+        })
+        .catchError((_) {
+          // AppLinks initial link failed — app continues without initial deep link
+        });
 
-    _appLinks.uriLinkStream.listen(_handleUri, onError: (_) {
-      // Stream error — running links stop working for this session
-    });
+    _appLinks.uriLinkStream.listen(
+      _handleUri,
+      onError: (_) {
+        // Stream error — running links stop working for this session
+      },
+    );
   }
 
   void _handleUri(Uri uri) {

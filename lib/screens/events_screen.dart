@@ -1,33 +1,29 @@
 import 'dart:async';
-import '../theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import '../providers/event_provider.dart';
-import '../providers/paginated_provider.dart';
-import '../models/models.dart';
-import '../widgets/notification_bell.dart';
-import '../widgets/theme_toggle_button.dart';
-import '../widgets/wishlist_button.dart';
-import '../widgets/event_status_chip.dart';
-import '../widgets/lifecycle_ticker.dart';
-import '../providers/wishlist_provider.dart';
-import '../supabase_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../theme.dart';
+import '../models/models.dart';
+import '../providers/event_provider.dart';
+import '../providers/event_discovery_provider.dart';
+import '../providers/home_provider.dart';
+import '../providers/location_provider.dart';
+import '../services/location_matching.dart';
+import '../supabase_client.dart';
+import '../widgets/events/category_chips.dart';
+import '../widgets/events/event_card.dart';
+import '../widgets/events/events_location_button.dart';
+import '../widgets/events/events_search_header.dart';
+import '../widgets/events/events_skeleton.dart';
+import '../widgets/events/spotlight_event_card.dart';
+import '../widgets/home/section_header.dart';
+import '../widgets/notification_bell.dart';
+import 'search_screen.dart' show searchEventsProvider, searchQueryProvider;
 
-const _months = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-];
-
-String _categorize(Event event, DateTime today) {
-  final eventDay = DateTime(event.startDate.year, event.startDate.month, event.startDate.day);
-  if (eventDay.isBefore(today)) return 'past';
-  if (eventDay.isAtSameMomentAs(today)) return 'today';
-  return 'upcoming';
-}
-
+/// Events discovery page:
+/// compact header → title + search → category chips → Featured Event →
+/// Upcoming Events → Popular Events. The full catalogue lives at "/events/all".
 class EventsScreen extends ConsumerStatefulWidget {
   const EventsScreen({super.key});
 
@@ -35,25 +31,16 @@ class EventsScreen extends ConsumerStatefulWidget {
   ConsumerState<EventsScreen> createState() => _EventsScreenState();
 }
 
-class _EventsScreenState extends ConsumerState<EventsScreen>
-    with LifecycleTickerMixin<EventsScreen> {
-  String? _filter;
-  DateTime? _pickedDate;
-  String? _priceOption;
+class _EventsScreenState extends ConsumerState<EventsScreen> {
   final _searchController = TextEditingController();
-  final _scrollController = ScrollController();
-  final _filterKey = GlobalKey();
   Timer? _debounce;
   Timer? _realtimeDebounce;
   RealtimeChannel? _eventsChannel;
-  bool _closedDropScheduled = false;
-  String _searchQuery = '';
+  String _query = '';
 
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_onScroll);
-    startLifecycleTick();
     _subscribeRealtime();
   }
 
@@ -61,32 +48,14 @@ class _EventsScreenState extends ConsumerState<EventsScreen>
   void dispose() {
     _eventsChannel?.unsubscribe();
     _searchController.dispose();
-    _scrollController.dispose();
     _debounce?.cancel();
     _realtimeDebounce?.cancel();
     super.dispose();
   }
 
-  // 60s tick: chips + Today/Upcoming/Past category stay fresh; when a listed
-  // event turns closed it drops off the list with a single refetch.
-  @override
-  void onLifecycleTick() {
-    if (!mounted) return;
-    setState(() {});
-    final state = ref.read(eventsProvider);
-    final hasClosed = state.items.any((e) => e.lifecycle() == EventLifecycle.closed);
-    if (hasClosed && !_closedDropScheduled) {
-      _closedDropScheduled = true;
-      ref.read(eventsProvider.notifier).refresh();
-      Future.delayed(const Duration(seconds: 5), () {
-        _closedDropScheduled = false;
-      });
-    }
-  }
-
   void _subscribeRealtime() {
     _eventsChannel = supabase
-        .channel('events-screen-list')
+        .channel('events-discovery')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
@@ -94,580 +63,455 @@ class _EventsScreenState extends ConsumerState<EventsScreen>
           callback: (_) {
             _realtimeDebounce?.cancel();
             _realtimeDebounce = Timer(const Duration(seconds: 2), () {
-              if (mounted) ref.read(eventsProvider.notifier).refresh();
+              if (!mounted) return;
+              ref.invalidate(discoveryUpcomingProvider);
+              ref.invalidate(discoveryPopularProvider);
+              ref.invalidate(featuredEventProvider);
+              ref.invalidate(categoryCountsProvider);
             });
           },
         )
         .subscribe();
   }
 
-  void _onScroll() {
-    if (_scrollController.position.pixels < _scrollController.position.maxScrollExtent - 200) return;
-    ref.read(eventsProvider.notifier).fetchNextPage();
+  void _onSearchChanged(String value) {
+    setState(() {});
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () {
+      if (!mounted) return;
+      final q = value.trim();
+      setState(() => _query = q);
+      ref.read(searchQueryProvider.notifier).state = q;
+    });
   }
 
-  List<Event> _applyFilter(List<Event> events) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-
-    var result = events;
-
-    if (_searchQuery.isNotEmpty) {
-      final q = _searchQuery.toLowerCase();
-      result = result.where((e) {
-        final communityName = e.communityName ?? '';
-        return e.title.toLowerCase().contains(q)
-            || communityName.toLowerCase().contains(q)
-            || (e.description ?? '').toLowerCase().contains(q)
-            || (e.location ?? '').toLowerCase().contains(q);
-      }).toList();
-    }
-
-    return result.where((e) {
-      final cat = _categorize(e, today);
-      if (_filter == null) return true;
-      return cat == _filter;
-    }).toList();
+  void _clearSearch() {
+    _debounce?.cancel();
+    _searchController.clear();
+    ref.read(searchQueryProvider.notifier).state = '';
+    setState(() => _query = '');
   }
 
-  Future<void> _pickDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _pickedDate ?? now,
-      firstDate: now.subtract(const Duration(days: 365)),
-      lastDate: now.add(const Duration(days: 365)),
-    );
-    if (picked != null && mounted) {
-      setState(() {
-        _pickedDate = picked;
-        _priceOption = null;
-      });
-      _applyPriceFilters();
-    }
+  Future<void> _refresh() async {
+    ref.invalidate(featuredEventProvider);
+    ref.invalidate(categoryCountsProvider);
+    ref.invalidate(discoveryUpcomingProvider);
+    ref.invalidate(discoveryPopularProvider);
+    ref.invalidate(locationOptionsProvider);
+    if (_query.isNotEmpty) ref.invalidate(searchEventsProvider);
+    await ref
+        .read(discoveryUpcomingProvider.future)
+        .catchError((_) => <Event>[]);
   }
 
-  bool get _panelActive => _priceOption != null || _pickedDate != null;
+  void _onCategorySelected(String? category) {
+    final current = ref.read(discoveryFiltersProvider);
+    final notifier = ref.read(discoveryFiltersProvider.notifier);
+    notifier.state = category == null
+        ? current.copyWith(clearCategory: true)
+        : current.copyWith(category: category);
+  }
 
-  void _applyPriceFilters() {
-    ref.read(eventsProvider.notifier).setFilters(
-          freeOnly: _priceOption == 'free',
-          priceSort: _priceOption == 'free' ? null : _priceOption,
-          date: _pickedDate,
+  void _openBrowse() {
+    final current = ref.read(discoveryFiltersProvider);
+    ref
+        .read(eventsProvider.notifier)
+        .setFilters(
+          category: current.category,
+          freeOnly: current.freeOnly,
+          date: current.date,
+          priceSort: current.priceSort,
         );
-  }
-
-  Future<void> _openFilterMenu() async {
-    final box = _filterKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null) return;
-    final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox;
-    final position = RelativeRect.fromRect(
-      Rect.fromPoints(
-        box.localToGlobal(Offset.zero, ancestor: overlay),
-        box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay),
-      ),
-      Offset.zero & overlay.size,
-    );
-
-    final dateLabel = _pickedDate != null
-        ? 'Date: ${_pickedDate!.day}/${_pickedDate!.month} ✓'
-        : null;
-
-    final result = await showMenu<String>(
-      context: context,
-      position: position,
-      elevation: 8,
-      color: context.cluvoSurface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      items: [
-        PopupMenuItem<String>(
-          value: 'all',
-          child: _filterMenuItem('All', 'all', !_panelActive),
-        ),
-        PopupMenuItem<String>(
-          value: 'free',
-          child: _filterMenuItem('Free', 'free', _priceOption == 'free'),
-        ),
-        PopupMenuItem<String>(
-          value: 'high',
-          child: _filterMenuItem('Price: High to Low', 'high', _priceOption == 'high'),
-        ),
-        PopupMenuItem<String>(
-          value: 'low',
-          child: _filterMenuItem('Price: Low to High', 'low', _priceOption == 'low'),
-        ),
-        PopupMenuItem<String>(
-          value: 'date',
-          child: _filterMenuItem(dateLabel ?? 'Pick Date', 'date', _pickedDate != null),
-        ),
-      ],
-    );
-    if (result == null || !mounted) return;
-
-    switch (result) {
-      case 'all':
-        setState(() {
-          _priceOption = null;
-          _pickedDate = null;
-        });
-        _applyPriceFilters();
-        break;
-      case 'free':
-        setState(() {
-          _priceOption = _priceOption == 'free' ? null : 'free';
-          _pickedDate = null;
-        });
-        _applyPriceFilters();
-        break;
-      case 'high':
-        setState(() {
-          _priceOption = _priceOption == 'high' ? null : 'high';
-          _pickedDate = null;
-        });
-        _applyPriceFilters();
-        break;
-      case 'low':
-        setState(() {
-          _priceOption = _priceOption == 'low' ? null : 'low';
-          _pickedDate = null;
-        });
-        _applyPriceFilters();
-        break;
-      case 'date':
-        await _pickDate();
-        break;
-    }
-  }
-
-  Widget _filterMenuItem(String label, String option, bool selected) {
-    return Row(
-      children: [
-        Icon(
-          selected
-              ? Icons.check
-              : option == 'date'
-                  ? Icons.calendar_today_outlined
-                  : option == 'free'
-                      ? Icons.volunteer_activism_outlined
-                      : option == 'all'
-                          ? Icons.filter_list
-                          : Icons.currency_rupee,
-          size: 16,
-          color: selected ? CluvoTheme.primary : context.cluvoTextSecondary,
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            label,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-              color: context.cluvoTextPrimary,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _emptyMessage() {
-    if (_pickedDate != null) {
-      return 'No events on this date.';
-    }
-    if (_priceOption == 'free') {
-      return 'No free events.';
-    }
-    if (_searchQuery.isNotEmpty) {
-      return 'No events match "$_searchQuery".';
-    }
-    return 'No upcoming events.';
+    context.push('/events/all');
   }
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(eventsProvider);
+    final searchLoading =
+        _query.trim().isNotEmpty && ref.watch(searchEventsProvider).isLoading;
 
     return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        title: Text(
-          'CLUVO',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            letterSpacing: 2,
-            color: const Color(0xFFC2185B),
+      backgroundColor: context.cluvoBackground,
+      body: SafeArea(
+        bottom: false,
+        child: RefreshIndicator(
+          color: CluvoTheme.primary,
+          onRefresh: _refresh,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(child: _header(context)),
+              SliverToBoxAdapter(
+                child: EventsSearchHeader(
+                  controller: _searchController,
+                  onChanged: _onSearchChanged,
+                  onClear: _clearSearch,
+                  searching: searchLoading,
+                ),
+              ),
+              ...(_query.isNotEmpty
+                  ? _searchSlivers(_query)
+                  : [
+                      ..._categorySlivers(),
+                      ..._featuredSlivers(),
+                      ..._nearbyPopularSlivers(),
+                      ..._popularSlivers(),
+                    ]),
+              const SliverToBoxAdapter(child: SizedBox(height: 40)),
+            ],
           ),
         ),
-        actions: const [ThemeToggleButton(), NotificationBell()],
       ),
-      body: state.loading
-          ? _buildSkeleton()
-          : state.error != null && state.items.isEmpty
-              ? _buildError(state.error!)
-              : _buildContent(state),
     );
   }
 
-  Widget _buildContent(PaginatedList<Event> state) {
-    final filtered = _applyFilter(state.items);
-    final notifier = ref.read(eventsProvider.notifier);
+  // ── Header ────────────────────────────────────────────────────────────
 
-    return RefreshIndicator(
-      onRefresh: notifier.refresh,
-      child: Column(
+  Widget _header(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(CluvoTheme.screenPadding, 10, 8, 0),
+      child: Row(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: (v) {
-                      _debounce?.cancel();
-                      _debounce = Timer(const Duration(milliseconds: 300), () {
-                        setState(() => _searchQuery = v.trim());
-                      });
-                    },
-                    decoration: InputDecoration(
-                      hintText: 'Search events...',
-                      prefixIcon: const Icon(Icons.search, size: 20),
-                      suffixIcon: _searchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear, size: 18),
-                              onPressed: () {
-                                _searchController.clear();
-                                setState(() => _searchQuery = '');
-                              },
-                            )
-                          : null,
-                      filled: true,
-                      fillColor: context.cluvoChipFill,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
-                    ),
-                  ),
+          Row(
+            children: [
+              Text(
+                'Cluvo',
+                style: TextStyle(
+                  color: CluvoTheme.primary,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
                 ),
-                const SizedBox(width: 8),
-                SizedBox(
-                  key: _filterKey,
-                  child: IconButton(
-                    onPressed: _openFilterMenu,
-                    icon: const Icon(Icons.filter_list),
-                    style: IconButton.styleFrom(
-                      backgroundColor: _panelActive
-                          ? CluvoTheme.primary.withValues(alpha: 0.12)
-                          : context.cluvoChipFill,
-                      foregroundColor: _panelActive
-                          ? CluvoTheme.primary
-                          : context.cluvoTextSecondary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-            child: SizedBox(
-              height: 36,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: [
-                  _buildChip('All', null),
-                  const SizedBox(width: 6),
-                  _buildChip('Today', 'today'),
-                  const SizedBox(width: 6),
-                  _buildChip('Upcoming', 'upcoming'),
-                ],
               ),
-            ),
+              const SizedBox(width: 3),
+              Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  color: CluvoTheme.electricViolet,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
           ),
-          Expanded(
-            child: filtered.isEmpty
-                ? ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: [
-                      const SizedBox(height: 200),
-                      Center(
-                        child: Text(
-                          _emptyMessage(),
-                          style: TextStyle(color: context.cluvoTextSecondary),
-                        ),
-                      ),
-                    ],
-                  )
-                : GridView.builder(
-                    controller: _scrollController,
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(12),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 10,
-                      crossAxisSpacing: 10,
-                      childAspectRatio: 0.85,
-                    ),
-                    itemCount: filtered.length + (state.hasMore ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (index == filtered.length) {
-                        return const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 20),
-                          child: Center(
-                            child: SizedBox(
-                              width: 20, height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          ),
-                        );
-                      }
-                      final e = filtered[index];
-                      final communityName = e.communityName;
-                      final imageUrl = e.imageUrl;
-                      final price = e.price;
-                      final title = e.title;
-
-                      return RepaintBoundary(
-                        child: Stack(
-                          children: [
-                            Card(
-                              clipBehavior: Clip.antiAlias,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: InkWell(
-                                onTap: () => context.push('/events/${e.id}'),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      flex: 2,
-                                      child: imageUrl != null && imageUrl.isNotEmpty
-                                          ? CachedNetworkImage(
-                                              imageUrl: imageUrl,
-                                              fit: BoxFit.cover,
-                                              width: double.infinity,
-                                              placeholder: (_, _) => const SizedBox(),
-                                              errorWidget: (_, _, _) =>
-                                                  _buildImageFallback(title),
-                                            )
-                                          : _buildImageFallback(title),
-                                    ),
-                                    Expanded(
-                                      flex: 2,
-                                      child: Padding(
-                                        padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              title,
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w600,
-                                                height: 1.2,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 2),
-                                            if (communityName != null)
-                                              Text(
-                                                communityName,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  fontSize: 9,
-                                                  color: context.cluvoTextSecondary,
-                                                ),
-                                              ),
-                                            const Spacer(),
-                                            Row(
-                                              children: [
-                                                Text(
-                                                  _formatShortDate(e),
-                                                  style: TextStyle(
-                                                    fontSize: 8,
-                                                    color: context.cluvoTextSecondary,
-                                                  ),
-                                                ),
-                                                const Spacer(),
-                                                Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                                  children: [
-                                                    EventStatusChip(lifecycle: e.lifecycle()),
-                                                    const SizedBox(height: 3),
-                                                    Text(
-                                                      price > 0
-                                                          ? '₹${(price / 100).toStringAsFixed(0)}'
-                                                          : 'Free',
-                                                      style: TextStyle(
-                                                        fontSize: 10,
-                                                        fontWeight: FontWeight.w600,
-                                                        color: price > 0
-                                                            ? context.cluvoPrimaryText
-                                                            : Colors.green,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              top: 6,
-                              right: 6,
-                              child: WishlistButton(
-                                type: wishlistEvent,
-                                id: e.id,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-          ),
+          const Spacer(),
+          const EventsLocationButton(),
+          const NotificationBell(),
         ],
       ),
     );
   }
 
-  Widget _buildError(String errorMsg) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline, size: 40, color: context.cluvoTextSecondary),
-            const SizedBox(height: 12),
-            Text('Could not load events.\n$errorMsg',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: context.cluvoTextSecondary)),
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: () => ref.read(eventsProvider.notifier).refresh(),
-              icon: const Icon(Icons.refresh, size: 16),
-              label: const Text('Tap to Retry'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFFC2185B),
-                side: const BorderSide(color: Color(0xFFC2185B)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+  // ── Category chips ────────────────────────────────────────────────────
+
+  List<Widget> _categorySlivers() {
+    final async = ref.watch(categoryCountsProvider);
+    final cats = async.valueOrNull;
+    if (async.hasError) return const [];
+    if (cats != null && cats.isEmpty) return const [];
+    final Widget body;
+    if (cats == null) {
+      body = const CategoryChipsSkeleton();
+    } else {
+      body = EventCategoryChips(
+        categories: cats,
+        selected: ref.watch(discoveryFiltersProvider).category,
+        onSelected: _onCategorySelected,
+      );
+    }
+    return [
+      const SliverToBoxAdapter(child: SizedBox(height: 20)),
+      SliverToBoxAdapter(child: body),
+    ];
+  }
+
+  // ── Featured event ────────────────────────────────────────────────────
+
+  List<Widget> _featuredSlivers() {
+    final async = ref.watch(featuredEventProvider);
+    final event = async.valueOrNull;
+    if (async is AsyncData && event == null) return const [];
+    final Widget body;
+    if (event == null && async.isLoading) {
+      body = const SpotlightSkeleton();
+    } else if (event == null && async.hasError) {
+      body = _InlineCard(
+        message: 'Could not load the featured event.',
+        onRetry: () => ref.invalidate(featuredEventProvider),
+        retryLabel: 'Retry',
+      );
+    } else {
+      body = SpotlightEventCard(event: event!);
+    }
+    return [
+      const SliverToBoxAdapter(
+        child: SizedBox(height: CluvoTheme.sectionSpacing),
+      ),
+      const SliverToBoxAdapter(
+        child: SectionHeader(
+          icon: Icons.auto_awesome_outlined,
+          title: 'Featured Event',
+        ),
+      ),
+      const SliverToBoxAdapter(child: SizedBox(height: 12)),
+      SliverToBoxAdapter(child: body),
+    ];
+  }
+
+  // ── Nearby popular events ──────────────────────────────────────────────
+
+  List<Widget> _nearbyPopularSlivers() {
+    final filters = ref.watch(discoveryFiltersProvider);
+    return _carouselSlivers(
+      async: ref.watch(nearbyPopularProvider),
+      icon: Icons.near_me_outlined,
+      title: 'Popular near you',
+      caption: 'Sorted by distance',
+      actionLabel: 'See all',
+      onAction: _openBrowse,
+      onRetry: () => ref.invalidate(nearbyPopularProvider),
+      emptyText: filters.isEmpty
+          ? 'No events near you yet.'
+          : 'No events match your filters.',
+    );
+  }
+
+  // ── Popular events ────────────────────────────────────────────────────
+
+  List<Widget> _popularSlivers() {
+    return _carouselSlivers(
+      async: ref.watch(discoveryPopularProvider),
+      icon: Icons.local_fire_department_outlined,
+      title: 'Popular Events',
+      caption: 'Ranked by bookings',
+      onRetry: () => ref.invalidate(discoveryPopularProvider),
+      hideWhenEmpty: true,
+    );
+  }
+
+  // ── Shared carousel section ───────────────────────────────────────────
+
+  List<Widget> _carouselSlivers({
+    required AsyncValue<List<Event>> async,
+    required IconData icon,
+    required String title,
+    String? caption,
+    String? actionLabel,
+    VoidCallback? onAction,
+    required VoidCallback onRetry,
+    String? emptyText,
+    bool hideWhenEmpty = false,
+  }) {
+    final city = ref.watch(locationControllerProvider.select((s) => s.city));
+    final events = async.valueOrNull;
+    final ordered = events == null
+        ? null
+        : partitionLocalFirst(events, (e) => isEventLocal(e, city));
+    if (hideWhenEmpty &&
+        async is AsyncData &&
+        (events == null || events.isEmpty)) {
+      return const [];
+    }
+
+    final Widget body;
+    if ((events == null || events.isEmpty) && async.isLoading) {
+      body = const EventCarouselSkeleton();
+    } else if ((events == null || events.isEmpty) && async.hasError) {
+      body = _InlineCard(
+        message: 'Could not load events.',
+        onRetry: onRetry,
+        retryLabel: 'Retry',
+      );
+    } else if (events == null || events.isEmpty) {
+      body = Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: CluvoTheme.screenPadding,
+          vertical: 8,
+        ),
+        child: Text(
+          emptyText ?? 'Nothing to show yet.',
+          style: TextStyle(color: context.cluvoTextSecondary, fontSize: 14),
+        ),
+      );
+    } else {
+      body = _carousel(ordered!);
+    }
+
+    return [
+      const SliverToBoxAdapter(
+        child: SizedBox(height: CluvoTheme.sectionSpacing),
+      ),
+      SliverToBoxAdapter(
+        child: SectionHeader(
+          icon: icon,
+          title: title,
+          actionLabel: actionLabel,
+          onAction: onAction,
+        ),
+      ),
+      if (caption != null)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              CluvoTheme.screenPadding,
+              4,
+              CluvoTheme.screenPadding,
+              0,
+            ),
+            child: Text(
+              caption,
+              style: TextStyle(
+                fontSize: 12.5,
+                color: context.cluvoTextSecondary,
               ),
             ),
-          ],
+          ),
         ),
+      const SliverToBoxAdapter(child: SizedBox(height: 12)),
+      SliverToBoxAdapter(child: body),
+    ];
+  }
+
+  Widget _carousel(List<Event> events) {
+    return SizedBox(
+      height: kEventCardHeight,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(
+          horizontal: CluvoTheme.screenPadding,
+        ),
+        itemCount: events.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
+        itemBuilder: (_, i) => EventCard(event: events[i]),
       ),
     );
   }
 
-  Widget _buildChip(String label, String? category) {
-    final selected = _filter == category && _pickedDate == null;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _filter = selected ? null : category;
-          _pickedDate = null;
-        });
-        _applyPriceFilters();
+  // ── Search results ────────────────────────────────────────────────────
+
+  List<Widget> _searchSlivers(String query) {
+    final async = ref.watch(searchEventsProvider);
+    final city = ref.watch(locationControllerProvider.select((s) => s.city));
+    final Widget content = async.when(
+      loading: () => const EventListSkeleton(),
+      error: (e, _) => _InlineCard(
+        message: 'Could not load results.',
+        onRetry: () => ref.invalidate(searchEventsProvider),
+        retryLabel: 'Retry',
+      ),
+      data: (events) {
+        if (events.isEmpty) {
+          return _InlineCard(
+            icon: Icons.search_off,
+            message: 'No events match "$query".',
+          );
+        }
+        final ordered = partitionLocalFirst(
+          events,
+          (e) => isEventLocal(e, city),
+        );
+        return Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: CluvoTheme.screenPadding,
+          ),
+          child: Column(
+            children: [
+              for (final event in ordered)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: EventListCard(event: event),
+                ),
+            ],
+          ),
+        );
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected ? const Color(0xFFC2185B) : context.cluvoChipFill,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: selected ? Colors.white : context.cluvoTextPrimary,
+    );
+
+    return [
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            CluvoTheme.screenPadding,
+            20,
+            CluvoTheme.screenPadding,
+            12,
+          ),
+          child: Text(
+            'Results for "$query"',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: context.cluvoTextPrimary,
+            ),
           ),
         ),
       ),
-    );
+      SliverToBoxAdapter(child: content),
+    ];
   }
+}
 
-  Widget _buildSkeleton() {
-    return GridView.builder(
-      padding: const EdgeInsets.all(12),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
-        childAspectRatio: 0.85,
-      ),
-      itemCount: 6,
-      physics: const NeverScrollableScrollPhysics(),
-      itemBuilder: (_, _) => Card(
-        clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+/// A centred, bordered message card that keeps one section's failure from
+/// breaking the rest of the page. Optionally shows a retry action.
+class _InlineCard extends StatelessWidget {
+  final String message;
+  final IconData? icon;
+  final VoidCallback? onRetry;
+  final String retryLabel;
+
+  const _InlineCard({
+    required this.message,
+    this.icon,
+    this.onRetry,
+    this.retryLabel = 'Retry',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: CluvoTheme.screenPadding),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: context.cluvoSurface,
+          borderRadius: BorderRadius.circular(CluvoTheme.radiusCard),
+          border: Border.all(color: context.cluvoBorder),
+        ),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              flex: 2,
-              child: Container(color: context.cluvoChipFill),
-            ),
-            Expanded(
-              flex: 2,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(height: 8, width: 70, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4))),
-                    const SizedBox(height: 6),
-                    Container(height: 6, width: 50, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4))),
-                    const Spacer(),
-                    Container(height: 8, width: 30, decoration: BoxDecoration(color: context.cluvoChipFill, borderRadius: BorderRadius.circular(4))),
-                  ],
+            Row(
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 18, color: context.cluvoTextSecondary),
+                  const SizedBox(width: 8),
+                ],
+                Expanded(
+                  child: Text(
+                    message,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: context.cluvoTextSecondary,
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
+            if (onRetry != null) ...[
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: onRetry,
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 32),
+                ),
+                child: Text(retryLabel),
+              ),
+            ],
           ],
         ),
       ),
     );
-  }
-
-  Widget _buildImageFallback(String title) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFFC2185B), Color(0xFFE0407A)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Center(
-        child: Text(
-          title.isNotEmpty ? title[0].toUpperCase() : 'E',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _formatShortDate(Event event) {
-    return '${event.startDate.day} ${_months[event.startDate.month - 1]}';
   }
 }

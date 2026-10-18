@@ -8,16 +8,16 @@ class ThemeModeNotifier extends StateNotifier<ThemeMode> {
   ThemeModeNotifier({ThemeMode initial = ThemeMode.light}) : super(initial);
 
   Future<void> toggle() async {
-    final next =
-        state == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
+    final next = state == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
     state = next;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_themeModePrefsKey, next.name);
   }
 }
 
-final themeModeProvider =
-    StateNotifierProvider<ThemeModeNotifier, ThemeMode>((ref) {
+final themeModeProvider = StateNotifierProvider<ThemeModeNotifier, ThemeMode>((
+  ref,
+) {
   return ThemeModeNotifier();
 });
 

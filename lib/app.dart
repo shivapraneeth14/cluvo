@@ -12,21 +12,25 @@ import 'theme.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_shell.dart';
+import 'screens/home_screen.dart';
+import 'screens/search_screen.dart';
 import 'screens/communities_screen.dart';
 import 'screens/community_detail_screen.dart';
 import 'screens/events_screen.dart';
+import 'screens/events_browse_screen.dart';
 import 'screens/event_detail_screen.dart';
 import 'screens/dine_screen.dart';
 import 'screens/edit_profile_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/communities_browse_screen.dart';
 import 'screens/my_communities_screen.dart';
 import 'screens/my_registrations_screen.dart';
 import 'screens/my_payments_screen.dart';
 import 'screens/payment_detail_screen.dart';
 import 'screens/ticket_screen.dart';
 import 'screens/wishlist_screen.dart';
-import 'screens/consent_gate.dart';
+import 'providers/location_provider.dart';
 
 class CluvoApp extends ConsumerStatefulWidget {
   const CluvoApp({super.key});
@@ -53,7 +57,11 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.link_off, size: 48, color: context.cluvoTextSecondary),
+                  Icon(
+                    Icons.link_off,
+                    size: 48,
+                    color: context.cluvoTextSecondary,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     'Page not found: "${state.uri.toString()}"',
@@ -70,10 +78,7 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
         ),
       ),
       routes: [
-        GoRoute(
-          path: '/',
-          redirect: (_, _) => '/splash',
-        ),
+        GoRoute(path: '/', redirect: (_, _) => '/splash'),
         GoRoute(
           path: '/splash',
           builder: (context, state) => const SplashScreen(),
@@ -83,18 +88,22 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
           pageBuilder: (context, state) => CustomTransitionPage(
             key: state.pageKey,
             child: const LoginScreen(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 1),
-                  end: Offset.zero,
-                ).animate(CurvedAnimation(
-                  parent: animation,
-                  curve: Curves.easeOut,
-                )),
-                child: child,
-              );
-            },
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+                  return SlideTransition(
+                    position:
+                        Tween<Offset>(
+                          begin: const Offset(0, 1),
+                          end: Offset.zero,
+                        ).animate(
+                          CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOut,
+                          ),
+                        ),
+                    child: child,
+                  );
+                },
           ),
         ),
         GoRoute(
@@ -102,18 +111,22 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
           pageBuilder: (context, state) => CustomTransitionPage(
             key: state.pageKey,
             child: const LoginScreen(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 1),
-                  end: Offset.zero,
-                ).animate(CurvedAnimation(
-                  parent: animation,
-                  curve: Curves.easeOut,
-                )),
-                child: child,
-              );
-            },
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+                  return SlideTransition(
+                    position:
+                        Tween<Offset>(
+                          begin: const Offset(0, 1),
+                          end: Offset.zero,
+                        ).animate(
+                          CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOut,
+                          ),
+                        ),
+                    child: child,
+                  );
+                },
           ),
         ),
         GoRoute(
@@ -125,16 +138,41 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
           builder: (context, state) => const NotificationsScreen(),
         ),
         GoRoute(
-          path: '/payments/:id',
-          builder: (context, state) => PaymentDetailScreen(
-            paymentId: state.pathParameters['id']!,
+          path: '/search',
+          pageBuilder: (context, state) => CustomTransitionPage(
+            key: state.pageKey,
+            child: SearchScreen(initialQuery: state.uri.queryParameters['q']),
+            transitionDuration: const Duration(milliseconds: 380),
+            reverseTransitionDuration: const Duration(milliseconds: 300),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+                  final curved = CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeOutCubic,
+                    reverseCurve: Curves.easeInCubic,
+                  );
+                  return FadeTransition(
+                    opacity: curved,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0, 0.06),
+                        end: Offset.zero,
+                      ).animate(curved),
+                      child: child,
+                    ),
+                  );
+                },
           ),
         ),
         GoRoute(
+          path: '/payments/:id',
+          builder: (context, state) =>
+              PaymentDetailScreen(paymentId: state.pathParameters['id']!),
+        ),
+        GoRoute(
           path: '/ticket/:id',
-          builder: (context, state) => TicketScreen(
-            registrationId: state.pathParameters['id']!,
-          ),
+          builder: (context, state) =>
+              TicketScreen(registrationId: state.pathParameters['id']!),
         ),
         StatefulShellRoute.indexedStack(
           builder: (context, state, navigationShell) =>
@@ -143,14 +181,20 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
             StatefulShellBranch(
               routes: [
                 GoRoute(
+                  path: '/home',
+                  builder: (context, state) => const HomeScreen(),
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
                   path: '/communities',
                   builder: (context, state) => const CommunitiesScreen(),
                 ),
                 GoRoute(
-                  path: '/communities/:id',
-                  builder: (context, state) => CommunityDetailScreen(
-                    id: state.pathParameters['id']!,
-                  ),
+                  path: '/communities/all',
+                  builder: (context, state) => const CommunitiesBrowseScreen(),
                 ),
               ],
             ),
@@ -161,10 +205,8 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
                   builder: (context, state) => const EventsScreen(),
                 ),
                 GoRoute(
-                  path: '/events/:id',
-                  builder: (context, state) => EventDetailScreen(
-                    id: state.pathParameters['id']!,
-                  ),
+                  path: '/events/all',
+                  builder: (context, state) => const EventsBrowseScreen(),
                 ),
               ],
             ),
@@ -188,7 +230,8 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
                     ),
                     GoRoute(
                       path: 'registrations',
-                      builder: (context, state) => const MyRegistrationsScreen(),
+                      builder: (context, state) =>
+                          const MyRegistrationsScreen(),
                     ),
                     GoRoute(
                       path: 'payments',
@@ -204,8 +247,33 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
             ),
           ],
         ),
+        // Detail screens live at the top level (outside the StatefulShellRoute)
+        // so they can be pushed from any context — including root-level routes
+        // like `/search`. Pushing a shell-branch route while another shell is
+        // mounted below triggers a Navigator key collision, so these must not
+        // be nested inside the shell branches.
+        //
+        // They must also be declared AFTER the shell route: go_router matches
+        // top-level routes in declaration order (first non-empty wins) and does
+        // not prefer static segments, so `/events/:id` declared earlier would
+        // shadow the shell's literal `/events/all` listing route (and likewise
+        // `/communities/:id` vs `/communities/all`).
+        GoRoute(
+          path: '/events/:id',
+          builder: (context, state) =>
+              EventDetailScreen(id: state.pathParameters['id']!),
+        ),
+        GoRoute(
+          path: '/communities/:id',
+          builder: (context, state) =>
+              CommunityDetailScreen(id: state.pathParameters['id']!),
+        ),
       ],
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(locationControllerProvider.notifier).detectOnLaunch();
+    });
   }
 
   String? _redirect(BuildContext context, GoRouterState state) {
@@ -216,15 +284,9 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
 
     if (location == '/') return '/splash';
 
-    final authPaths = [
-      '/splash',
-      '/login',
-      '/signup',
-    ];
+    final authPaths = ['/splash', '/login', '/signup'];
 
-    if (!loggedIn &&
-        !authPaths.contains(location) &&
-        _isSharePath(location)) {
+    if (!loggedIn && !authPaths.contains(location) && _isSharePath(location)) {
       ref.read(pendingRouteProvider.notifier).state = location;
       unawaited(savePendingRoute(location));
       return '/login';
@@ -237,7 +299,7 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
     }
 
     if (loggedIn && authPaths.contains(location)) {
-      return '/communities';
+      return '/home';
     }
     if (!loggedIn && !authPaths.contains(location)) {
       return '/login';
@@ -246,8 +308,18 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
   }
 
   bool _isSharePath(String location) =>
-      location.startsWith('/communities') ||
-      location.startsWith('/events');
+      location.startsWith('/communities') || location.startsWith('/events');
+
+  /// Keeps the server-side consent_log in sync for the current session.
+  /// The tick on the login screen is the user's consent action; this records
+  /// it right after sign-in (and after OAuth returns) when a session token
+  /// exists. Idempotent on the server — a no-op when a row already exists.
+  Future<void> _syncConsent() async {
+    final notifier = ref.read(consentProvider.notifier);
+    final consented = await notifier.check();
+    if (consented || !mounted) return;
+    await notifier.record(source: 'mobile');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -255,11 +327,13 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
     ref.listen<AuthState>(authProvider, (_, next) {
       ref.read(notificationsRealtimeProvider).sync(next.session?.user.id);
       if (next.session != null && !next.session!.isExpired) {
-        ref.read(consentProvider.notifier).check();
+        unawaited(_syncConsent());
       }
       _router.refresh();
     });
-    ref.read(notificationsRealtimeProvider).sync(ref.read(authProvider).session?.user.id);
+    ref
+        .read(notificationsRealtimeProvider)
+        .sync(ref.read(authProvider).session?.user.id);
     return MaterialApp.router(
       key: navigatorKey,
       title: 'Cluvo',
@@ -277,7 +351,11 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.error_outline, size: 48, color: context.cluvoTextSecondary),
+                    Icon(
+                      Icons.error_outline,
+                      size: 48,
+                      color: context.cluvoTextSecondary,
+                    ),
                     const SizedBox(height: 16),
                     Text(
                       'Something went wrong. Please restart the app.',
@@ -293,9 +371,8 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
             ),
           ),
         );
-        return ConsentGate(child: child!);
-      },
-      routerConfig: _router,
+        return child!;
+      },      routerConfig: _router,
     );
   }
 }

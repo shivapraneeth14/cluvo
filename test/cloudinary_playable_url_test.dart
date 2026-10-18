@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile/widgets/community_photo_grid.dart';
+import 'package:mobile/widgets/media/video_playback.dart';
 
 void main() {
   group('cloudinaryPlayableVideoUrl', () {

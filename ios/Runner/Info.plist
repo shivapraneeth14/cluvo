@@ -4,6 +4,8 @@
 <dict>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Cluvo needs access to your photo library to set your profile avatar.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Cluvo uses your location once, while the app is open, to show events and communities near you first.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Cluvo needs camera access to take profile photos.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>

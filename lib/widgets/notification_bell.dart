@@ -28,7 +28,10 @@ class NotificationBell extends ConsumerWidget {
                       color: Colors.red,
                       shape: BoxShape.circle,
                     ),
-                    constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                    constraints: const BoxConstraints(
+                      minWidth: 18,
+                      minHeight: 18,
+                    ),
                     child: Text(
                       count > 99 ? '99+' : '$count',
                       style: const TextStyle(

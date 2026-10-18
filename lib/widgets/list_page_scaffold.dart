@@ -25,10 +25,8 @@ class ListPageScaffold extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: context.cluvoBackground,
         elevation: 0,
         scrolledUnderElevation: 0,
-        foregroundColor: context.cluvoTextPrimary,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).maybePop(),
@@ -116,12 +114,13 @@ class ActivityCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (trailing != null) ...[
-                  const SizedBox(width: 8),
-                  trailing!,
-                ],
+                if (trailing != null) ...[const SizedBox(width: 8), trailing!],
                 const SizedBox(width: 4),
-                Icon(Icons.chevron_right, size: 20, color: context.cluvoTextSecondary),
+                Icon(
+                  Icons.chevron_right,
+                  size: 20,
+                  color: context.cluvoTextSecondary,
+                ),
               ],
             ),
           ),

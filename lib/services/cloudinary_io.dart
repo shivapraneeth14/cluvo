@@ -20,7 +20,9 @@ Future<String> uploadToCloudinary(XFile image) async {
     throw Exception('File is too large. Maximum size is 10 MB.');
   }
 
-  final uri = Uri.parse('https://api.cloudinary.com/v1_1/$_cloudName/image/upload');
+  final uri = Uri.parse(
+    'https://api.cloudinary.com/v1_1/$_cloudName/image/upload',
+  );
   final request = http.MultipartRequest('POST', uri)
     ..files.add(await http.MultipartFile.fromPath('file', path))
     ..fields['upload_preset'] = _uploadPreset;

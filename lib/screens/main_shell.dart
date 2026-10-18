@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-
-const _indicatorColor = Color(0x1FC2185B);
+import '../theme.dart';
 
 class MainShell extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
@@ -12,46 +11,67 @@ class MainShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: navigationShell,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: navigationShell.currentIndex,
-        onDestinationSelected: (index) => navigationShell.goBranch(index),
-        indicatorColor: _indicatorColor,
-        destinations: [
-          NavigationDestination(
-            icon: Icon(Icons.groups_outlined,
-                color: navigationShell.currentIndex == 0
-                    ? const Color(0xFFC2185B)
-                    : null),
-            selectedIcon: const Icon(Icons.groups, color: Color(0xFFC2185B)),
-            label: 'Communities',
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(
+            top: BorderSide(
+              color: CluvoTheme.borderLavender,
+              width: CluvoTheme.hairline,
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.event_outlined,
-                color: navigationShell.currentIndex == 1
-                    ? const Color(0xFFC2185B)
-                    : null),
-            selectedIcon: const Icon(Icons.event, color: Color(0xFFC2185B)),
-            label: 'Events',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.restaurant_outlined,
-                color: navigationShell.currentIndex == 2
-                    ? const Color(0xFFC2185B)
-                    : null),
-            selectedIcon:
-                const Icon(Icons.restaurant, color: Color(0xFFC2185B)),
-            label: 'Dine',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outlined,
-                color: navigationShell.currentIndex == 3
-                    ? const Color(0xFFC2185B)
-                    : null),
-            selectedIcon: const Icon(Icons.person, color: Color(0xFFC2185B)),
-            label: 'Profile',
-          ),
-        ],
+        ),
+        child: NavigationBar(
+          selectedIndex: navigationShell.currentIndex,
+          onDestinationSelected: (index) => navigationShell.goBranch(index),
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          destinations: [
+            _destination(
+              index: 0,
+              icon: Icons.home_outlined,
+              selectedIcon: Icons.home_rounded,
+              label: 'Home',
+            ),
+            _destination(
+              index: 1,
+              icon: Icons.groups_outlined,
+              selectedIcon: Icons.groups,
+              label: 'Communities',
+            ),
+            _destination(
+              index: 2,
+              icon: Icons.event_outlined,
+              selectedIcon: Icons.event,
+              label: 'Events',
+            ),
+            _destination(
+              index: 3,
+              icon: Icons.restaurant_outlined,
+              selectedIcon: Icons.restaurant,
+              label: 'Dine',
+            ),
+            _destination(
+              index: 4,
+              icon: Icons.person_outline,
+              selectedIcon: Icons.person,
+              label: 'Profile',
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  NavigationDestination _destination({
+    required int index,
+    required IconData icon,
+    required IconData selectedIcon,
+    required String label,
+  }) {
+    return NavigationDestination(
+      icon: Icon(icon),
+      selectedIcon: Icon(selectedIcon),
+      label: label,
     );
   }
 }

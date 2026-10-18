@@ -29,7 +29,8 @@ class EventMessage {
       createdAt: DateTime.parse(map['created_at'] as String).toLocal(),
       updatedAt: DateTime.parse(map['updated_at'] as String).toLocal(),
       senderName: profile != null
-          ? '${profile['first_name'] ?? ''} ${profile['last_name'] ?? ''}'.trim()
+          ? '${profile['first_name'] ?? ''} ${profile['last_name'] ?? ''}'
+                .trim()
           : null,
       senderAvatarUrl: profile?['avatar_url'] as String?,
     );

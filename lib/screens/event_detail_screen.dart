@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'dart:async';
 import '../theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:share_plus/share_plus.dart';
@@ -147,12 +148,18 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     });
     if (response.code == Razorpay.PAYMENT_CANCELLED) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Payment cancelled. You can try again.'), backgroundColor: Colors.orange),
+        const SnackBar(
+          content: Text('Payment cancelled. You can try again.'),
+          backgroundColor: Colors.orange,
+        ),
       );
       _cleanupPendingBooking();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(response.message ?? 'Payment failed. Try again.'), backgroundColor: Colors.red[700]),
+        SnackBar(
+          content: Text(response.message ?? 'Payment failed. Try again.'),
+          backgroundColor: Colors.red[700],
+        ),
       );
     }
   }
@@ -188,7 +195,10 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           });
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Registration confirmed!'), backgroundColor: Color(0xFF10B981)),
+              const SnackBar(
+                content: Text('Registration confirmed!'),
+                backgroundColor: Color(0xFF10B981),
+              ),
             );
           }
           return;
@@ -198,7 +208,10 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           setState(() => _processingPayment = false);
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Registration could not be completed.'), backgroundColor: Colors.red[700]),
+              SnackBar(
+                content: Text('Registration could not be completed.'),
+                backgroundColor: Colors.red[700],
+              ),
             );
           }
           return;
@@ -212,7 +225,10 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     if (_isRegistered) {
       setState(() => _processingPayment = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Registration confirmed!'), backgroundColor: Color(0xFF10B981)),
+        const SnackBar(
+          content: Text('Registration confirmed!'),
+          backgroundColor: Color(0xFF10B981),
+        ),
       );
       return;
     }
@@ -223,7 +239,12 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     if (!mounted) return;
     setState(() => _processingPayment = false);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Payment verification taking longer than expected. Check your registrations.'), backgroundColor: Colors.orange),
+      const SnackBar(
+        content: Text(
+          'Payment verification taking longer than expected. Check your registrations.',
+        ),
+        backgroundColor: Colors.orange,
+      ),
     );
   }
 
@@ -287,7 +308,9 @@ class _EventDetailScreenState extends State<EventDetailScreen>
       final session = supabase.auth.currentSession;
       final eventFuture = supabase
           .from('events')
-          .select('*, communities!inner(name, community_avatar_url, platform_fee_amount)')
+          .select(
+            '*, communities!inner(name, community_avatar_url, commission_percent)',
+          )
           .eq('id', widget.id)
           .eq('communities.is_hidden', false)
           .inFilter('status', ['published', 'completed', 'cancelled'])
@@ -329,9 +352,13 @@ class _EventDetailScreenState extends State<EventDetailScreen>
                 .eq('community_id', communityId)
                 .eq('user_id', session.user.id)
                 .maybeSingle();
-            isAdmin = memberRes != null &&
-                ['OWNER', 'ORGANIZER', 'MODERATOR']
-                    .contains(memberRes['role'] as String?);
+            isAdmin =
+                memberRes != null &&
+                [
+                  'OWNER',
+                  'ORGANIZER',
+                  'MODERATOR',
+                ].contains(memberRes['role'] as String?);
           }
         }
         setState(() {
@@ -342,7 +369,8 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           _isAdmin = isAdmin;
           _paidButUnconfirmed = false;
           _discussionEnabled = (event?['discussion_enabled'] as bool?) ?? false;
-          _discussionRestricted = (event?['discussion_restricted'] as bool?) ?? false;
+          _discussionRestricted =
+              (event?['discussion_restricted'] as bool?) ?? false;
           _loading = false;
           _checkingRegistration = false;
         });
@@ -350,7 +378,10 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           _verifyPayment();
         }
       } else {
-        final results = await Future.wait([eventFuture, mediaFuture]).timeout(const Duration(seconds: 30));
+        final results = await Future.wait([
+          eventFuture,
+          mediaFuture,
+        ]).timeout(const Duration(seconds: 30));
         if (!mounted) return;
         final event = results[0] as Map<String, dynamic>?;
         if (event != null) {
@@ -364,8 +395,6 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           _checkingRegistration = false;
         });
       }
-
-
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -394,7 +423,9 @@ class _EventDetailScreenState extends State<EventDetailScreen>
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Could not clean up your booking — it will auto-clear in a few minutes.'),
+          content: Text(
+            'Could not clean up your booking — it will auto-clear in a few minutes.',
+          ),
           backgroundColor: Colors.orange,
         ),
       );
@@ -424,12 +455,19 @@ class _EventDetailScreenState extends State<EventDetailScreen>
       // Payment review — breakdown + cancellation policy. No order is created
       // until the attendee explicitly confirms and accepts the 24-hour rule.
       final ticketPaise = ((_event?['price'] as num?) ?? 0).toInt();
-      final acknowledged = await showDialog<bool>(
+      final acknowledged = await showModalBottomSheet<bool>(
         context: context,
-        barrierDismissible: false,
-        builder: (ctx) => _CancellationPolicyDialog(
+        isScrollControlled: true,
+        isDismissible: true,
+        enableDrag: true,
+        useSafeArea: true,
+        backgroundColor: context.cluvoBackground,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (ctx) => _CancellationPolicySheet(
           ticketPaise: ticketPaise,
-          feeNetPaise: _feeNetPaise(),
+          platformFeePaise: _feeAmountPaise(ticketPaise),
         ),
       );
       if (!mounted) return;
@@ -455,7 +493,10 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           _registering = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Registration confirmed!'), backgroundColor: Color(0xFF10B981)),
+          const SnackBar(
+            content: Text('Registration confirmed!'),
+            backgroundColor: Color(0xFF10B981),
+          ),
         );
         return;
       }
@@ -473,7 +514,9 @@ class _EventDetailScreenState extends State<EventDetailScreen>
       final orderId = paymentRes.data['razorpay_order_id'] as String?;
       final amount = paymentRes.data['amount'] as int?;
       if (registrationId == null || orderId == null || amount == null) {
-        _showError(paymentRes.data['error'] as String? ?? 'Failed to create payment.');
+        _showError(
+          paymentRes.data['error'] as String? ?? 'Failed to create payment.',
+        );
         setState(() => _registering = false);
         return;
       }
@@ -495,7 +538,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
         'name': 'Cluvo',
         'description': _event?['title'] ?? 'Event Registration',
         'prefill': {'contact': userPhone, 'email': userEmail},
-        'theme': {'color': '#C2185B'},
+        'theme': {'color': '#111111'},
       };
 
       // Safety timer: if checkout doesn't complete in 90s, reset state
@@ -507,7 +550,10 @@ class _EventDetailScreenState extends State<EventDetailScreen>
             _registering = false;
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Confirmation timed out. Pull to refresh.'), backgroundColor: Colors.orange),
+            const SnackBar(
+              content: Text('Confirmation timed out. Pull to refresh.'),
+              backgroundColor: Colors.orange,
+            ),
           );
         }
       });
@@ -542,17 +588,15 @@ class _EventDetailScreenState extends State<EventDetailScreen>
         return;
       }
       final res = await supabase.functions
-          .invoke(
-            'register-for-event',
-            body: {'event_id': widget.id},
-          )
+          .invoke('register-for-event', body: {'event_id': widget.id})
           .timeout(const Duration(seconds: 30));
       if (!mounted) return;
       if (res.data['success'] == true) {
         setState(() {
           _isRegistered = true;
           _registrationStatus = 'confirmed';
-          _event!['booked_count'] = ((_event!['booked_count'] as num?) ?? 0) + 1;
+          _event!['booked_count'] =
+              ((_event!['booked_count'] as num?) ?? 0) + 1;
         });
       } else {
         _showError(res.data['error'] ?? 'Registration failed.');
@@ -581,13 +625,13 @@ class _EventDetailScreenState extends State<EventDetailScreen>
 
     final reg = supabase.auth.currentUser != null
         ? await supabase
-            .from('registrations')
-            .select('payments(amount, platform_fee, refund_status)')
-            .eq('event_id', widget.id)
-            .eq('user_id', supabase.auth.currentUser!.id)
-            .eq('status', 'confirmed')
-            .maybeSingle()
-            .catchError((_) => null)
+              .from('registrations')
+              .select('payments(amount, platform_fee, refund_status)')
+              .eq('event_id', widget.id)
+              .eq('user_id', supabase.auth.currentUser!.id)
+              .eq('status', 'confirmed')
+              .maybeSingle()
+              .catchError((_) => null)
         : null;
     final payRaw = reg?['payments'];
     Map<String, dynamic>? payment;
@@ -604,46 +648,16 @@ class _EventDetailScreenState extends State<EventDetailScreen>
         : 0;
     final expectedRefund = paid > 0 ? (paid - feeKept).clamp(0, paid) : 0;
 
-    final confirmed = !mounted ? null : await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Cancel registration?'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Your registration will be cancelled.',
-              style: TextStyle(fontSize: 14),
+    final confirmed = !mounted
+        ? null
+        : await showDialog<bool>(
+            context: context,
+            builder: (ctx) => _CancelRegistrationDialog(
+              paid: paid,
+              feeKept: feeKept,
+              expectedRefund: expectedRefund,
             ),
-            if (paid > 0) ...[
-              const SizedBox(height: 12),
-              Text(
-                'Refund: ${formatRupees(expectedRefund)} '
-                '(platform fee ${formatRupees(feeKept)} is not refundable on self-cancel).',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Refunds appear in your payment details and take 3–5 business days to reach your account.',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Keep registration'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Cancel & refund'),
-          ),
-        ],
-      ),
-    );
+          );
     if (confirmed != true) return;
 
     setState(() => _registering = true);
@@ -651,17 +665,20 @@ class _EventDetailScreenState extends State<EventDetailScreen>
       final res = await supabase.functions
           .invoke(
             'cancel-registration',
-            body: {'event_id': widget.id},
+            body: {'event_id': widget.id, 'policy_acknowledged': true},
           )
           .timeout(const Duration(seconds: 30));
       if (!mounted) return;
       if (res.data['success'] == true) {
         final refund = res.data['refund'];
-        final refundedAmount = refund is Map<String, dynamic> ? refund['amount'] as num? : null;
+        final refundedAmount = refund is Map<String, dynamic>
+            ? refund['amount'] as num?
+            : null;
         setState(() {
           _isRegistered = false;
           _registrationStatus = 'cancelled';
-          _event!['booked_count'] = ((_event!['booked_count'] as num?) ?? 1) - 1;
+          _event!['booked_count'] =
+              ((_event!['booked_count'] as num?) ?? 1) - 1;
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -709,43 +726,82 @@ class _EventDetailScreenState extends State<EventDetailScreen>
 
     if (_error != null || _event == null) {
       return Scaffold(
+        backgroundColor: context.cluvoBackground,
         appBar: AppBar(
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () {
-              if (context.canPop()) {
-                context.pop();
-              } else {
-                context.go('/communities');
-              }
-            },
+            icon: const Icon(Icons.arrow_back_rounded),
+            onPressed: _goBack,
           ),
         ),
         body: Center(
           child: Padding(
-            padding: const EdgeInsets.all(32),
+            padding: const EdgeInsets.symmetric(horizontal: 32),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.error_outline, size: 40, color: context.cluvoTextSecondary),
-                const SizedBox(height: 12),
-                Text(_error != null ? 'Error: $_error' : 'Not found',
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: context.cluvoChipFill,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Icon(
+                    Icons.error_outline_rounded,
+                    size: 30,
+                    color: context.cluvoTextSecondary,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  "We couldn't load this event",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: context.cluvoTextPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Please check your connection and try again.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    height: 1.4,
+                    color: context.cluvoTextSecondary,
+                  ),
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _error!,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: context.cluvoTextSecondary)),
-                const SizedBox(height: 16),
-                OutlinedButton.icon(
-                  onPressed: () {
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: context.cluvoTextSecondary.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 22),
+                FilledButton.icon(
+                  onPressed: () => setState(() {
                     _loading = true;
                     _checkingRegistration = true;
+                    _error = null;
                     _load();
-                  },
-                  icon: const Icon(Icons.refresh, size: 16),
-                  label: const Text('Tap to Retry'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFC2185B),
-                    side: const BorderSide(color: Color(0xFFC2185B)),
+                  }),
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  label: const Text('Try again'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: CluvoTheme.primary,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(0, 48),
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
                 ),
@@ -763,18 +819,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     final booked = (e['booked_count'] as num?) ?? 0;
     final isFull = capacity != null && booked >= capacity;
     final eventStatus = e['status'] as String? ?? 'published';
-    final startStr = e['start_date'] as String?;
-    final endStr = e['end_date'] as String?;
-    final lifecycle = eventStatus == 'cancelled'
-        ? EventLifecycle.cancelled
-        : eventStatus == 'completed'
-            ? EventLifecycle.closed
-            : endStr != null && DateTime.parse(endStr).isBefore(DateTime.now())
-                ? EventLifecycle.closed
-                : startStr != null &&
-                        !DateTime.parse(startStr).isBefore(DateTime.now())
-                    ? EventLifecycle.active
-                    : EventLifecycle.live;
+    final lifecycle = _lifecycleOf(e);
     final communityName =
         (e['communities'] as Map<String, dynamic>?)?['name'] as String?;
     final communityAvatarUrl =
@@ -795,25 +840,30 @@ class _EventDetailScreenState extends State<EventDetailScreen>
                     pinned: true,
                     elevation: 0,
                     scrolledUnderElevation: 0,
-                    backgroundColor: context.cluvoBackground,
-                    foregroundColor: context.cluvoTextPrimary,
+                    toolbarHeight: 52,
+                    backgroundColor: Colors.white,
+                    foregroundColor: CluvoTheme.textPrimaryColor,
+                    systemOverlayStyle: SystemUiOverlayStyle.dark,
+                    shape: const Border(
+                      bottom: BorderSide(
+                        color: CluvoTheme.borderLavender,
+                        width: CluvoTheme.hairline,
+                      ),
+                    ),
                     leading: IconButton(
-                      icon: const Icon(Icons.arrow_back),
-                      onPressed: () {
-                        if (context.canPop()) {
-                          context.pop();
-                        } else {
-                          context.go('/communities');
-                        }
-                      },
+                      icon: const Icon(Icons.arrow_back_rounded),
+                      onPressed: _goBack,
                     ),
                     actions: [
                       IconButton(
                         icon: const Icon(Icons.share_outlined),
+                        tooltip: 'Share event',
                         onPressed: () {
                           final url = buildShareUrl('events', widget.id);
-                          Share.share('Check out $title on Cluvo!\n$url',
-                              subject: 'Check out $title on Cluvo');
+                          Share.share(
+                            'Check out $title on Cluvo!\n$url',
+                            subject: 'Check out $title on Cluvo',
+                          );
                         },
                       ),
                       WishlistButton(type: wishlistEvent, id: widget.id),
@@ -827,7 +877,11 @@ class _EventDetailScreenState extends State<EventDetailScreen>
                   // ── Content sheet ──────────────────────────────────────
                   SliverToBoxAdapter(
                     child: _buildSheet(
-                        e, communityName, communityAvatarUrl, price),
+                      e,
+                      communityName,
+                      communityAvatarUrl,
+                      price,
+                    ),
                   ),
 
                   // ── Section body ───────────────────────────────────────
@@ -846,29 +900,36 @@ class _EventDetailScreenState extends State<EventDetailScreen>
 
           // ── Floating bottom bar: price + action ─────────────────────────
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
             child: Container(
               decoration: BoxDecoration(
                 color: context.cluvoSurface,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(22),
+                ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.12),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 24,
+                    offset: const Offset(0, -6),
                   ),
                 ],
               ),
               child: ClipRRect(
                 // Clips the perforation notch circles into semicircles at the edges.
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(22),
+                ),
                 child: SafeArea(
                   top: false,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (_isRegistered)
-                        _registeredActionArea(price, _registrationStatus == 'attended')
+                        _registeredActionArea(
+                          price,
+                          _registrationStatus == 'attended',
+                        )
                       else
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -880,13 +941,20 @@ class _EventDetailScreenState extends State<EventDetailScreen>
                               Expanded(
                                 child: Align(
                                   alignment: Alignment.centerRight,
-                                  child: _buildActionButton(price, isFull, eventStatus, lifecycle),
+                                  child: _buildActionButton(
+                                    price,
+                                    isFull,
+                                    eventStatus,
+                                    lifecycle,
+                                  ),
                                 ),
                               ),
                             ],
                           ),
                         ),
-                      if (price > 0 && !_isRegistered && eventStatus != 'cancelled') ...[
+                      if (price > 0 &&
+                          !_isRegistered &&
+                          eventStatus != 'cancelled') ...[
                         const SizedBox(height: 8),
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -910,18 +978,22 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     final imageUrl = e['image_url'] as String?;
     final title = e['title'] as String;
     final start = e['start_date'] as String?;
+    final height = (MediaQuery.of(context).size.height * 0.36).clamp(
+      250.0,
+      320.0,
+    );
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
       child: Container(
-        height: 300,
+        height: height,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 14,
-              offset: const Offset(0, 6),
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 28,
+              offset: const Offset(0, 10),
             ),
           ],
         ),
@@ -934,6 +1006,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
                   ? CachedNetworkImage(
                       imageUrl: imageUrl,
                       fit: BoxFit.cover,
+                      placeholder: (_, _) => _buildBannerFallback(title),
                       errorWidget: (_, _, _) => _buildBannerFallback(title),
                     )
                   : _buildBannerFallback(title),
@@ -955,11 +1028,14 @@ class _EventDetailScreenState extends State<EventDetailScreen>
                 ),
               ),
 
+              // Status badge (Live / Ended / Cancelled) when relevant
+              Positioned(top: 14, right: 14, child: _heroStatusBadge(e)),
+
               // Title + date, set directly into the image
               Positioned(
                 left: 20,
                 right: 20,
-                bottom: 20,
+                bottom: 18,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
@@ -970,13 +1046,21 @@ class _EventDetailScreenState extends State<EventDetailScreen>
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontFamily: 'PlayfairDisplay',
-                        fontSize: 30,
-                        height: 1.1,
+                        fontSize: 29,
+                        height: 1.12,
                         fontWeight: FontWeight.w700,
                         color: Colors.white,
                         shadows: [
-                          Shadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 2)),
-                          Shadow(color: Colors.black26, blurRadius: 14, offset: Offset(0, 6)),
+                          Shadow(
+                            color: Colors.black45,
+                            blurRadius: 6,
+                            offset: Offset(0, 2),
+                          ),
+                          Shadow(
+                            color: Colors.black26,
+                            blurRadius: 14,
+                            offset: Offset(0, 6),
+                          ),
                         ],
                       ),
                     ),
@@ -984,18 +1068,29 @@ class _EventDetailScreenState extends State<EventDetailScreen>
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          const Icon(Icons.calendar_today_outlined,
-                              size: 14, color: Colors.white),
+                          const Icon(
+                            Icons.calendar_today_outlined,
+                            size: 14,
+                            color: Colors.white,
+                          ),
                           const SizedBox(width: 6),
-                          Text(
-                            _formatDateTime(e, 'start_date'),
-                            style: const TextStyle(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                              shadows: [
-                                Shadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 2)),
-                              ],
+                          Expanded(
+                            child: Text(
+                              _formatDateTime(e, 'start_date'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                                shadows: [
+                                  Shadow(
+                                    color: Colors.black45,
+                                    blurRadius: 6,
+                                    offset: Offset(0, 2),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ],
@@ -1011,28 +1106,84 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     );
   }
 
+  // Compact glass badge over the hero for non-active lifecycle states.
+  Widget _heroStatusBadge(Map<String, dynamic> e) {
+    final lifecycle = _lifecycleOf(e);
+    final Color color;
+    final String label;
+    final IconData icon;
+    switch (lifecycle) {
+      case EventLifecycle.cancelled:
+        color = CluvoTheme.error;
+        label = 'Cancelled';
+        icon = Icons.event_busy_outlined;
+      case EventLifecycle.closed:
+        color = CluvoTheme.neutral;
+        label = 'Ended';
+        icon = Icons.event_available_outlined;
+      case EventLifecycle.live:
+        color = CluvoTheme.live;
+        label = 'Live';
+        icon = Icons.circle;
+      case EventLifecycle.active:
+        return const SizedBox.shrink();
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── CONTENT SHEET — chips, description, segmented control ───────────────
 
   Widget _buildSheet(
-      Map<String, dynamic> e, String? communityName, String? communityAvatarUrl, num price) {
+    Map<String, dynamic> e,
+    String? communityName,
+    String? communityAvatarUrl,
+    num price,
+  ) {
     final location = e['location'] as String?;
     final lat = (e['latitude'] as num?)?.toDouble();
     final lng = (e['longitude'] as num?)?.toDouble();
     final start = e['start_date'] as String?;
+    final category = e['category'] as String?;
     final capacity = e['capacity'] as int?;
     final booked = (e['booked_count'] as num?) ?? 0;
 
     final chips = <Widget>[
       if (start != null)
-        _infoChip(Icons.calendar_today_outlined, _formatDateTime(e, 'start_date')),
+        _infoChip(
+          Icons.calendar_today_outlined,
+          _formatDateTime(e, 'start_date'),
+        ),
       if (location != null && location.isNotEmpty)
         _locationChip(location, lat: lat, lng: lng)
       else if (lat != null && lng != null)
         _locationChip('View on map', lat: lat, lng: lng),
       if (communityName != null)
         _communityChip(communityName, communityAvatarUrl),
+      if (category != null && category.isNotEmpty)
+        _infoChip(Icons.local_offer_outlined, category),
       _priceChip(price),
-      if (capacity != null) _infoChip(Icons.people_outline, '$booked/$capacity spots'),
+      if (capacity != null) _spotsChip(booked.toInt(), capacity),
     ];
 
     return Container(
@@ -1090,7 +1241,9 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     final open = await showModalBottomSheet<bool>(
       context: context,
       backgroundColor: context.cluvoBackground,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (ctx) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
@@ -1098,16 +1251,35 @@ class _EventDetailScreenState extends State<EventDetailScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: context.cluvoPrimaryText.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(2)))),
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: context.cluvoPrimaryText.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
               const SizedBox(height: 16),
-              Text('Open location', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: context.cluvoPrimaryText)),
+              Text(
+                'Open location',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: context.cluvoPrimaryText,
+                ),
+              ),
               const SizedBox(height: 8),
               labelSheet,
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  style: FilledButton.styleFrom(backgroundColor: Colors.purple.shade800),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: CluvoTheme.deepNavy,
+                    foregroundColor: Colors.white,
+                  ),
                   onPressed: () => Navigator.pop(ctx, true),
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -1187,7 +1359,11 @@ class _EventDetailScreenState extends State<EventDetailScreen>
               ),
             )
           else
-            Icon(Icons.groups_outlined, size: 15, color: context.cluvoPrimaryText),
+            Icon(
+              Icons.groups_outlined,
+              size: 15,
+              color: context.cluvoPrimaryText,
+            ),
           const SizedBox(width: 6),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 170),
@@ -1239,6 +1415,35 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     );
   }
 
+  Widget _spotsChip(int booked, int capacity) {
+    final full = booked >= capacity;
+    final color = full ? CluvoTheme.error : CluvoTheme.neutral;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: full
+            ? CluvoTheme.error.withValues(alpha: 0.08)
+            : context.cluvoChipFill,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.people_outline, size: 15, color: color),
+          const SizedBox(width: 6),
+          Text(
+            full ? 'Event full' : '$booked/$capacity spots',
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── SEGMENTED CONTROL — animated underline instead of pill toggle ───────
 
   Widget _buildSegmentedControl() {
@@ -1273,88 +1478,138 @@ class _EventDetailScreenState extends State<EventDetailScreen>
             fontFamily: 'PlayfairDisplay',
             fontSize: 17,
             fontWeight: FontWeight.w700,
-            color: selected ? context.cluvoTextPrimary : context.cluvoTextSecondary,
+            color: selected
+                ? context.cluvoTextPrimary
+                : context.cluvoTextSecondary,
           ),
         ),
       ),
     );
   }
 
-  // Flat platform fee (paise, pre-GST) for this event's community.
-  int _feeNetPaise() {
+  // Platform fee as a percent of the (post-coupon) ticket, in paise. No GST.
+  int _feeAmountPaise(int ticketPaise) {
     final community = _event?['communities'] as Map<String, dynamic>?;
-    return (community?['platform_fee_amount'] as num?)?.toInt() ??
-        kDefaultPlatformFeePaise;
+    final commissionPercent =
+        (community?['commission_percent'] as num?)?.toDouble();
+    return platformFeeTotal(ticketPaise, commissionPercent);
   }
 
-  // Flat platform fee + 18% GST for this event's community (paise).
-  int _feeAmountPaise() => platformFeeTotal(_feeNetPaise());
-
   Widget _buildRefundDisclosure(num price) {
-    final fee = _feeAmountPaise();
+    final fee = _feeAmountPaise(price.toInt());
     final total = price + fee;
-    return Text(
-      'Free cancellation with refund up to 24h before start. Self-cancelling refunds your ticket '
-      '${formatRupees(price)} (platform fee ${formatRupees(fee)} is kept); if the organizer cancels, '
-      'you get the full ${formatRupees(total)} back.',
-      style: TextStyle(fontSize: 10.5, color: context.cluvoTextSecondary),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: context.cluvoChipFill,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.shield_outlined,
+            size: 15,
+            color: context.cluvoTextSecondary,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Free cancellation up to 24h before start. Self-cancelling refunds '
+              'your ticket ${formatRupees(price)} (platform fee ${formatRupees(fee)} is kept); '
+              'if the organizer cancels, you get the full ${formatRupees(total)} back.',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.4,
+                color: context.cluvoTextSecondary,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildActionButton(num price, bool isFull, String eventStatus, EventLifecycle lifecycle) {
-    if (eventStatus == 'cancelled') {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.red.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Event Cancelled',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Colors.red,
-              ),
+  // Shared tinted panel for non-interactive event/booking states.
+  Widget _statusPanel({
+    required Color color,
+    required IconData icon,
+    required String title,
+    String? subtitle,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.09),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                  ),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      height: 1.3,
+                      color: context.cluvoTextSecondary,
+                    ),
+                  ),
+                ],
+              ],
             ),
-            if (_registrationStatus != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                _registrationStatus == 'confirmed'
-                    ? 'Your payment has been refunded.'
-                    : 'This event has been cancelled.',
-                style: TextStyle(fontSize: 12, color: Colors.red[700]),
-              ),
-            ],
-          ],
-        ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton(
+    num price,
+    bool isFull,
+    String eventStatus,
+    EventLifecycle lifecycle,
+  ) {
+    if (eventStatus == 'cancelled') {
+      return _statusPanel(
+        color: CluvoTheme.error,
+        icon: Icons.event_busy_outlined,
+        title: 'Event cancelled',
+        subtitle: _registrationStatus == 'confirmed'
+            ? 'Any eligible refund will appear in your payments.'
+            : 'Bookings are closed for this event.',
       );
     }
 
     if (eventStatus == 'completed') {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        decoration: BoxDecoration(
-          color: _registrationStatus == 'confirmed' || _registrationStatus == 'attended'
-              ? Colors.green.withValues(alpha: 0.1)
-              : context.cluvoChipFill,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Text(
-          _registrationStatus == 'confirmed' || _registrationStatus == 'attended'
-              ? 'Thank you for coming!'
-              : 'Event Ended',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: _registrationStatus == 'confirmed' || _registrationStatus == 'attended'
-                ? Colors.green
-                : context.cluvoTextSecondary,
-          ),
-        ),
+      final attended =
+          _registrationStatus == 'confirmed' ||
+          _registrationStatus == 'attended';
+      return _statusPanel(
+        color: attended ? CluvoTheme.success : CluvoTheme.neutral,
+        icon: attended
+            ? Icons.celebration_outlined
+            : Icons.event_available_outlined,
+        title: attended ? 'Thank you for attending!' : 'Event ended',
       );
     }
 
@@ -1365,141 +1620,118 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     }
 
     if (lifecycle == EventLifecycle.live) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        decoration: BoxDecoration(
-          color: const Color(0xFFE53935).withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.circle, size: 12, color: Color(0xFFE53935)),
-            const SizedBox(width: 8),
-            const Text(
-              'Live',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFFE53935),
-              ),
-            ),
-          ],
-        ),
+      return _statusPanel(
+        color: CluvoTheme.live,
+        icon: Icons.circle,
+        title: 'Live now',
+        subtitle: 'Bookings are closed once the event has started.',
       );
     }
 
     if (lifecycle == EventLifecycle.closed) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        decoration: BoxDecoration(
-          color: context.cluvoChipFill,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Text(
-          'Event Closed',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: context.cluvoTextSecondary,
-          ),
-        ),
+      return _statusPanel(
+        color: CluvoTheme.neutral,
+        icon: Icons.event_available_outlined,
+        title: 'Event closed',
+        subtitle: 'This event is no longer taking bookings.',
       );
     }
 
     if (isFull && !_isRegistered) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        decoration: BoxDecoration(
-          color: context.cluvoChipFill,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Text(
-          'Event Full',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: context.cluvoTextSecondary,
-          ),
-        ),
+      return _statusPanel(
+        color: CluvoTheme.neutral,
+        icon: Icons.confirmation_number_outlined,
+        title: 'Event full',
+        subtitle: 'All seats have been taken.',
       );
     }
 
     if (_paidButUnconfirmed) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: const Color(0xFFC2185B).withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.hourglass_top, size: 16, color: Color(0xFFC2185B)),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                'Payment received — we are confirming your booking.',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.cluvoTextPrimary),
-              ),
-            ),
-          ],
-        ),
+      return _statusPanel(
+        color: CluvoTheme.primary,
+        icon: Icons.hourglass_top,
+        title: 'Payment received',
+        subtitle:
+            'We are confirming your booking — you will not be charged twice.',
+      );
+    }
+
+    // An existing pending registration means a booking attempt is still being
+    // resolved by the server (payment verification, webhook or reconciliation).
+    // Show that state instead of an apparently active Pay action.
+    if (_registrationStatus == 'pending') {
+      return _statusPanel(
+        color: CluvoTheme.primary,
+        icon: Icons.hourglass_top,
+        title: 'Confirming your booking',
+        subtitle:
+            'We are verifying your payment. This usually takes a few minutes.',
       );
     }
 
     if (price > 0) {
+      final busy = _registering || _processingPayment;
       return SizedBox(
-        height: 44,
+        height: 50,
         child: ElevatedButton.icon(
-          onPressed: (_registering || _processingPayment) ? null : _payForEvent,
-          icon: (_registering || _processingPayment)
+          onPressed: busy ? null : _payForEvent,
+          icon: busy
               ? const SizedBox(
                   width: 16,
                   height: 16,
                   child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.white),
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 )
-              : const Icon(Icons.payment, size: 18),
+              : const Icon(Icons.payment_rounded, size: 18),
           label: Text(
-            (_registering || _processingPayment)
-                ? 'Processing…'
-                : 'Pay ${formatRupees(price)}',
+            busy ? 'Processing…' : 'Pay ${formatRupees(price)}',
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFFC2185B),
+            backgroundColor: CluvoTheme.primary,
             foregroundColor: Colors.white,
+            disabledBackgroundColor: CluvoTheme.primary.withValues(alpha: 0.6),
+            disabledForegroundColor: Colors.white,
+            elevation: 0,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(14),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 28),
+            padding: const EdgeInsets.symmetric(horizontal: 22),
           ),
         ),
       );
     }
 
     return SizedBox(
-      height: 44,
+      height: 50,
       child: ElevatedButton.icon(
         onPressed: _registering ? null : _register,
         icon: _registering
             ? const SizedBox(
-                width: 16, height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
               )
-            : const Icon(Icons.event, size: 18),
+            : const Icon(Icons.event_rounded, size: 18),
         label: const Text(
           'Register',
           style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
         ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFC2185B),
+          backgroundColor: CluvoTheme.primary,
           foregroundColor: Colors.white,
+          disabledBackgroundColor: CluvoTheme.primary.withValues(alpha: 0.6),
+          disabledForegroundColor: Colors.white,
+          elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(14),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 28),
+          padding: const EdgeInsets.symmetric(horizontal: 22),
         ),
       ),
     );
@@ -1512,12 +1744,17 @@ class _EventDetailScreenState extends State<EventDetailScreen>
       children: [
         Text(
           price > 0 ? 'Ticket price' : 'Price',
-          style: TextStyle(fontSize: 11, color: context.cluvoTextSecondary),
+          style: TextStyle(fontSize: 12, color: context.cluvoTextSecondary),
         ),
         const SizedBox(height: 2),
         Text(
           price > 0 ? formatRupees(price) : 'Free',
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            fontSize: 24,
+            height: 1.1,
+            fontWeight: FontWeight.w800,
+            color: CluvoTheme.primary,
+          ),
         ),
       ],
     );
@@ -1540,7 +1777,11 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           const SizedBox(width: 6),
           Text(
             label,
-            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: color),
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
           ),
         ],
       ),
@@ -1549,31 +1790,42 @@ class _EventDetailScreenState extends State<EventDetailScreen>
 
   // Two-row "ticket stub" bottom bar shown once the user is registered: status +
   // paid amount on top, a dotted perforation with semicircular edge notches, then
-  // the View ticket / Cancel actions.
+  // the View ticket / Cancel actions. When the organizer cancels the event the
+  // Cancel action is withdrawn — the refund is handled by the platform.
   Widget _registeredActionArea(num price, bool isAttended) {
     final cancellationClosed = _cancellationClosed();
+    final eventCancelled = _event?['status'] == 'cancelled';
 
     final cancelButton = OutlinedButton(
-      onPressed: (_registering || cancellationClosed) ? null : _cancelRegistration,
+      onPressed: (_registering || cancellationClosed || eventCancelled)
+          ? null
+          : _cancelRegistration,
       style: OutlinedButton.styleFrom(
         foregroundColor: CluvoTheme.error,
-        minimumSize: const Size(0, 46),
-        shape: const StadiumBorder(),
+        minimumSize: const Size(0, 48),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         side: BorderSide(
-          color: cancellationClosed ? context.cluvoBorder : CluvoTheme.error,
+          color: cancellationClosed || eventCancelled
+              ? context.cluvoBorder
+              : CluvoTheme.error,
         ),
       ),
       child: _registering
           ? const SizedBox(
               width: 16,
               height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2, color: CluvoTheme.error),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: CluvoTheme.error,
+              ),
             )
           : Text(
               'Cancel',
               style: TextStyle(
                 fontWeight: FontWeight.w600,
-                color: cancellationClosed ? context.cluvoTextSecondary : null,
+                color: cancellationClosed || eventCancelled
+                    ? context.cluvoTextSecondary
+                    : null,
               ),
             ),
     );
@@ -1602,38 +1854,93 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           lineColor: context.cluvoBorder,
           notchColor: context.cluvoBackground,
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-          child: Row(
-            children: [
-              Expanded(
-                child: FilledButton.icon(
+        if (eventCancelled) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                FilledButton.icon(
                   onPressed: _openTicket,
-                  icon: const Icon(Icons.confirmation_number_outlined, size: 18),
+                  icon: const Icon(
+                    Icons.confirmation_number_outlined,
+                    size: 18,
+                  ),
                   label: const Text('View ticket'),
                   style: FilledButton.styleFrom(
                     backgroundColor: CluvoTheme.primary,
                     foregroundColor: Colors.white,
-                    minimumSize: const Size(0, 46),
+                    minimumSize: const Size(0, 48),
+                    elevation: 0,
                     padding: const EdgeInsets.symmetric(horizontal: 18),
-                    shape: const StadiumBorder(),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                 ),
-              ),
-              if (!isAttended) ...[
-                const SizedBox(width: 10),
-                Expanded(
-                  child: cancellationClosed
-                      ? Tooltip(
-                          message: 'Cancellations close 24 hours before the event starts.',
-                          child: cancelButton,
-                        )
-                      : cancelButton,
+                const SizedBox(height: 8),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline, size: 14, color: CluvoTheme.error),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'This event was cancelled by the organizer. '
+                        'Cancellation is disabled — any refund follows the '
+                        'platform policy.',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          height: 1.35,
+                          color: context.cluvoTextSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
-            ],
+            ),
           ),
-        ),
+        ] else
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: _openTicket,
+                    icon: const Icon(
+                      Icons.confirmation_number_outlined,
+                      size: 18,
+                    ),
+                    label: const Text('View ticket'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: CluvoTheme.primary,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(0, 48),
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+                if (!isAttended) ...[
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: cancellationClosed
+                        ? Tooltip(
+                            message:
+                                'Cancellations close 24 hours before the event starts.',
+                            child: cancelButton,
+                          )
+                        : cancelButton,
+                  ),
+                ],
+              ],
+            ),
+          ),
       ],
     );
   }
@@ -1642,7 +1949,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFFC2185B), Color(0xFFE0407A)],
+          colors: [CluvoTheme.primary, CluvoTheme.primaryLight],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -1651,9 +1958,10 @@ class _EventDetailScreenState extends State<EventDetailScreen>
         child: Text(
           title.isNotEmpty ? title[0].toUpperCase() : 'E',
           style: const TextStyle(
+            fontFamily: 'PlayfairDisplay',
             color: Colors.white,
-            fontSize: 56,
-            fontWeight: FontWeight.bold,
+            fontSize: 72,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
@@ -1664,7 +1972,17 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     return ListView(
       physics: const NeverScrollableScrollPhysics(),
       children: [
-        const SizedBox(height: kToolbarHeight + 8),
+        Container(
+          height: 52,
+          color: context.cluvoBackground,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back_rounded),
+              onPressed: _goBack,
+            ),
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
           child: Container(
@@ -1681,42 +1999,54 @@ class _EventDetailScreenState extends State<EventDetailScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                children: List.generate(3, (i) => Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: Container(
-                        height: 36,
-                        width: 90,
-                        decoration: BoxDecoration(
-                          color: context.cluvoChipFill,
-                          borderRadius: BorderRadius.circular(22),
-                        ),
+                children: List.generate(
+                  3,
+                  (i) => Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Container(
+                      height: 36,
+                      width: 90,
+                      decoration: BoxDecoration(
+                        color: context.cluvoChipFill,
+                        borderRadius: BorderRadius.circular(22),
                       ),
-                    )),
+                    ),
+                  ),
+                ),
               ),
               const SizedBox(height: 20),
               Container(
-                  height: 14,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                      color: context.cluvoChipFill,
-                      borderRadius: BorderRadius.circular(4))),
+                height: 14,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: context.cluvoChipFill,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
               const SizedBox(height: 12),
               Container(
-                  height: 14,
-                  width: 240,
-                  decoration: BoxDecoration(
-                      color: context.cluvoChipFill,
-                      borderRadius: BorderRadius.circular(4))),
+                height: 14,
+                width: 240,
+                decoration: BoxDecoration(
+                  color: context.cluvoChipFill,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
               const SizedBox(height: 24),
-              ...List.generate(4, (_) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Container(
-                        height: 14,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                            color: context.cluvoChipFill,
-                            borderRadius: BorderRadius.circular(4))),
-                  )),
+              ...List.generate(
+                4,
+                (_) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Container(
+                    height: 14,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: context.cluvoChipFill,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -1733,10 +2063,16 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.lock_outline, size: 40, color: context.cluvoTextSecondary),
+              Icon(
+                Icons.lock_outline,
+                size: 40,
+                color: context.cluvoTextSecondary,
+              ),
               const SizedBox(height: 12),
-              Text('Sign in to join the discussion.',
-                  style: TextStyle(color: context.cluvoTextSecondary)),
+              Text(
+                'Sign in to join the discussion.',
+                style: TextStyle(color: context.cluvoTextSecondary),
+              ),
             ],
           ),
         ),
@@ -1789,8 +2125,14 @@ class _EventDetailScreenState extends State<EventDetailScreen>
             color: context.cluvoChipFill,
             borderRadius: BorderRadius.circular(16),
           ),
-          child: Text(description,
-              style: TextStyle(color: context.cluvoTextSecondary, fontSize: 14)),
+          child: Text(
+            description,
+            style: TextStyle(
+              color: context.cluvoTextPrimary,
+              fontSize: 14.5,
+              height: 1.55,
+            ),
+          ),
         ),
       ];
     }
@@ -1803,8 +2145,14 @@ class _EventDetailScreenState extends State<EventDetailScreen>
             color: context.cluvoChipFill,
             borderRadius: BorderRadius.circular(16),
           ),
-          child: Text(sections[0].value,
-              style: TextStyle(color: context.cluvoTextSecondary, fontSize: 14)),
+          child: Text(
+            sections[0].value,
+            style: TextStyle(
+              color: context.cluvoTextPrimary,
+              fontSize: 14.5,
+              height: 1.55,
+            ),
+          ),
         ),
       ];
     }
@@ -1816,11 +2164,16 @@ class _EventDetailScreenState extends State<EventDetailScreen>
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: context.cluvoChipFill,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(16),
         ),
         child: Text(
-            sections[_descTabIndex.clamp(0, sections.length - 1)].value,
-            style: TextStyle(color: context.cluvoTextSecondary, fontSize: 14)),
+          sections[_descTabIndex.clamp(0, sections.length - 1)].value,
+          style: TextStyle(
+            color: context.cluvoTextPrimary,
+            fontSize: 14.5,
+            height: 1.55,
+          ),
+        ),
       ),
     ];
   }
@@ -1845,7 +2198,9 @@ class _EventDetailScreenState extends State<EventDetailScreen>
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-              color: selected ? context.cluvoTextPrimary : context.cluvoTextSecondary,
+                      color: selected
+                          ? context.cluvoTextPrimary
+                          : context.cluvoTextSecondary,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -1866,37 +2221,85 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     );
   }
 
+  // ── NAVIGATION + LIFECYCLE HELPERS ───────────────────────────────────────
+
+  void _goBack() {
+    if (!mounted) return;
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/events');
+    }
+  }
+
+  // Derives the display lifecycle from the raw event row. Order matters:
+  // explicit cancellation/completion wins, then a passed end time, otherwise the
+  // event is either upcoming (active) or has started (live).
+  EventLifecycle _lifecycleOf(Map<String, dynamic> e) {
+    final status = (e['status'] as String?)?.toLowerCase();
+    if (status == 'cancelled') return EventLifecycle.cancelled;
+    if (status == 'completed') return EventLifecycle.closed;
+
+    final now = DateTime.now();
+    final end = getParsedDate(e, 'end_date') ?? getParsedDate(e, 'start_date');
+    if (end != null && now.isAfter(end)) return EventLifecycle.closed;
+
+    final start = getParsedDate(e, 'start_date');
+    if (start == null || now.isBefore(start)) return EventLifecycle.active;
+    return EventLifecycle.live;
+  }
+
+  static const _months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
   String _formatDateTime(Map<String, dynamic> event, String key) {
     final dt = getParsedDate(event, key);
     if (dt == null) return '';
-    return '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    final month = _months[dt.month - 1];
+    final hour12 = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final meridiem = dt.hour < 12 ? 'AM' : 'PM';
+    final minute = dt.minute.toString().padLeft(2, '0');
+    return '${dt.day} $month ${dt.year} · $hour12:$minute $meridiem';
   }
 }
 
-class _CancellationPolicyDialog extends StatefulWidget {
+class _CancellationPolicySheet extends StatefulWidget {
   final int ticketPaise;
-  final int feeNetPaise;
+  final int platformFeePaise;
 
-  const _CancellationPolicyDialog({
+  const _CancellationPolicySheet({
     required this.ticketPaise,
-    required this.feeNetPaise,
+    required this.platformFeePaise,
   });
 
   @override
-  State<_CancellationPolicyDialog> createState() => _CancellationPolicyDialogState();
+  State<_CancellationPolicySheet> createState() =>
+      _CancellationPolicySheetState();
 }
 
-class _CancellationPolicyDialogState extends State<_CancellationPolicyDialog> {
+class _CancellationPolicySheetState extends State<_CancellationPolicySheet> {
   bool _acknowledged = false;
 
   Widget _row(String label, String value, {bool bold = false}) {
     final style = TextStyle(
-      fontSize: bold ? 14.5 : 13.5,
-      fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
-      color: bold ? null : const Color(0xFF374151),
+      fontSize: bold ? 16 : 13.5,
+      fontWeight: bold ? FontWeight.w800 : FontWeight.w400,
+      color: bold ? CluvoTheme.primary : const Color(0xFF54606F),
     );
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: EdgeInsets.symmetric(vertical: bold ? 4 : 2),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -1909,58 +2312,150 @@ class _CancellationPolicyDialogState extends State<_CancellationPolicyDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final gst = gstForPlatformFee(widget.feeNetPaise);
-    final total = widget.ticketPaise + widget.feeNetPaise + gst;
-    return AlertDialog(
-      title: const Text('Before you pay'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _row('Ticket price', formatRupees(widget.ticketPaise)),
-          _row('Platform fee', formatRupees(widget.feeNetPaise)),
-          _row('GST (18%)', formatRupees(gst)),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 6),
-            child: Divider(height: 1),
-          ),
-          _row('Total you pay', formatRupees(total), bold: true),
-          const SizedBox(height: 14),
-          const Text(
-            'Cancellations are allowed only until 24 hours before the event starts. '
-            'Inside 24 hours, cancellation closes and your booking becomes non-refundable.',
-            style: TextStyle(fontSize: 13.5),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'If you cancel yourself, the ticket price is refunded but the platform fee is kept. '
-            'If the organizer cancels the event, you get the full amount back.',
-            style: TextStyle(fontSize: 12.5, color: Colors.grey),
-          ),
-          const SizedBox(height: 4),
-          CheckboxListTile(
-            value: _acknowledged,
-            onChanged: (v) => setState(() => _acknowledged = v ?? false),
-            controlAffinity: ListTileControlAffinity.leading,
-            contentPadding: EdgeInsets.zero,
-            dense: true,
-            title: const Text(
-              'I understand the cancellation policy',
-              style: TextStyle(fontSize: 13),
-            ),
-          ),
-        ],
+    final fee = widget.platformFeePaise;
+    final total = widget.ticketPaise + fee;
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.85,
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Not now'),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          12,
+          20,
+          20 + MediaQuery.of(context).viewInsets.bottom,
         ),
-        FilledButton(
-          onPressed: _acknowledged ? () => Navigator.of(context).pop(true) : null,
-          child: Text('Confirm payment ${formatRupees(total)}'),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: context.cluvoPrimaryText.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Before you pay',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 12),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: context.cluvoSurface,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: context.cluvoBorder),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _row(
+                            'Ticket price',
+                            formatRupees(widget.ticketPaise),
+                          ),
+                          _row(
+                            'Platform fee',
+                            formatRupees(widget.platformFeePaise),
+                          ),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 6),
+                            child: Divider(height: 1),
+                          ),
+                          _row(
+                            'Total you pay',
+                            formatRupees(total),
+                            bold: true,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Cancellations are allowed only until 24 hours before the event starts. '
+                      'Inside 24 hours, cancellation closes and your booking becomes non-refundable.',
+                      style: TextStyle(fontSize: 13.5),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'If you cancel yourself, the ticket price is refunded but the platform fee is kept. '
+                      'If the organizer cancels the event, you get the full amount back.',
+                      style: TextStyle(fontSize: 12.5, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 4),
+                    CheckboxListTile(
+                      value: _acknowledged,
+                      onChanged: (v) =>
+                          setState(() => _acknowledged = v ?? false),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      title: const Text(
+                        'I understand the cancellation policy',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const Divider(height: 1),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 50),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text('Not now'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: _acknowledged
+                        ? () => Navigator.of(context).pop(true)
+                        : null,
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(0, 50),
+                      backgroundColor: CluvoTheme.primary,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: Text(
+                      'Confirm ${formatRupees(total)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
@@ -1994,8 +2489,156 @@ class _TicketPerforation extends StatelessWidget {
   }
 
   Widget _notch() => Container(
-        width: 22,
-        height: 22,
-        decoration: BoxDecoration(color: notchColor, shape: BoxShape.circle),
-      );
+    width: 22,
+    height: 22,
+    decoration: BoxDecoration(color: notchColor, shape: BoxShape.circle),
+  );
+}
+
+/// Cancel-registration confirmation. Shows the refund breakdown and REQUIRES
+/// the user to tick "I understand the cancellation and refund policy" before
+/// the Confirm button is enabled. The acknowledgment is sent to the
+/// cancel-registration edge function (policy_acknowledged) for the audit log.
+class _CancelRegistrationDialog extends StatefulWidget {
+  final int paid;
+  final int feeKept;
+  final int expectedRefund;
+
+  const _CancelRegistrationDialog({
+    required this.paid,
+    required this.feeKept,
+    required this.expectedRefund,
+  });
+
+  @override
+  State<_CancelRegistrationDialog> createState() =>
+      _CancelRegistrationDialogState();
+}
+
+class _CancelRegistrationDialogState extends State<_CancelRegistrationDialog> {
+  bool _acknowledged = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final paid = widget.paid;
+    final feeKept = widget.feeKept;
+    final expectedRefund = widget.expectedRefund;
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: CluvoTheme.error.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.event_busy_outlined,
+              size: 20,
+              color: CluvoTheme.error,
+            ),
+          ),
+          const SizedBox(width: 10),
+          const Flexible(child: Text('Cancel registration?')),
+        ],
+      ),
+      content: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.5,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Your registration will be cancelled.',
+                style: TextStyle(fontSize: 14),
+              ),
+              if (paid > 0) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: context.cluvoChipFill,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'You will be refunded',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: context.cluvoTextSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        formatRupees(expectedRefund),
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: CluvoTheme.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Platform fee ${formatRupees(feeKept)} is not refundable on self-cancel.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          height: 1.3,
+                          color: context.cluvoTextSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Refunds appear in your payment details and take 3–5 business days to reach your account.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+              const SizedBox(height: 8),
+              CheckboxListTile(
+                value: _acknowledged,
+                onChanged: (v) => setState(() => _acknowledged = v ?? false),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                title: const Text(
+                  'I understand the cancellation and refund policy',
+                  style: TextStyle(fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Keep registration'),
+        ),
+        FilledButton(
+          onPressed: _acknowledged
+              ? () => Navigator.of(context).pop(true)
+              : null,
+          style: FilledButton.styleFrom(
+            backgroundColor: CluvoTheme.error,
+            foregroundColor: Colors.white,
+            disabledBackgroundColor: CluvoTheme.error.withValues(alpha: 0.4),
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: const Text('Cancel & refund'),
+        ),
+      ],
+    );
+  }
 }

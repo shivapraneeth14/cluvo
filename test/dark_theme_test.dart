@@ -132,10 +132,7 @@ class _ThemeProbe extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      '',
-      style: TextStyle(color: builder(context)),
-    );
+    return Text('', style: TextStyle(color: builder(context)));
   }
 }
 
@@ -144,7 +141,10 @@ Color _probeColor(WidgetTester tester, Color Function(BuildContext) builder) {
   return (text.style?.color) ?? Colors.transparent;
 }
 
-Future<void> _pumpCommunities(WidgetTester tester, Brightness brightness) async {
+Future<void> _pumpCommunities(
+  WidgetTester tester,
+  Brightness brightness,
+) async {
   await tester.pumpWidget(
     ProviderScope(
       child: MaterialApp(
@@ -174,29 +174,47 @@ void main() {
     );
   });
 
-  group('dark palette', () {
-    test('maps every token to its dark value', () {
+  group('brand palette', () {
+    test('maps every token to its value in both modes', () {
+      const light = Brightness.light;
       const dark = Brightness.dark;
-      expect(CluvoTheme.backgroundFor(dark), const Color(0xFF121212));
-      expect(CluvoTheme.surfaceFor(dark), const Color(0xFF1E1E1E));
-      expect(CluvoTheme.textPrimaryFor(dark), const Color(0xFFEDEDED));
-      expect(CluvoTheme.textSecondaryFor(dark), const Color(0xFF9E9E9E));
-      expect(CluvoTheme.borderFor(dark), const Color(0xFF2C2C2C));
-      expect(CluvoTheme.chipFillFor(dark), const Color(0xFF2E2E2E));
-      expect(CluvoTheme.primaryTextFor(dark), const Color(0xFFE0407A));
+
+      // Pure white canvas in both modes.
+      expect(CluvoTheme.backgroundFor(light), const Color(0xFFFFFFFF));
+      expect(CluvoTheme.backgroundFor(dark), const Color(0xFFFFFFFF));
+      expect(CluvoTheme.surfaceFor(light), const Color(0xFFFFFFFF));
+      expect(CluvoTheme.surfaceFor(dark), const Color(0xFFFFFFFF));
+
+      // Ink text in both modes.
+      expect(CluvoTheme.textPrimaryFor(light), const Color(0xFF000000));
+      expect(CluvoTheme.textPrimaryFor(dark), const Color(0xFF000000));
+      expect(CluvoTheme.textSecondaryFor(light), const Color(0x99000000));
+      expect(CluvoTheme.textSecondaryFor(dark), const Color(0x99000000));
+      expect(CluvoTheme.borderFor(light), const Color(0xFF000000));
+      expect(CluvoTheme.borderFor(dark), const Color(0xFF000000));
+
+      expect(CluvoTheme.chipFillFor(light), const Color(0xFFFFFFFF));
+      expect(CluvoTheme.chipFillFor(dark), const Color(0xFFFFFFFF));
+
+      // Ink brand accent in both modes.
+      expect(CluvoTheme.primaryTextFor(light), const Color(0xFF000000));
+      expect(CluvoTheme.primaryTextFor(dark), const Color(0xFF000000));
     });
 
-    test('dark theme uses dark scaffold and surface', () {
-      expect(CluvoTheme.darkTheme.scaffoldBackgroundColor,
-          const Color(0xFF121212));
-      expect(CluvoTheme.darkTheme.colorScheme.surface, const Color(0xFF1E1E1E));
-      expect(CluvoTheme.darkTheme.brightness, Brightness.dark);
+    test('dark theme uses pure white background and surface', () {
+      expect(
+        CluvoTheme.darkTheme.scaffoldBackgroundColor,
+        const Color(0xFFFFFFFF),
+      );
+      expect(CluvoTheme.darkTheme.colorScheme.surface, const Color(0xFFFFFFFF));
+      // Both themes are intentionally light so framework text defaults stay
+      // dark on the light surfaces.
+      expect(CluvoTheme.darkTheme.brightness, Brightness.light);
     });
   });
 
   group('context extension', () {
-    testWidgets('resolves dark tokens through the theme',
-        (tester) async {
+    testWidgets('resolves dark tokens through the theme', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: CluvoTheme.lightTheme,
@@ -217,16 +235,16 @@ void main() {
       );
 
       final texts = tester.widgetList<Text>(find.byType(Text)).toList();
-      expect(texts[0].style?.color, const Color(0xFF2E2E2E));
-      expect(texts[1].style?.color, const Color(0xFF1E1E1E));
-      expect(texts[2].style?.color,
-          CluvoTheme.error.withValues(alpha: 0.1));
-      expect(texts[3].style?.color, const Color(0xFF34D399));
-      expect(texts[4].style?.color, const Color(0xFFE0407A));
+      expect(texts[0].style?.color, const Color(0xFFFFFFFF));
+      expect(texts[1].style?.color, const Color(0xFFFFFFFF));
+      expect(texts[2].style?.color, const Color(0xFFFEF2F2));
+      expect(texts[3].style?.color, const Color(0xFF16845B));
+      expect(texts[4].style?.color, const Color(0xFF000000));
     });
 
-    testWidgets('follows a live theme toggle from light to dark',
-        (tester) async {
+    testWidgets('follows a live theme toggle from light to dark', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: CluvoTheme.lightTheme,
@@ -235,8 +253,10 @@ void main() {
           home: _ThemeProbe(builder: (c) => c.cluvoChipFill),
         ),
       );
-      expect(_probeColor(tester, (c) => c.cluvoChipFill),
-          const Color(0xFFF1F1F1));
+      expect(
+        _probeColor(tester, (c) => c.cluvoChipFill),
+        const Color(0xFFFFFFFF),
+      );
 
       await tester.pumpWidget(
         MaterialApp(
@@ -247,26 +267,30 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(_probeColor(tester, (c) => c.cluvoChipFill),
-          const Color(0xFF2E2E2E));
+      expect(
+        _probeColor(tester, (c) => c.cluvoChipFill),
+        const Color(0xFFFFFFFF),
+      );
     });
   });
 
   group('real screens', () {
-    testWidgets('communities search field turns dark in dark mode',
-        (tester) async {
+    testWidgets('communities search field uses paper fill in dark mode', (
+      tester,
+    ) async {
       await _pumpCommunities(tester, Brightness.dark);
 
       final field = tester.widget<TextField>(find.byType(TextField));
-      expect(field.decoration?.fillColor, const Color(0xFF2E2E2E));
+      expect(field.decoration?.fillColor, const Color(0xFFFFFFFF));
     });
 
-    testWidgets('communities search field stays light in light mode',
-        (tester) async {
+    testWidgets('communities search field stays light in light mode', (
+      tester,
+    ) async {
       await _pumpCommunities(tester, Brightness.light);
 
       final field = tester.widget<TextField>(find.byType(TextField));
-      expect(field.decoration?.fillColor, const Color(0xFFF1F1F1));
+      expect(field.decoration?.fillColor, const Color(0xFFFFFFFF));
     });
   });
 }

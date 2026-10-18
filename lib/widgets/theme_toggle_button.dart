@@ -12,9 +12,7 @@ class ThemeToggleButton extends ConsumerWidget {
 
     return IconButton(
       tooltip: isDark ? 'Switch to light theme' : 'Switch to dark theme',
-      icon: Icon(
-        isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
-      ),
+      icon: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
       onPressed: () => ref.read(themeModeProvider.notifier).toggle(),
     );
   }

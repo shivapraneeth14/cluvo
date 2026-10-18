@@ -38,10 +38,26 @@ class TicketCard extends StatelessWidget {
   bool get _attended => status == 'attended';
 
   static const _greyscale = <double>[
-    0.2126, 0.7152, 0.0722, 0, 0,
-    0.2126, 0.7152, 0.0722, 0, 0,
-    0.2126, 0.7152, 0.0722, 0, 0,
-    0, 0, 0, 1, 0,
+    0.2126,
+    0.7152,
+    0.0722,
+    0,
+    0,
+    0.2126,
+    0.7152,
+    0.0722,
+    0,
+    0,
+    0.2126,
+    0.7152,
+    0.0722,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
   ];
 
   @override
@@ -51,11 +67,9 @@ class TicketCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(
-              alpha: Theme.of(context).brightness == Brightness.dark ? 0.4 : 0.08,
-            ),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -117,7 +131,11 @@ class TicketCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       title,
-                      style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700, height: 1.2),
+                      style: const TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w700,
+                        height: 1.2,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -142,7 +160,9 @@ class TicketCard extends StatelessWidget {
                   Expanded(
                     child: _InfoLine(
                       icon: Icons.person_outline,
-                      text: (attendeeName == null || attendeeName!.isEmpty) ? 'Attendee' : attendeeName!,
+                      text: (attendeeName == null || attendeeName!.isEmpty)
+                          ? 'Attendee'
+                          : attendeeName!,
                     ),
                   ),
                   Expanded(
@@ -179,7 +199,10 @@ class TicketCard extends StatelessWidget {
       img = _coverFallback();
     }
     if (_cancelled) {
-      img = ColorFiltered(colorFilter: const ColorFilter.matrix(_greyscale), child: img);
+      img = ColorFiltered(
+        colorFilter: const ColorFilter.matrix(_greyscale),
+        child: img,
+      );
     }
     return SizedBox(height: 152, width: double.infinity, child: img);
   }
@@ -195,7 +218,11 @@ class TicketCard extends StatelessWidget {
         ),
       ),
       alignment: Alignment.center,
-      child: const Icon(Icons.local_activity_outlined, size: 44, color: Colors.white70),
+      child: const Icon(
+        Icons.local_activity_outlined,
+        size: 44,
+        color: Colors.white70,
+      ),
     );
   }
 
@@ -227,7 +254,14 @@ class TicketCard extends StatelessWidget {
         children: [
           Icon(icon, size: 13, color: color),
           const SizedBox(width: 4),
-          Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
         ],
       ),
     );
@@ -239,11 +273,16 @@ class TicketCard extends StatelessWidget {
         CircleAvatar(
           radius: 11,
           backgroundColor: context.cluvoChipFill,
-          backgroundImage: (communityAvatarUrl != null && communityAvatarUrl!.isNotEmpty)
+          backgroundImage:
+              (communityAvatarUrl != null && communityAvatarUrl!.isNotEmpty)
               ? CachedNetworkImageProvider(communityAvatarUrl!)
               : null,
           child: (communityAvatarUrl == null || communityAvatarUrl!.isEmpty)
-              ? Icon(Icons.groups_outlined, size: 12, color: context.cluvoTextSecondary)
+              ? Icon(
+                  Icons.groups_outlined,
+                  size: 12,
+                  color: context.cluvoTextSecondary,
+                )
               : null,
         ),
         const SizedBox(width: 8),
@@ -252,7 +291,11 @@ class TicketCard extends StatelessWidget {
             communityName!,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: context.cluvoTextSecondary),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: context.cluvoTextSecondary,
+            ),
           ),
         ),
       ],
@@ -271,7 +314,11 @@ class TicketCard extends StatelessWidget {
             Text(
               'This ticket is no longer valid',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: context.cluvoTextSecondary),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: context.cluvoTextSecondary,
+              ),
             ),
           ],
         ),
@@ -292,8 +339,15 @@ class TicketCard extends StatelessWidget {
               children: [
                 Icon(Icons.verified, size: 15, color: Color(0xFF2563EB)),
                 SizedBox(width: 6),
-                Text('CHECKED IN',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1, color: Color(0xFF2563EB))),
+                Text(
+                  'CHECKED IN',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1,
+                    color: Color(0xFF2563EB),
+                  ),
+                ),
               ],
             ),
           ),
@@ -304,12 +358,22 @@ class TicketCard extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             'BOOKING ID',
-            style: TextStyle(fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.w600, color: context.cluvoTextSecondary),
+            style: TextStyle(
+              fontSize: 10,
+              letterSpacing: 2,
+              fontWeight: FontWeight.w600,
+              color: context.cluvoTextSecondary,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
             bookingId!,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 1, fontFamily: 'monospace'),
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1,
+              fontFamily: 'monospace',
+            ),
           ),
         ],
         const SizedBox(height: 14),
@@ -338,7 +402,11 @@ class _InfoLine extends StatelessWidget {
         Expanded(
           child: Text(
             text,
-            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500, height: 1.3),
+            style: const TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w500,
+              height: 1.3,
+            ),
           ),
         ),
       ],
@@ -374,7 +442,11 @@ class _QrFrame extends StatelessWidget {
                     backgroundColor: Colors.white,
                     padding: EdgeInsets.zero,
                   )
-                : Icon(Icons.qr_code_2, size: 120, color: context.cluvoTextSecondary),
+                : Icon(
+                    Icons.qr_code_2,
+                    size: 120,
+                    color: context.cluvoTextSecondary,
+                  ),
           ),
           Positioned.fill(
             child: CustomPaint(painter: _BracketPainter(CluvoTheme.primary)),
@@ -399,14 +471,37 @@ class _BracketPainter extends CustomPainter {
     const arm = 20.0;
     final w = size.width;
     final h = size.height;
-    canvas.drawPath(Path()..moveTo(0, arm)..lineTo(0, 0)..lineTo(arm, 0), paint);
-    canvas.drawPath(Path()..moveTo(w - arm, 0)..lineTo(w, 0)..lineTo(w, arm), paint);
-    canvas.drawPath(Path()..moveTo(w, h - arm)..lineTo(w, h)..lineTo(w - arm, h), paint);
-    canvas.drawPath(Path()..moveTo(arm, h)..lineTo(0, h)..lineTo(0, h - arm), paint);
+    canvas.drawPath(
+      Path()
+        ..moveTo(0, arm)
+        ..lineTo(0, 0)
+        ..lineTo(arm, 0),
+      paint,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(w - arm, 0)
+        ..lineTo(w, 0)
+        ..lineTo(w, arm),
+      paint,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(w, h - arm)
+        ..lineTo(w, h)
+        ..lineTo(w - arm, h),
+      paint,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(arm, h)
+        ..lineTo(0, h)
+        ..lineTo(0, h - arm),
+      paint,
+    );
   }
 
   @override
-  bool shouldRepaint(covariant _BracketPainter oldDelegate) => oldDelegate.color != color;
+  bool shouldRepaint(covariant _BracketPainter oldDelegate) =>
+      oldDelegate.color != color;
 }
-
-

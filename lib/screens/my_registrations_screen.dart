@@ -88,16 +88,21 @@ class MyRegistrationsScreen extends ConsumerWidget {
       refundDisplay = refundedAmount;
     } else if (isEventCancelled && paidAmount is num) {
       refundDisplay = paidAmount;
-    } else if (paidAmount is num && platformFee is num && paidAmount - platformFee > 0) {
+    } else if (paidAmount is num &&
+        platformFee is num &&
+        paidAmount - platformFee > 0) {
       refundDisplay = paidAmount - platformFee;
     } else if (paidAmount is num) {
       refundDisplay = paidAmount;
     }
-    final amtText =
-        (refundDisplay is num && refundDisplay > 0) ? ' ₹${(refundDisplay / 100).toStringAsFixed(0)}' : '';
+    final amtText = (refundDisplay is num && refundDisplay > 0)
+        ? ' ₹${(refundDisplay / 100).toStringAsFixed(0)}'
+        : '';
 
     String? refundNotice;
-    final effectiveRefundLabel = (refundStatus != null) ? refundLabels[refundStatus] : null;
+    final effectiveRefundLabel = (refundStatus != null)
+        ? refundLabels[refundStatus]
+        : null;
     if (isEventCancelled) {
       if (refundStatus == 'processed') {
         refundNotice = 'Refunded$amtText';
@@ -112,7 +117,8 @@ class MyRegistrationsScreen extends ConsumerWidget {
       refundNotice = 'Cancelled · $effectiveRefundLabel$amtText';
     }
 
-    final hasTicket = status == 'confirmed' && qrCode != null && !isEventCancelled;
+    final hasTicket =
+        status == 'confirmed' && qrCode != null && !isEventCancelled;
 
     final subtitle = [
       formatDate(startDate),
@@ -130,7 +136,11 @@ class MyRegistrationsScreen extends ConsumerWidget {
         ),
         child: Center(
           child: hasTicket
-              ? const Icon(Icons.confirmation_number_outlined, color: Colors.green, size: 20)
+              ? const Icon(
+                  Icons.confirmation_number_outlined,
+                  color: Colors.green,
+                  size: 20,
+                )
               : Icon(
                   regStatusIcon(status),
                   color: regStatusColor(context, status),
@@ -143,13 +153,12 @@ class MyRegistrationsScreen extends ConsumerWidget {
       trailing: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
-          color: (hasTicket ? Colors.green : regStatusColor(context, status)).withValues(alpha: 0.1),
+          color: (hasTicket ? Colors.green : regStatusColor(context, status))
+              .withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(6),
         ),
         child: Text(
-          hasTicket
-              ? 'Ticket'
-              : status[0].toUpperCase() + status.substring(1),
+          hasTicket ? 'Ticket' : status[0].toUpperCase() + status.substring(1),
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,
@@ -160,8 +169,8 @@ class MyRegistrationsScreen extends ConsumerWidget {
       onTap: hasTicket
           ? () => context.push('/ticket/${r['id']}')
           : eventId != null
-              ? () => context.push('/events/$eventId')
-              : null,
+          ? () => context.push('/events/$eventId')
+          : null,
     );
   }
 }

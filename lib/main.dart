@@ -35,11 +35,7 @@ Future<void> main() async {
   // routed through FlutterError.onError above.
   await runZonedGuarded(_bootstrap, (error, stack) {
     FlutterError.reportError(
-      FlutterErrorDetails(
-        exception: error,
-        stack: stack,
-        library: 'zone',
-      ),
+      FlutterErrorDetails(exception: error, stack: stack, library: 'zone'),
     );
   });
 }
@@ -65,11 +61,14 @@ Future<void> _bootstrap() async {
             ),
     );
   } catch (e) {
-    runApp(_ErrorApp(
-      message: 'Could not connect to the server. '
-          'Please check your internet connection and restart the app.\n\n'
-          'Error: $e',
-    ));
+    runApp(
+      _ErrorApp(
+        message:
+            'Could not connect to the server. '
+            'Please check your internet connection and restart the app.\n\n'
+            'Error: $e',
+      ),
+    );
     return;
   }
 
@@ -94,7 +93,9 @@ Future<void> _bootstrap() async {
     ProviderScope(
       overrides: [
         pendingRouteProvider.overrideWith((ref) => pendingRoute),
-        themeModeProvider.overrideWith((ref) => ThemeModeNotifier(initial: savedThemeMode)),
+        themeModeProvider.overrideWith(
+          (ref) => ThemeModeNotifier(initial: savedThemeMode),
+        ),
       ],
       child: CluvoApp(),
     ),
@@ -118,7 +119,11 @@ class _ErrorApp extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.cloud_off, size: 64, color: Color(0xFFC2185B)),
+                  const Icon(
+                    Icons.cloud_off,
+                    size: 64,
+                    color: CluvoTheme.primary,
+                  ),
                   const SizedBox(height: 24),
                   Text(
                     'Connection Error',
@@ -145,9 +150,12 @@ class _ErrorApp extends StatelessWidget {
                       main();
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFC2185B),
+                      backgroundColor: CluvoTheme.primary,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 32,
+                        vertical: 14,
+                      ),
                     ),
                     child: const Text('Retry'),
                   ),

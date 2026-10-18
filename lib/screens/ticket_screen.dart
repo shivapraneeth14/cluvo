@@ -29,7 +29,8 @@ class _TicketScreenState extends State<TicketScreen> {
       final res = await supabase
           .from('registrations')
           .select(
-              '*, profiles(first_name, last_name), events!inner(title, start_date, end_date, location, image_url, status, communities(name, community_avatar_url))')
+            '*, profiles(first_name, last_name), events!inner(title, start_date, end_date, location, image_url, status, communities(name, community_avatar_url))',
+          )
           .eq('id', widget.registrationId)
           .single();
       if (!mounted) return;
@@ -71,7 +72,10 @@ class _TicketScreenState extends State<TicketScreen> {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
-          child: Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 13)),
+          child: Text(
+            _error!,
+            style: const TextStyle(color: Colors.red, fontSize: 13),
+          ),
         ),
       );
     }
@@ -94,7 +98,8 @@ class _TicketScreenState extends State<TicketScreen> {
         ? 'cancelled'
         : (regStatus == 'attended' ? 'attended' : 'confirmed');
 
-    final attendee = _attendeeName ??
+    final attendee =
+        _attendeeName ??
         (userEmail.isNotEmpty ? userEmail.split('@').first : null);
 
     return ListView(

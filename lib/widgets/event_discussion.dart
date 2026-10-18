@@ -133,8 +133,7 @@ class _EventDiscussionState extends State<EventDiscussion> {
       ),
       callback: (payload) {
         if (!mounted) return;
-        final msg = EventMessage.fromMap(
-            payload.newRecord);
+        final msg = EventMessage.fromMap(payload.newRecord);
         if (_blockedUserIds.contains(msg.userId)) return;
         setState(() => _messages.add(msg));
         _scrollToBottom();
@@ -152,10 +151,10 @@ class _EventDiscussionState extends State<EventDiscussion> {
       callback: (payload) {
         if (!mounted) return;
         final userId =
-            (payload.newRecord['user_id'] ?? payload.oldRecord['user_id']) as String?;
+            (payload.newRecord['user_id'] ?? payload.oldRecord['user_id'])
+                as String?;
         if (userId != widget.currentUserId) return;
-        final isBanned =
-            payload.eventType == PostgresChangeEvent.insert;
+        final isBanned = payload.eventType == PostgresChangeEvent.insert;
         setState(() => _isBanned = isBanned);
       },
     );
@@ -207,10 +206,7 @@ class _EventDiscussionState extends State<EventDiscussion> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString()),
-          backgroundColor: Colors.red[700],
-        ),
+        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red[700]),
       );
     }
     if (mounted) setState(() => _sending = false);
@@ -280,7 +276,10 @@ class _EventDiscussionState extends State<EventDiscussion> {
             if (canDelete)
               ListTile(
                 leading: const Icon(Icons.delete_outline, color: Colors.red),
-                title: const Text('Delete', style: TextStyle(color: Colors.red)),
+                title: const Text(
+                  'Delete',
+                  style: TextStyle(color: Colors.red),
+                ),
                 onTap: () {
                   Navigator.pop(ctx);
                   _delete(msg.id);
@@ -289,8 +288,10 @@ class _EventDiscussionState extends State<EventDiscussion> {
             if (!isOwn && widget.isAdmin)
               ListTile(
                 leading: const Icon(Icons.block, color: Colors.orange),
-                title: const Text('Restrict user',
-                    style: TextStyle(color: Colors.orange)),
+                title: const Text(
+                  'Restrict user',
+                  style: TextStyle(color: Colors.orange),
+                ),
                 onTap: () {
                   Navigator.pop(ctx);
                   _restrictUser(msg.userId);
@@ -299,8 +300,10 @@ class _EventDiscussionState extends State<EventDiscussion> {
             if (!isOwn) ...[
               ListTile(
                 leading: const Icon(Icons.flag_outlined, color: Colors.red),
-                title:
-                    const Text('Report', style: TextStyle(color: Colors.red)),
+                title: const Text(
+                  'Report',
+                  style: TextStyle(color: Colors.red),
+                ),
                 onTap: () {
                   Navigator.pop(ctx);
                   _report(msg);
@@ -363,14 +366,13 @@ class _EventDiscussionState extends State<EventDiscussion> {
           children: [
             const Padding(
               padding: EdgeInsets.all(12),
-              child: Text('Report message',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
+              child: Text(
+                'Report message',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
             ),
             for (final r in reasons)
-              ListTile(
-                title: Text(r),
-                onTap: () => Navigator.pop(ctx, r),
-              ),
+              ListTile(title: Text(r), onTap: () => Navigator.pop(ctx, r)),
             ListTile(
               leading: const Icon(Icons.close),
               title: const Text('Cancel'),
@@ -401,7 +403,8 @@ class _EventDiscussionState extends State<EventDiscussion> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-              'Could not submit report. You may have already reported this message.'),
+            'Could not submit report. You may have already reported this message.',
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -452,14 +455,25 @@ class _EventDiscussionState extends State<EventDiscussion> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.error_outline, size: 32, color: context.cluvoTextSecondary),
+              Icon(
+                Icons.error_outline,
+                size: 32,
+                color: context.cluvoTextSecondary,
+              ),
               const SizedBox(height: 8),
-              Text('Failed to load discussion.',
-                  style: TextStyle(color: context.cluvoTextSecondary)),
+              Text(
+                'Failed to load discussion.',
+                style: TextStyle(color: context.cluvoTextSecondary),
+              ),
               const SizedBox(height: 4),
-              Text(_error!,
-                  style: TextStyle(color: context.cluvoTextSecondary, fontSize: 11),
-                  textAlign: TextAlign.center),
+              Text(
+                _error!,
+                style: TextStyle(
+                  color: context.cluvoTextSecondary,
+                  fontSize: 11,
+                ),
+                textAlign: TextAlign.center,
+              ),
             ],
           ),
         ),
@@ -468,9 +482,7 @@ class _EventDiscussionState extends State<EventDiscussion> {
 
     final visibleMessages = _blockedUserIds.isEmpty
         ? _messages
-        : _messages
-            .where((m) => !_blockedUserIds.contains(m.userId))
-            .toList();
+        : _messages.where((m) => !_blockedUserIds.contains(m.userId)).toList();
 
     return Column(
       children: [
@@ -480,10 +492,16 @@ class _EventDiscussionState extends State<EventDiscussion> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.chat_bubble_outline, size: 48, color: context.cluvoTextSecondary),
+                      Icon(
+                        Icons.chat_bubble_outline,
+                        size: 48,
+                        color: context.cluvoTextSecondary,
+                      ),
                       const SizedBox(height: 12),
-                      Text('No messages yet. Start the conversation!',
-                          style: TextStyle(color: context.cluvoTextSecondary)),
+                      Text(
+                        'No messages yet. Start the conversation!',
+                        style: TextStyle(color: context.cluvoTextSecondary),
+                      ),
                     ],
                   ),
                 )
@@ -507,10 +525,19 @@ class _EventDiscussionState extends State<EventDiscussion> {
             ),
             child: Row(
               children: [
-                Icon(Icons.info_outline, size: 16, color: context.cluvoTextSecondary),
+                Icon(
+                  Icons.info_outline,
+                  size: 16,
+                  color: context.cluvoTextSecondary,
+                ),
                 const SizedBox(width: 8),
-                Text('Discussion has not been enabled for this event.',
-                    style: TextStyle(color: context.cluvoTextSecondary, fontSize: 13)),
+                Text(
+                  'Discussion has not been enabled for this event.',
+                  style: TextStyle(
+                    color: context.cluvoTextSecondary,
+                    fontSize: 13,
+                  ),
+                ),
               ],
             ),
           )
@@ -525,8 +552,10 @@ class _EventDiscussionState extends State<EventDiscussion> {
               children: [
                 Icon(Icons.block, size: 16, color: Colors.orange[700]),
                 const SizedBox(width: 8),
-                Text('You have been restricted from posting.',
-                    style: TextStyle(color: Colors.orange[800], fontSize: 13)),
+                Text(
+                  'You have been restricted from posting.',
+                  style: TextStyle(color: Colors.orange[800], fontSize: 13),
+                ),
               ],
             ),
           )
@@ -539,10 +568,19 @@ class _EventDiscussionState extends State<EventDiscussion> {
             ),
             child: Row(
               children: [
-                Icon(Icons.person_off_outlined, size: 16, color: context.cluvoTextSecondary),
+                Icon(
+                  Icons.person_off_outlined,
+                  size: 16,
+                  color: context.cluvoTextSecondary,
+                ),
                 const SizedBox(width: 8),
-                Text('You are no longer a member of this community.',
-                    style: TextStyle(color: context.cluvoTextSecondary, fontSize: 13)),
+                Text(
+                  'You are no longer a member of this community.',
+                  style: TextStyle(
+                    color: context.cluvoTextSecondary,
+                    fontSize: 13,
+                  ),
+                ),
               ],
             ),
           )
@@ -555,10 +593,19 @@ class _EventDiscussionState extends State<EventDiscussion> {
             ),
             child: Row(
               children: [
-                Icon(Icons.lock_outline, size: 16, color: context.cluvoTextSecondary),
+                Icon(
+                  Icons.lock_outline,
+                  size: 16,
+                  color: context.cluvoTextSecondary,
+                ),
                 const SizedBox(width: 8),
-                Text('Only admins can post in this discussion.',
-                    style: TextStyle(color: context.cluvoTextSecondary, fontSize: 13)),
+                Text(
+                  'Only admins can post in this discussion.',
+                  style: TextStyle(
+                    color: context.cluvoTextSecondary,
+                    fontSize: 13,
+                  ),
+                ),
               ],
             ),
           )
@@ -579,7 +626,7 @@ class _EventDiscussionState extends State<EventDiscussion> {
           children: [
             CircleAvatar(
               radius: 14,
-              backgroundColor: const Color(0xFFC2185B).withValues(alpha: 0.15),
+              backgroundColor: CluvoTheme.primary.withValues(alpha: 0.15),
               backgroundImage: msg.senderAvatarUrl != null
                   ? CachedNetworkImageProvider(msg.senderAvatarUrl!)
                   : null,
@@ -589,7 +636,7 @@ class _EventDiscussionState extends State<EventDiscussion> {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: const Color(0xFFC2185B),
+                        color: CluvoTheme.primary,
                       ),
                     )
                   : null,
@@ -612,16 +659,20 @@ class _EventDiscussionState extends State<EventDiscussion> {
                   const SizedBox(height: 2),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 8),
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: isOwn
-                          ? const Color(0xFFC2185B).withValues(alpha: 0.1)
+                          ? CluvoTheme.primary.withValues(alpha: 0.1)
                           : context.cluvoChipFill,
                       borderRadius: BorderRadius.circular(12).copyWith(
-                        bottomLeft:
-                            isOwn ? const Radius.circular(12) : Radius.zero,
-                        bottomRight:
-                            isOwn ? Radius.zero : const Radius.circular(12),
+                        bottomLeft: isOwn
+                            ? const Radius.circular(12)
+                            : Radius.zero,
+                        bottomRight: isOwn
+                            ? Radius.zero
+                            : const Radius.circular(12),
                       ),
                     ),
                     child: Column(
@@ -629,13 +680,8 @@ class _EventDiscussionState extends State<EventDiscussion> {
                           ? CrossAxisAlignment.end
                           : CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          msg.content,
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                        if (msg.updatedAt
-                                .difference(msg.createdAt)
-                                .inSeconds >
+                        Text(msg.content, style: const TextStyle(fontSize: 14)),
+                        if (msg.updatedAt.difference(msg.createdAt).inSeconds >
                             5) ...[
                           const SizedBox(height: 2),
                           Text(
@@ -653,7 +699,10 @@ class _EventDiscussionState extends State<EventDiscussion> {
                   const SizedBox(height: 2),
                   Text(
                     _formatTime(msg.createdAt),
-                    style: TextStyle(fontSize: 10, color: context.cluvoTextSecondary),
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: context.cluvoTextSecondary,
+                    ),
                   ),
                 ],
               ),
@@ -685,16 +734,23 @@ class _EventDiscussionState extends State<EventDiscussion> {
               minLines: 1,
               textCapitalization: TextCapitalization.sentences,
               decoration: InputDecoration(
-                hintText: _editingId != null ? 'Edit message...' : 'Type a message...',
-                hintStyle: TextStyle(color: context.cluvoTextSecondary, fontSize: 14),
+                hintText: _editingId != null
+                    ? 'Edit message...'
+                    : 'Type a message...',
+                hintStyle: TextStyle(
+                  color: context.cluvoTextSecondary,
+                  fontSize: 14,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
                   borderSide: BorderSide.none,
                 ),
                 filled: true,
                 fillColor: context.cluvoChipFill,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
               ),
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => _editingId != null ? _saveEdit() : _send(),
@@ -707,7 +763,7 @@ class _EventDiscussionState extends State<EventDiscussion> {
               width: 40,
               height: 40,
               decoration: const BoxDecoration(
-                color: Color(0xFFC2185B),
+                color: CluvoTheme.primary,
                 shape: BoxShape.circle,
               ),
               child: Icon(

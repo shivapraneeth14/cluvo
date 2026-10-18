@@ -6,6 +6,7 @@ class Event {
   final String title;
   final String? description;
   final String? imageUrl;
+  final String? category;
   final DateTime startDate;
   final DateTime? endDate;
   final String? location;
@@ -27,6 +28,7 @@ class Event {
     required this.title,
     this.description,
     this.imageUrl,
+    this.category,
     required this.startDate,
     this.endDate,
     this.location,
@@ -57,8 +59,11 @@ class Event {
       title: map['title'] as String,
       description: map['description'] as String?,
       imageUrl: map['image_url'] as String?,
+      category: map['category'] as String?,
       startDate: DateTime.parse(map['start_date'] as String).toLocal(),
-      endDate: map['end_date'] != null ? DateTime.parse(map['end_date'] as String).toLocal() : null,
+      endDate: map['end_date'] != null
+          ? DateTime.parse(map['end_date'] as String).toLocal()
+          : null,
       location: map['location'] as String?,
       latitude: (map['latitude'] as num?)?.toDouble(),
       longitude: (map['longitude'] as num?)?.toDouble(),
@@ -69,7 +74,9 @@ class Event {
       createdBy: map['created_by'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String).toLocal(),
       updatedAt: DateTime.parse(map['updated_at'] as String).toLocal(),
-      deletedAt: map['deleted_at'] != null ? DateTime.parse(map['deleted_at'] as String).toLocal() : null,
+      deletedAt: map['deleted_at'] != null
+          ? DateTime.parse(map['deleted_at'] as String).toLocal()
+          : null,
       communityName: communityName,
     );
   }
@@ -90,6 +97,7 @@ class Event {
     'title': title,
     if (description != null) 'description': description,
     if (imageUrl != null) 'image_url': imageUrl,
+    if (category != null) 'category': category,
     'start_date': startDate.toIso8601String(),
     if (endDate != null) 'end_date': endDate!.toIso8601String(),
     if (location != null) 'location': location,

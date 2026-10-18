@@ -41,7 +41,9 @@ class AuthState {
     return AuthState(
       isLoading: isLoading ?? this.isLoading,
       error: clearError ? null : error ?? this.error,
-      successMessage: clearSuccess ? null : successMessage ?? this.successMessage,
+      successMessage: clearSuccess
+          ? null
+          : successMessage ?? this.successMessage,
       session: clearSession ? null : session ?? this.session,
       usernameAvailable: usernameAvailable ?? this.usernameAvailable,
       isRecovery: clearSession ? false : isRecovery ?? this.isRecovery,
@@ -79,28 +81,34 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   void _listenAuthChanges() {
     try {
-      _authSub = supabase.auth.onAuthStateChange.listen((data) {
-        try {
-          if (data.event == AuthChangeEvent.passwordRecovery) {
-            state = state.copyWith(session: supabase.auth.currentSession, isRecovery: true);
+      _authSub = supabase.auth.onAuthStateChange.listen(
+        (data) {
+          try {
+            if (data.event == AuthChangeEvent.passwordRecovery) {
+              state = state.copyWith(
+                session: supabase.auth.currentSession,
+                isRecovery: true,
+              );
+            }
+            if (data.event == AuthChangeEvent.signedIn ||
+                data.event == AuthChangeEvent.initialSession ||
+                data.event == AuthChangeEvent.tokenRefreshed) {
+              state = state.copyWith(
+                session: data.session ?? supabase.auth.currentSession,
+              );
+            }
+            if (data.event == AuthChangeEvent.signedOut) {
+              state = state.copyWith(clearSession: true);
+              _invalidateDependentProviders();
+            }
+          } catch (_) {
+            // Individual auth event handler failed — ignored
           }
-          if (data.event == AuthChangeEvent.signedIn ||
-              data.event == AuthChangeEvent.initialSession ||
-              data.event == AuthChangeEvent.tokenRefreshed) {
-            state = state.copyWith(
-              session: data.session ?? supabase.auth.currentSession,
-            );
-          }
-          if (data.event == AuthChangeEvent.signedOut) {
-            state = state.copyWith(clearSession: true);
-            _invalidateDependentProviders();
-          }
-        } catch (_) {
-          // Individual auth event handler failed — ignored
-        }
-      }, onError: (_) {
-        // Stream error — subscription terminated; auth changes stop being detected
-      });
+        },
+        onError: (_) {
+          // Stream error — subscription terminated; auth changes stop being detected
+        },
+      );
     } catch (_) {
       // Failed to subscribe to auth changes — app continues without realtime auth sync
     }
@@ -137,12 +145,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<bool> checkUsername(String username) async {
     state = state.copyWith(checkingUsername: true);
     try {
-      final response = await supabase.functions.invoke(
-        'check-username',
-        body: {'username': username.trim()},
-      ).timeout(const Duration(seconds: 10));
+      final response = await supabase.functions
+          .invoke('check-username', body: {'username': username.trim()})
+          .timeout(const Duration(seconds: 10));
       final available = response.data['available'] as bool;
-      state = state.copyWith(checkingUsername: false, usernameAvailable: available);
+      state = state.copyWith(
+        checkingUsername: false,
+        usernameAvailable: available,
+      );
       return available;
     } on FunctionException {
       state = state.copyWith(
@@ -162,11 +172,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> signOut() async {
-    state = state.copyWith(isLoading: true, clearError: true, clearSuccess: true);
+    state = state.copyWith(
+      isLoading: true,
+      clearError: true,
+      clearSuccess: true,
+    );
     try {
       await supabase.auth.signOut().timeout(const Duration(seconds: 10));
     } on AuthException catch (e) {
-      state = state.copyWith(isLoading: false, error: _friendlyAuthError(e.message));
+      state = state.copyWith(
+        isLoading: false,
+        error: _friendlyAuthError(e.message),
+      );
       return;
     } on TimeoutException {
       // API hung — still clear local state

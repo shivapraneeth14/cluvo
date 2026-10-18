@@ -1,6 +1,15 @@
 import 'package:flutter/material.dart';
 import 'theme.dart';
 
+/// Removes characters that would break a PostgREST `or(...)` filter string.
+String sanitizeSearchQuery(String q) => q
+    .replaceAll('\\', '')
+    .replaceAll('%', '')
+    .replaceAll(',', ' ')
+    .replaceAll('(', ' ')
+    .replaceAll(')', ' ')
+    .trim();
+
 DateTime? safeParseDate(String? iso) {
   if (iso == null || iso.isEmpty) return null;
   try {
@@ -39,7 +48,20 @@ String formatDateTime(DateTime? dt) {
 }
 
 const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const _months = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
 
 String formatTime(DateTime? dt) {
   if (dt == null) return '';
@@ -58,7 +80,8 @@ String formatDayDate(String? iso) {
 String formatDayDateRange(String? startIso, String? endIso) {
   final start = safeParseDate(startIso);
   if (start == null) return '';
-  final base = '${_weekdays[start.weekday - 1]}, ${start.day} ${_months[start.month - 1]} ${start.year} · ${formatTime(start)}';
+  final base =
+      '${_weekdays[start.weekday - 1]}, ${start.day} ${_months[start.month - 1]} ${start.year} · ${formatTime(start)}';
   final end = safeParseDate(endIso);
   if (end != null && end.isAfter(start)) {
     return '$base – ${formatTime(end)}';
@@ -68,18 +91,14 @@ String formatDayDateRange(String? startIso, String? endIso) {
 
 // ── Fee-on-top money math (all paise) ─────────────────────────────────────
 // Mirrors supabase/functions/_shared/fees.ts — keep both in sync:
-//   total charged = ticket + flat fee + 18% GST on the fee
-//   organizer receives 100% of the ticket; the fee is NOT part of it.
-const int kPlatformFeeGstPercent = 18;
-const int kDefaultPlatformFeePaise = 2000; // ₹20 flat, pre-GST
+//   total charged = ticket + round(ticket * commission_percent / 100)
+//   organizer receives 100% of the ticket; the fee is NOT part of it. No GST.
+const num kDefaultCommissionPercent = 6;
 
-int gstForPlatformFee(int netPaise) =>
-    (netPaise * kPlatformFeeGstPercent / 100).round();
-
-/// Total platform fee charged to the customer (flat fee + GST), in paise.
-int platformFeeTotal(int? feeAmountPaise) {
-  final net = feeAmountPaise ?? kDefaultPlatformFeePaise;
-  return net + gstForPlatformFee(net);
+/// Platform fee charged to the customer for one ticket, in paise.
+int platformFeeTotal(int ticketPaise, num? commissionPercent) {
+  final pct = commissionPercent ?? kDefaultCommissionPercent;
+  return ((ticketPaise * pct) / 100).round();
 }
 
 /// ₹ for a paise amount — omits decimals only when the value is whole.

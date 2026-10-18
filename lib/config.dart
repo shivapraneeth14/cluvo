@@ -11,10 +11,12 @@ class AppConfig {
   static const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
   static const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
   static const razorpayKeyId = String.fromEnvironment('RAZORPAY_KEY_ID');
-  static const cloudinaryCloudName =
-      String.fromEnvironment('CLOUDINARY_CLOUD_NAME');
-  static const cloudinaryUploadPreset =
-      String.fromEnvironment('CLOUDINARY_UPLOAD_PRESET');
+  static const cloudinaryCloudName = String.fromEnvironment(
+    'CLOUDINARY_CLOUD_NAME',
+  );
+  static const cloudinaryUploadPreset = String.fromEnvironment(
+    'CLOUDINARY_UPLOAD_PRESET',
+  );
 
   /// Returns the names of required environment variables that were not
   /// provided at build time.

@@ -34,10 +34,16 @@ class NotificationsScreen extends ConsumerWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.notifications_none, size: 48, color: context.cluvoTextSecondary),
+                  Icon(
+                    Icons.notifications_none,
+                    size: 48,
+                    color: context.cluvoTextSecondary,
+                  ),
                   SizedBox(height: 12),
-                  Text('No notifications yet.',
-                      style: TextStyle(color: context.cluvoTextSecondary)),
+                  Text(
+                    'No notifications yet.',
+                    style: TextStyle(color: context.cluvoTextSecondary),
+                  ),
                 ],
               ),
             );
@@ -68,11 +74,17 @@ class NotificationsScreen extends ConsumerWidget {
                   ),
                   subtitle: Text(
                     n.body ?? '',
-                    style: TextStyle(fontSize: 12, color: context.cluvoTextSecondary),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: context.cluvoTextSecondary,
+                    ),
                   ),
                   trailing: Text(
                     _timeAgo(n),
-                    style: TextStyle(fontSize: 11, color: context.cluvoTextSecondary),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: context.cluvoTextSecondary,
+                    ),
                   ),
                   onTap: () => _openNotification(context, n, ref),
                 );
@@ -84,9 +96,11 @@ class NotificationsScreen extends ConsumerWidget {
         error: (e, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(32),
-            child: Text('Could not load notifications.\n$e',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: context.cluvoTextSecondary)),
+            child: Text(
+              'Could not load notifications.\n$e',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: context.cluvoTextSecondary),
+            ),
           ),
         ),
       ),
@@ -133,15 +147,20 @@ class NotificationsScreen extends ConsumerWidget {
   }
 
   Future<void> _openNotification(
-      BuildContext context, AppNotification n, WidgetRef ref) async {
+    BuildContext context,
+    AppNotification n,
+    WidgetRef ref,
+  ) async {
     if (!n.read) {
       try {
-        await supabase.from('notifications').update({'read': true}).eq('id', n.id);
+        await supabase
+            .from('notifications')
+            .update({'read': true})
+            .eq('id', n.id);
         if (!context.mounted) return;
         ref.invalidate(unreadCountProvider);
         ref.invalidate(notificationsProvider);
-      } catch (_) {
-      }
+      } catch (_) {}
     }
   }
 
