@@ -299,7 +299,17 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
     }
 
     if (loggedIn) {
-      // If consent status unknown or not up to date, force consent gate
+      // Consent status unknown: wait on the splash/loading screen instead of
+      // showing the gate. "Not answered yet" is not the same as "declined" —
+      // routing to /consent here makes already-consented users see the gate
+      // for the duration of the server check. The router refreshes as soon as
+      // the consent provider resolves (see the listen below).
+      final consentPending = consent.upToDate == null && consent.error == null;
+      if (consentPending) {
+        return location == '/splash' ? null : '/splash';
+      }
+      // Only force the gate when the server said consent is missing/outdated,
+      // or when the check failed (fail closed).
       if (consent.upToDate != true && location != '/consent') {
         return '/consent';
       }
@@ -329,24 +339,13 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
   bool _isSharePath(String location) =>
       location.startsWith('/communities') || location.startsWith('/events');
 
-  /// Check server-side consent status for the current session.
-  Future<void> _syncConsent() async {
-    final notifier = ref.read(consentProvider.notifier);
-    await notifier.check();
-  }
-
   @override
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
     ref.listen<AuthState>(authProvider, (_, next) {
       ref.read(notificationsRealtimeProvider).sync(next.session?.user.id);
-      if (next.session != null && !next.session!.isExpired) {
-        unawaited(
-          _syncConsent().then((_) {
-            if (mounted) _router.refresh();
-          }),
-        );
-      }
+      // The consent provider starts its own server-side check when a session
+      // appears; its listener below refreshes the router once resolved.
       _router.refresh();
     });
     ref.listen<ConsentState>(consentProvider, (_, _) {
