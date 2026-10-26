@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
+import '../providers/consent_provider.dart';
 import '../theme.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -33,11 +34,20 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       await Future.delayed(const Duration(milliseconds: 1200));
       if (!mounted) return;
       final session = ref.read(authProvider).session;
-      if (session != null) {
-        context.go('/home');
-      } else {
+      if (session == null) {
         context.go('/login');
+        return;
       }
+
+      // Consent is verified in the background. If the answer hasn't arrived
+      // yet, stay on the splash screen: navigating now would bounce the user
+      // through the consent gate for a moment even when they already accepted.
+      // The router refreshes when the check resolves and continues to /home
+      // or /consent from here.
+      final consent = ref.read(consentProvider);
+      if (consent.upToDate == null && consent.error == null) return;
+
+      context.go(consent.upToDate == true ? '/home' : '/consent');
     } catch (_) {
       // Session check or navigation failed — redirect will handle it on next refresh
       if (mounted) context.go('/login');

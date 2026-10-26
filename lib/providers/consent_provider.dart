@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../supabase_client.dart';
@@ -35,6 +37,9 @@ class ConsentState {
 
 class ConsentNotifier extends StateNotifier<ConsentState> {
   ConsentNotifier() : super(const ConsentState());
+
+  /// True once the server has returned a definitive answer for this session.
+  bool get hasAnswer => state.upToDate != null;
 
   /// Server-side consent status for the current session.
   Future<bool> check() async {
@@ -104,10 +109,24 @@ final consentProvider = StateNotifierProvider<ConsentNotifier, ConsentState>((
   ref,
 ) {
   final notifier = ConsentNotifier();
+  String? checkedUserId;
   ref.listen(authProvider, (prev, next) {
-    if (prev?.session != null && next.session == null) {
-      notifier.reset();
+    final userId = next.session?.user.id;
+    if (userId == null) {
+      checkedUserId = null;
+      if (prev?.session != null) notifier.reset();
+      return;
     }
-  });
+    // Verify consent as soon as a session exists (including session restore on
+    // launch). Routing treats a missing answer as "unknown" and waits, so the
+    // check must always be started — relying on an auth event alone can leave
+    // the app waiting forever if that event is missed.
+    //
+    // Skip repeats for the same user once we have an answer so token refreshes
+    // don't re-hit the server; retry while still unanswered (e.g. a failure).
+    if (checkedUserId == userId && notifier.hasAnswer) return;
+    checkedUserId = userId;
+    unawaited(notifier.check());
+  }, fireImmediately: true);
   return notifier;
 });
