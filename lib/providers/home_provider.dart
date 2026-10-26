@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../supabase_client.dart';
 import '../models/models.dart';
+import '../widgets/home/mood_cards.dart';
 
 String _upcomingOr() {
   final now = DateTime.now().toUtc().toIso8601String();
@@ -140,4 +141,39 @@ final _communityCategories = FutureProvider<List<String>>((ref) async {
     if (cat != null && cat.trim().isNotEmpty) set.add(cat.trim());
   }
   return set.toList()..sort();
+});
+
+/// Orders mood cards so those with upcoming/published events come first,
+/// falling back to the default order while data is loading or unavailable.
+final moodCardsProvider = Provider<List<Mood>>((ref) {
+  final countsAsync = ref.watch(categoryCountsProvider);
+  final counts = countsAsync.valueOrNull;
+  if (counts == null || counts.isEmpty) {
+    return kMoods;
+  }
+  final countMap = <String, int>{};
+  for (final c in counts) {
+    final key = c.category.toLowerCase().trim();
+    if (key.isEmpty) continue;
+    countMap[key] = (countMap[key] ?? 0) + c.count;
+  }
+  final scored = <(Mood, int)>[];
+  for (final m in kMoods) {
+    int total = 0;
+    for (final mk in m.matchKeys) {
+      final k = mk.toLowerCase().trim();
+      if (k.isEmpty) continue;
+      for (final entry in countMap.entries) {
+        if (entry.key.contains(k) || k.contains(entry.key)) {
+          total += entry.value;
+        }
+      }
+    }
+    scored.add((m, total));
+  }
+  scored.sort((a, b) {
+    if (a.$2 != b.$2) return b.$2.compareTo(a.$2);
+    return kMoods.indexOf(a.$1).compareTo(kMoods.indexOf(b.$1));
+  });
+  return scored.map((e) => e.$1).toList();
 });

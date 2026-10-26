@@ -7,6 +7,7 @@ import '../legal_content.dart';
 import '../utils/external_links.dart';
 import '../providers/auth_provider.dart';
 import '../providers/profile_provider.dart';
+import '../models/models.dart';
 import '../supabase_client.dart';
 import '../widgets/legal_dialog.dart';
 import '../widgets/notification_bell.dart';
@@ -152,6 +153,10 @@ class ProfileScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 28),
+                  if (data?.deletionGraceStartedAt != null) ...[
+                    _deletionBanner(context, ref, data!),
+                    const SizedBox(height: 20),
+                  ],
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
@@ -230,7 +235,7 @@ class ProfileScreen extends ConsumerWidget {
                   ActivityCard(
                     leading: _menuLeading(Icons.delete_outline),
                     title: 'Delete Account',
-                    subtitle: 'Permanently remove your account',
+                    subtitle: 'Schedule deletion (30-day grace period)',
                     onTap: () => _confirmDeleteAccount(context, ref),
                   ),
                   const SizedBox(height: 24),
@@ -308,10 +313,12 @@ class ProfileScreen extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('Delete your account?'),
         content: const Text(
-          'This permanently deletes your profile, wishlist, reviews and '
-          'notifications, and removes you from all communities. Your '
-          'registration and payment history is kept for legal/financial '
-          'retention but is no longer linked to you. This cannot be undone.',
+          'Your account will be scheduled for permanent deletion in 30 days. '
+          'Until then you can cancel by logging back in. After 30 days your '
+          'profile, wishlist, reviews and notifications are permanently '
+          'deleted and you are removed from all communities. Registration '
+          'and payment history is kept for legal/financial retention but is '
+          'no longer linked to you. You will be signed out of all devices now.',
         ),
         actions: [
           TextButton(
@@ -321,7 +328,7 @@ class ProfileScreen extends ConsumerWidget {
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete my account'),
+            child: const Text('Schedule deletion'),
           ),
         ],
       ),
@@ -329,25 +336,111 @@ class ProfileScreen extends ConsumerWidget {
     if (confirmed != true || !context.mounted) return;
 
     try {
-      final res = await supabase.functions.invoke('delete-account');
+      final res = await supabase.functions.invoke(
+        'delete-account',
+        body: {'consent_accepted': true},
+      );
       if (res.data?['success'] == true) {
         await ref.read(authProvider.notifier).signOut();
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Your account has been deleted.')),
+          const SnackBar(
+            content: Text(
+              'Your account is scheduled for deletion in 30 days. '
+              'Log back in any time to keep it.',
+            ),
+          ),
         );
         context.go('/login');
       } else {
         final msg =
             res.data?['error'] as String? ??
-            'Could not delete your account. Please try again.';
+            'Could not schedule account deletion. Please try again.';
         if (context.mounted) _showErrorDialog(context, msg);
       }
     } catch (e) {
       final msg = e is FunctionException && e.details is Map
           ? ((e.details as Map)['error'] as String? ??
-                'Could not delete your account.')
-          : 'Could not delete your account. Check your connection and try again.';
+                'Could not schedule account deletion.')
+          : 'Could not schedule account deletion. Check your connection and try again.';
+      if (context.mounted) _showErrorDialog(context, msg);
+    }
+  }
+
+  Widget _deletionBanner(BuildContext context, WidgetRef ref, Profile profile) {
+    final due = profile.deletionDueAt;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.orange.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Account scheduled for deletion',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            due != null
+                ? 'Your account will be permanently deleted on '
+                      '${formatDate(due.toIso8601String())}. '
+                      'Log in any time before then to cancel.'
+                : 'Your account is scheduled for permanent deletion.',
+            style: TextStyle(
+              color: context.cluvoTextSecondary,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: Colors.orange),
+              onPressed: () => _cancelAccountDeletion(context, ref),
+              icon: const Icon(Icons.favorite_border, size: 16),
+              label: const Text('Keep my account'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _cancelAccountDeletion(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    try {
+      final res = await supabase.functions.invoke('cancel-account-deletion');
+      if (res.data?['success'] == true) {
+        ref.invalidate(profileProvider);
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Welcome back — your account is kept.')),
+        );
+      } else {
+        final msg =
+            res.data?['error'] as String? ??
+            'Could not restore your account. Please contact support.';
+        if (context.mounted) _showErrorDialog(context, msg);
+      }
+    } catch (e) {
+      final msg = e is FunctionException && e.details is Map
+          ? ((e.details as Map)['error'] as String? ??
+                'Could not restore your account.')
+          : 'Could not restore your account. Please try again.';
       if (context.mounted) _showErrorDialog(context, msg);
     }
   }

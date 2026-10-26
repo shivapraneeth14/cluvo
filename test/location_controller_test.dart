@@ -56,6 +56,58 @@ void main() {
       expect(state.city, isNull);
       expect(state.hasCity, isFalse);
     });
+
+    test('select never sets GPS coordinates (display-only override)', () {
+      final container = _container(
+        const LocationResolution(LocationAccess.granted),
+      );
+      addTearDown(container.dispose);
+
+      container.read(locationControllerProvider.notifier).select('Mumbai');
+      final state = container.read(locationControllerProvider);
+      expect(state.city, 'Mumbai');
+      expect(state.gpsLat, isNull);
+      expect(state.gpsLng, isNull);
+      expect(state.hasGps, isFalse);
+    });
+
+    test('detected GPS coordinates survive a city override', () async {
+      final container = _container(
+        LocationResolution.granted(
+          'Bengaluru',
+          latitude: 12.9716,
+          longitude: 77.5946,
+        ),
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(locationControllerProvider.notifier);
+      await controller.detectOnLaunch();
+      controller.select('Mumbai');
+      final state = container.read(locationControllerProvider);
+      expect(state.city, 'Mumbai');
+      expect(state.gpsLat, 12.9716);
+      expect(state.gpsLng, 77.5946);
+    });
+
+    test('select(null) keeps detected GPS coordinates', () async {
+      final container = _container(
+        LocationResolution.granted(
+          'Bengaluru',
+          latitude: 12.9716,
+          longitude: 77.5946,
+        ),
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(locationControllerProvider.notifier);
+      await controller.detectOnLaunch();
+      controller.select(null);
+      final state = container.read(locationControllerProvider);
+      expect(state.city, isNull);
+      expect(state.gpsLat, 12.9716);
+      expect(state.gpsLng, 77.5946);
+    });
   });
 
   group('LocationController.detectOnLaunch', () {

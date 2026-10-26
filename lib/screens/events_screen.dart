@@ -14,15 +14,13 @@ import '../supabase_client.dart';
 import '../widgets/events/category_chips.dart';
 import '../widgets/events/event_card.dart';
 import '../widgets/events/events_location_button.dart';
-import '../widgets/events/events_search_header.dart';
 import '../widgets/events/events_skeleton.dart';
 import '../widgets/events/spotlight_event_card.dart';
 import '../widgets/home/section_header.dart';
 import '../widgets/notification_bell.dart';
-import 'search_screen.dart' show searchEventsProvider, searchQueryProvider;
 
 /// Events discovery page:
-/// compact header → title + search → category chips → Featured Event →
+/// compact header → title → category chips → Featured Event →
 /// Upcoming Events → Popular Events. The full catalogue lives at "/events/all".
 class EventsScreen extends ConsumerStatefulWidget {
   const EventsScreen({super.key});
@@ -32,11 +30,8 @@ class EventsScreen extends ConsumerStatefulWidget {
 }
 
 class _EventsScreenState extends ConsumerState<EventsScreen> {
-  final _searchController = TextEditingController();
-  Timer? _debounce;
   Timer? _realtimeDebounce;
   RealtimeChannel? _eventsChannel;
-  String _query = '';
 
   @override
   void initState() {
@@ -47,8 +42,6 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
   @override
   void dispose() {
     _eventsChannel?.unsubscribe();
-    _searchController.dispose();
-    _debounce?.cancel();
     _realtimeDebounce?.cancel();
     super.dispose();
   }
@@ -66,6 +59,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
               if (!mounted) return;
               ref.invalidate(discoveryUpcomingProvider);
               ref.invalidate(discoveryPopularProvider);
+              ref.invalidate(nearbyPopularProvider);
               ref.invalidate(featuredEventProvider);
               ref.invalidate(categoryCountsProvider);
             });
@@ -74,31 +68,13 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
         .subscribe();
   }
 
-  void _onSearchChanged(String value) {
-    setState(() {});
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 350), () {
-      if (!mounted) return;
-      final q = value.trim();
-      setState(() => _query = q);
-      ref.read(searchQueryProvider.notifier).state = q;
-    });
-  }
-
-  void _clearSearch() {
-    _debounce?.cancel();
-    _searchController.clear();
-    ref.read(searchQueryProvider.notifier).state = '';
-    setState(() => _query = '');
-  }
-
   Future<void> _refresh() async {
     ref.invalidate(featuredEventProvider);
     ref.invalidate(categoryCountsProvider);
     ref.invalidate(discoveryUpcomingProvider);
     ref.invalidate(discoveryPopularProvider);
+    ref.invalidate(nearbyPopularProvider);
     ref.invalidate(locationOptionsProvider);
-    if (_query.isNotEmpty) ref.invalidate(searchEventsProvider);
     await ref
         .read(discoveryUpcomingProvider.future)
         .catchError((_) => <Event>[]);
@@ -127,9 +103,6 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final searchLoading =
-        _query.trim().isNotEmpty && ref.watch(searchEventsProvider).isLoading;
-
     return Scaffold(
       backgroundColor: context.cluvoBackground,
       body: SafeArea(
@@ -142,21 +115,28 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
             slivers: [
               SliverToBoxAdapter(child: _header(context)),
               SliverToBoxAdapter(
-                child: EventsSearchHeader(
-                  controller: _searchController,
-                  onChanged: _onSearchChanged,
-                  onClear: _clearSearch,
-                  searching: searchLoading,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    CluvoTheme.screenPadding,
+                    16,
+                    CluvoTheme.screenPadding,
+                    0,
+                  ),
+                  child: Text(
+                    'Live events',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                      color: context.cluvoTextPrimary,
+                    ),
+                  ),
                 ),
               ),
-              ...(_query.isNotEmpty
-                  ? _searchSlivers(_query)
-                  : [
-                      ..._categorySlivers(),
-                      ..._featuredSlivers(),
-                      ..._nearbyPopularSlivers(),
-                      ..._popularSlivers(),
-                    ]),
+              ..._categorySlivers(),
+              ..._featuredSlivers(),
+              ..._nearbyPopularSlivers(),
+              ..._popularSlivers(),
               const SliverToBoxAdapter(child: SizedBox(height: 40)),
             ],
           ),
@@ -386,82 +366,17 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
       ),
     );
   }
-
-  // ── Search results ────────────────────────────────────────────────────
-
-  List<Widget> _searchSlivers(String query) {
-    final async = ref.watch(searchEventsProvider);
-    final city = ref.watch(locationControllerProvider.select((s) => s.city));
-    final Widget content = async.when(
-      loading: () => const EventListSkeleton(),
-      error: (e, _) => _InlineCard(
-        message: 'Could not load results.',
-        onRetry: () => ref.invalidate(searchEventsProvider),
-        retryLabel: 'Retry',
-      ),
-      data: (events) {
-        if (events.isEmpty) {
-          return _InlineCard(
-            icon: Icons.search_off,
-            message: 'No events match "$query".',
-          );
-        }
-        final ordered = partitionLocalFirst(
-          events,
-          (e) => isEventLocal(e, city),
-        );
-        return Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: CluvoTheme.screenPadding,
-          ),
-          child: Column(
-            children: [
-              for (final event in ordered)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: EventListCard(event: event),
-                ),
-            ],
-          ),
-        );
-      },
-    );
-
-    return [
-      SliverToBoxAdapter(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            CluvoTheme.screenPadding,
-            20,
-            CluvoTheme.screenPadding,
-            12,
-          ),
-          child: Text(
-            'Results for "$query"',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: context.cluvoTextPrimary,
-            ),
-          ),
-        ),
-      ),
-      SliverToBoxAdapter(child: content),
-    ];
-  }
 }
 
 /// A centred, bordered message card that keeps one section's failure from
 /// breaking the rest of the page. Optionally shows a retry action.
 class _InlineCard extends StatelessWidget {
   final String message;
-  final IconData? icon;
   final VoidCallback? onRetry;
   final String retryLabel;
 
   const _InlineCard({
     required this.message,
-    this.icon,
     this.onRetry,
     this.retryLabel = 'Retry',
   });
@@ -483,10 +398,6 @@ class _InlineCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                if (icon != null) ...[
-                  Icon(icon, size: 18, color: context.cluvoTextSecondary),
-                  const SizedBox(width: 8),
-                ],
                 Expanded(
                   child: Text(
                     message,

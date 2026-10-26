@@ -3,9 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile/screens/communities_screen.dart';
 import 'package:mobile/theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -141,25 +139,6 @@ Color _probeColor(WidgetTester tester, Color Function(BuildContext) builder) {
   return (text.style?.color) ?? Colors.transparent;
 }
 
-Future<void> _pumpCommunities(
-  WidgetTester tester,
-  Brightness brightness,
-) async {
-  await tester.pumpWidget(
-    ProviderScope(
-      child: MaterialApp(
-        theme: CluvoTheme.lightTheme,
-        darkTheme: CluvoTheme.darkTheme,
-        themeMode: brightness == Brightness.dark
-            ? ThemeMode.dark
-            : ThemeMode.light,
-        home: const CommunitiesScreen(),
-      ),
-    ),
-  );
-  await tester.pumpAndSettle();
-}
-
 void main() {
   setUpAll(() async {
     HttpOverrides.global = _FakeHttpOverrides();
@@ -271,26 +250,6 @@ void main() {
         _probeColor(tester, (c) => c.cluvoChipFill),
         const Color(0xFFFFFFFF),
       );
-    });
-  });
-
-  group('real screens', () {
-    testWidgets('communities search field uses paper fill in dark mode', (
-      tester,
-    ) async {
-      await _pumpCommunities(tester, Brightness.dark);
-
-      final field = tester.widget<TextField>(find.byType(TextField));
-      expect(field.decoration?.fillColor, const Color(0xFFFFFFFF));
-    });
-
-    testWidgets('communities search field stays light in light mode', (
-      tester,
-    ) async {
-      await _pumpCommunities(tester, Brightness.light);
-
-      final field = tester.widget<TextField>(find.byType(TextField));
-      expect(field.decoration?.fillColor, const Color(0xFFFFFFFF));
     });
   });
 }

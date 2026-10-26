@@ -7,6 +7,7 @@ import '../theme.dart';
 import '../supabase_client.dart';
 import '../models/models.dart';
 import '../utils.dart';
+import '../utils/category_icons.dart';
 import '../providers/home_provider.dart';
 import '../providers/community_provider.dart';
 import '../widgets/search/search_bar_pill.dart';
@@ -383,17 +384,33 @@ class _EventRow extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    [
-                      if (event.category != null) event.category!,
-                      if (event.communityName != null) event.communityName!,
-                    ].join(' · '),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: context.cluvoTextSecondary,
-                    ),
+                  Row(
+                    children: [
+                      if (event.category != null &&
+                          event.category!.isNotEmpty) ...[
+                        Icon(
+                          categoryIcon(event.category!),
+                          size: 12,
+                          color: context.cluvoTextSecondary,
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                      Expanded(
+                        child: Text(
+                          [
+                            if (event.category != null) event.category!,
+                            if (event.communityName != null)
+                              event.communityName!,
+                          ].join(' · '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: context.cluvoTextSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 6),
                   Row(
@@ -472,17 +489,33 @@ class _CommunityRow extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    [
-                      if (community.category != null) community.category!,
-                      if (community.city != null) community.city!,
-                    ].join(' · '),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: context.cluvoTextSecondary,
-                    ),
+                  Row(
+                    children: [
+                      if (community.category != null &&
+                          community.category!.isNotEmpty) ...[
+                        Icon(
+                          categoryIcon(community.category!),
+                          size: 12,
+                          color: context.cluvoTextSecondary,
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                      Expanded(
+                        child: Text(
+                          [
+                            if (community.category != null)
+                              community.category!,
+                            if (community.city != null) community.city!,
+                          ].join(' · '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: context.cluvoTextSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 6),
                   Row(

@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -6,7 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/google_logo.dart';
-import '../widgets/terms_checkbox.dart';
+import '../widgets/legal_dialog.dart';
+import '../legal_content.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../supabase_client.dart';
 
@@ -19,7 +21,6 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _googleLoading = false;
-  bool _termsAccepted = false;
 
   @override
   void initState() {
@@ -123,28 +124,72 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     const Expanded(flex: 2, child: SizedBox()),
                     if (state.error != null)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        margin: const EdgeInsets.only(bottom: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.92),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: context.cluvoErrorBorder),
-                        ),
-                        child: Text(
-                          state.error!,
-                          style: TextStyle(
-                            color: context.cluvoErrorText,
-                            fontSize: 13,
-                          ),
-                        ),
+                      Builder(
+                        builder: (context) {
+                          final err = state.error!;
+                          final lower = err.toLowerCase();
+                          final isSuspended = lower.contains('suspended') && lower.contains('support');
+                          if (isSuspended) {
+                            return Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              margin: const EdgeInsets.only(bottom: 16),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.92),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: context.cluvoErrorBorder),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    err,
+                                    style: TextStyle(
+                                      color: context.cluvoErrorText,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton(
+                                      onPressed: () {
+                                        // Exit app
+                                        try {
+                                          Navigator.of(context).maybePop();
+                                        } catch (_) {}
+                                      },
+                                      child: const Text('Close'),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+                          return Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            margin: const EdgeInsets.only(bottom: 16),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.92),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: context.cluvoErrorBorder),
+                            ),
+                            child: Text(
+                              err,
+                              style: TextStyle(
+                                color: context.cluvoErrorText,
+                                fontSize: 13,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
+                        horizontal: 12,
+                        vertical: 10,
                       ),
                       margin: const EdgeInsets.only(bottom: 14),
                       decoration: BoxDecoration(
@@ -154,16 +199,54 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           color: Colors.white.withValues(alpha: 0.55),
                         ),
                       ),
-                      child: TermsCheckbox(
-                        value: _termsAccepted,
-                        onChanged: (v) => setState(() => _termsAccepted = v),
+                      child: RichText(
+                        textAlign: TextAlign.center,
+                        text: TextSpan(
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: Theme.of(context).colorScheme.onSurface,
+                            height: 1.4,
+                          ),
+                          children: [
+                            const TextSpan(text: 'By continuing you agree to our '),
+                            TextSpan(
+                              text: 'Privacy Policy',
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontWeight: FontWeight.w600,
+                                decoration: TextDecoration.underline,
+                              ),
+                              recognizer: TapGestureRecognizer()
+                                ..onTap = () => showLegalDialog(
+                                      context,
+                                      title: 'Privacy Policy',
+                                      sections: privacyPolicySections,
+                                    ),
+                            ),
+                            const TextSpan(text: ' and '),
+                            TextSpan(
+                              text: 'Terms of Service',
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontWeight: FontWeight.w600,
+                                decoration: TextDecoration.underline,
+                              ),
+                              recognizer: TapGestureRecognizer()
+                                ..onTap = () => showLegalDialog(
+                                      context,
+                                      title: 'Terms of Service',
+                                      sections: termsSections,
+                                    ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                     SizedBox(
                       width: double.infinity,
                       height: 52,
                       child: FilledButton.icon(
-                        onPressed: !_termsAccepted || _googleLoading
+                        onPressed: _googleLoading
                             ? null
                             : () async {
                                 setState(() => _googleLoading = true);

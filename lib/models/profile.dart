@@ -9,6 +9,7 @@ class Profile {
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? deletedAt;
+  final DateTime? deletionGraceStartedAt;
 
   Profile({
     required this.id,
@@ -21,7 +22,16 @@ class Profile {
     required this.createdAt,
     required this.updatedAt,
     this.deletedAt,
+    this.deletionGraceStartedAt,
   });
+
+  /// True while the account is in its 30-day deletion grace period.
+  bool get deletionPending => deletionGraceStartedAt != null;
+
+  /// The date on which the account will be permanently deleted.
+  DateTime? get deletionDueAt => deletionGraceStartedAt?.add(
+    const Duration(days: 30),
+  );
 
   factory Profile.fromMap(Map<String, dynamic> map) => Profile(
     id: map['id'] as String,
@@ -35,6 +45,11 @@ class Profile {
     updatedAt: DateTime.parse(map['updated_at'] as String).toLocal(),
     deletedAt: map['deleted_at'] != null
         ? DateTime.parse(map['deleted_at'] as String).toLocal()
+        : null,
+    deletionGraceStartedAt: map['deletion_grace_started_at'] != null
+        ? DateTime.parse(
+            map['deletion_grace_started_at'] as String,
+          ).toLocal()
         : null,
   );
 

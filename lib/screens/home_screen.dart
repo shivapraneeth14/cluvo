@@ -380,6 +380,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               MoodCards(
                 images: Map<String, String>.from(images),
                 onTap: _openSearch,
+                moods: ref.watch(moodCardsProvider),
               ),
               const SizedBox(height: CluvoTheme.sectionSpacing),
               QuickFilters(

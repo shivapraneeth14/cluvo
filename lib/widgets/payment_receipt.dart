@@ -55,6 +55,7 @@ class PaymentReceipt extends StatelessWidget {
   // "Refunded" title on refundStatus (not status) avoids a receipt that reads
   // "Refunded" while the refund row still says "processing".
   bool get _refundProcessed => refundStatus == 'processed';
+  bool get _refundFailed => refundStatus == 'failed';
   bool get _refunding =>
       refundStatus != null &&
       refundStatus != 'processed' &&
@@ -66,18 +67,22 @@ class PaymentReceipt extends StatelessWidget {
         ? const Color(0xFFF59E0B)
         : _isSuccess
         ? CluvoTheme.success
-        : status == 'failed'
+        : status == 'failed' || _refundFailed
         ? CluvoTheme.error
         : const Color(0xFFF59E0B);
     final icon = _refundProcessed
         ? Icons.replay_circle_filled_outlined
         : _isSuccess
         ? Icons.check_circle
-        : status == 'failed'
+        : status == 'failed' || _refundFailed
         ? Icons.cancel
         : Icons.schedule;
+    // A refunded row whose refund FAILED must never read "Refunded" — that
+    // told customers money was coming back when the provider had refused it.
     final title = _refundProcessed
         ? 'Refunded'
+        : _refundFailed
+        ? 'Refund failed'
         : _isSuccess
         ? 'Payment Successful'
         : status == 'failed'

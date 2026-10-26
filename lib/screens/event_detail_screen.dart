@@ -15,11 +15,14 @@ import '../services/razorpay_web.dart';
 import '../widgets/community_photo_grid.dart';
 import '../widgets/dotted_divider.dart';
 import '../widgets/event_discussion.dart';
+import '../widgets/spots_badge.dart';
 import '../widgets/wishlist_button.dart';
 import '../widgets/lifecycle_ticker.dart';
+import '../widgets/media/hero_video.dart';
 import '../providers/wishlist_provider.dart';
 import '../models/models.dart';
 import '../utils.dart';
+import '../utils/category_icons.dart';
 
 class EventDetailScreen extends StatefulWidget {
   final String id;
@@ -30,7 +33,7 @@ class EventDetailScreen extends StatefulWidget {
 }
 
 class _EventDetailScreenState extends State<EventDetailScreen>
-    with LifecycleTickerMixin<EventDetailScreen> {
+    with LifecycleTickerMixin<EventDetailScreen>, WidgetsBindingObserver {
   Map<String, dynamic>? _event;
   List<Map<String, dynamic>> _media = [];
   bool _loading = true;
@@ -43,19 +46,33 @@ class _EventDetailScreenState extends State<EventDetailScreen>
   bool _processingPayment = false;
   bool _pollActive = false;
   bool _paidButUnconfirmed = false;
+  bool _refundInFlight = false;
+  Timer? _refundPollTimer;
+  int _refundPollTicks = 0;
   bool _discussionEnabled = false;
   bool _discussionRestricted = false;
   bool _isAdmin = false;
+  bool _heroVideoFailed = false;
+  bool _heroMuted = true;
+  String? _heroVideoUrl;
+  final PageController _heroPageController = PageController();
+  int _heroPage = 0;
   String _selectedSection = 'discussion';
   int _descTabIndex = 0;
   Razorpay? _razorpay;
   RealtimeChannel? _eventChannel;
   RealtimeChannel? _regChannel;
   Timer? _realtimeDebounce;
+  Timer? _paymentSafetyTimer;
+  bool _paymentAttemptActive = false;
+  bool _paymentResolving = false;
+  bool _paymentAppLeft = false;
+  bool _paymentConfirmedNotified = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     if (!kIsWeb) {
       _razorpay = Razorpay();
       _razorpay!.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
@@ -69,9 +86,13 @@ class _EventDetailScreenState extends State<EventDetailScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _eventChannel?.unsubscribe();
     _regChannel?.unsubscribe();
     _realtimeDebounce?.cancel();
+    _refundPollTimer?.cancel();
+    _paymentSafetyTimer?.cancel();
+    _heroPageController.dispose();
     if (!kIsWeb) _razorpay?.clear();
     super.dispose();
   }
@@ -82,6 +103,27 @@ class _EventDetailScreenState extends State<EventDetailScreen>
   void onLifecycleTick() {
     if (!mounted) return;
     setState(() {});
+  }
+
+  // A UPI/bank app is opened in front of Cluvo during checkout. When the
+  // customer comes back, the SDK callback may be delayed or lost entirely —
+  // re-check the payment with the server instead of trusting the last local
+  // state. Only acts when we actually left the app for a payment.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!_paymentAttemptActive) {
+      _paymentAppLeft = false;
+      return;
+    }
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _paymentAppLeft = true;
+      return;
+    }
+    if (state != AppLifecycleState.resumed || !_paymentAppLeft) return;
+    _paymentAppLeft = false;
+    if (!mounted || _pollActive || _paymentResolving) return;
+    unawaited(_resolveAfterCheckout(cancelled: false, attempts: 2));
   }
 
   void _subscribeRealtime() {
@@ -139,29 +181,148 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     _pollRegistrationStatus();
   }
 
+  Future<String> _getPaymentFailureMessage(String? registrationId) async {
+    try {
+      final session = supabase.auth.currentSession;
+      if (session == null) return 'Payment failed. Try again.';
+      String? regId = registrationId;
+      if (regId == null) {
+        final reg = await supabase
+            .from('registrations')
+            .select('id')
+            .eq('event_id', widget.id)
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+        regId = reg?['id'] as String?;
+      }
+      if (regId == null) return 'Payment failed. Try again.';
+      final payment = await supabase
+          .from('payments')
+          .select('status, failure_reason, refund_status')
+          .eq('registration_id', regId)
+          .order('created_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+      return paymentStatusMessage(
+        status: payment?['status'] as String?,
+        failureReason: payment?['failure_reason'] as String?,
+        refundStatus: payment?['refund_status'] as String?,
+      );
+    } catch (_) {}
+    return 'Payment failed. Try again.';
+  }
+
+  // An SDK error after checkout is not proof that the payment failed: UPI
+  // redirects can produce a spurious error even after the money was captured.
+  // Always let the server (which checks Razorpay directly) decide.
   void _handlePaymentError(PaymentFailureResponse response) {
     if (kDebugMode) debugPrint('Razorpay error code=${response.code}');
     if (!mounted) return;
+    final cancelled = response.code == Razorpay.PAYMENT_CANCELLED;
+    unawaited(_resolveAfterCheckout(cancelled: cancelled));
+  }
+
+  void _clearPaymentAttempt() {
+    _paymentAttemptActive = false;
+    _paymentAppLeft = false;
+    _paymentSafetyTimer?.cancel();
+    _paymentSafetyTimer = null;
+  }
+
+  void _notifyPaymentConfirmed() {
+    if (_paymentConfirmedNotified || !mounted) return;
+    _paymentConfirmedNotified = true;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Registration confirmed!'),
+        backgroundColor: Color(0xFF10B981),
+      ),
+    );
+  }
+
+  // Single recovery path for every "checkout finished but the result is
+  // unclear" case: the SDK error callback, return from the UPI app, and the
+  // safety timeout. Never shows failure until the server says so.
+  Future<void> _resolveAfterCheckout({
+    required bool cancelled,
+    int attempts = 3,
+  }) async {
+    if (_paymentResolving || !_paymentAttemptActive) return;
+    _paymentResolving = true;
+    _pollActive = false;
+    _paymentSafetyTimer?.cancel();
+    _paymentSafetyTimer = null;
+    if (mounted) {
+      setState(() => _processingPayment = true);
+    }
+
+    var confirmed = false;
+    try {
+      if (cancelled) {
+        // cleanup-booking asks Razorpay before cancelling, so a captured
+        // payment is reconciled instead of dropped.
+        confirmed = await _cleanupPendingBooking();
+      }
+      if (!confirmed) {
+        for (var i = 0; i < attempts; i++) {
+          if (!mounted || !_paymentAttemptActive) break;
+          final state = await _verifyPayment();
+          if (!mounted) break;
+          if (state == 'confirmed' || _isRegistered) {
+            confirmed = true;
+            break;
+          }
+          if (state == 'paid_needs_repair' || state == 'refunded') break;
+          if (i < attempts - 1) {
+            await Future.delayed(const Duration(seconds: 2));
+          }
+        }
+      }
+    } catch (_) {
+      // Best effort — the server reconcile job is the final backstop.
+    }
+
+    _paymentResolving = false;
+    if (!mounted) return;
+
+    if (confirmed) {
+      _clearPaymentAttempt();
+      setState(() {
+        _isRegistered = true;
+        _registrationStatus = 'confirmed';
+        _processingPayment = false;
+        _registering = false;
+        _paidButUnconfirmed = false;
+      });
+      _notifyPaymentConfirmed();
+      return;
+    }
+
+    _clearPaymentAttempt();
     setState(() {
       _processingPayment = false;
       _registering = false;
     });
-    if (response.code == Razorpay.PAYMENT_CANCELLED) {
+
+    // Money captured but the booking could not be finalised yet: the server
+    // repairs it, so never imply that the customer should pay again.
+    if (_paidButUnconfirmed) return;
+
+    if (cancelled) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Payment cancelled. You can try again.'),
           backgroundColor: Colors.orange,
         ),
       );
-      _cleanupPendingBooking();
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(response.message ?? 'Payment failed. Try again.'),
-          backgroundColor: Colors.red[700],
-        ),
-      );
+      return;
     }
+
+    final msg = await _getPaymentFailureMessage(_registrationId);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: Colors.red[700]),
+    );
   }
 
   void _handleExternalWallet(ExternalWalletResponse response) {
@@ -187,31 +348,25 @@ class _EventDetailScreenState extends State<EventDetailScreen>
             .maybeSingle();
         if (res != null && res['status'] == 'confirmed') {
           _pollActive = false;
+          _clearPaymentAttempt();
           setState(() {
             _isRegistered = true;
             _registrationId = res['id'] as String?;
             _processingPayment = false;
             _registering = false;
           });
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Registration confirmed!'),
-                backgroundColor: Color(0xFF10B981),
-              ),
-            );
-          }
+          _notifyPaymentConfirmed();
           return;
         }
         if (res != null && res['status'] == 'cancelled') {
           _pollActive = false;
+          _clearPaymentAttempt();
           setState(() => _processingPayment = false);
           if (mounted) {
+            final msg = await _getPaymentFailureMessage(res['id'] as String?);
+            if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Registration could not be completed.'),
-                backgroundColor: Colors.red[700],
-              ),
+              SnackBar(content: Text(msg), backgroundColor: Colors.red[700]),
             );
           }
           return;
@@ -223,50 +378,42 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     _pollActive = false;
     if (!mounted) return;
     if (_isRegistered) {
+      _clearPaymentAttempt();
       setState(() => _processingPayment = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Registration confirmed!'),
-          backgroundColor: Color(0xFF10B981),
-        ),
-      );
+      _notifyPaymentConfirmed();
       return;
     }
-    // Poll exhausted without a confirmed registration — ask the server (it
-    // checks Razorpay directly, so a lost payment.captured webhook can still
-    // be resolved here instead of leaving the user stuck).
-    await _verifyPayment();
-    if (!mounted) return;
-    setState(() => _processingPayment = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Payment verification taking longer than expected. Check your registrations.',
-        ),
-        backgroundColor: Colors.orange,
-      ),
-    );
+    // Poll exhausted without a confirmed registration — resolve with the
+    // server (it checks Razorpay directly, so a lost payment.captured webhook
+    // can still be resolved here instead of leaving the user stuck).
+    await _resolveAfterCheckout(cancelled: false, attempts: 2);
   }
 
   // Server-side verification: resolves a payment whose status transition may
   // have been lost (webhook miss). Confirms against Razorpay directly. It only
   // confirms — refunds stay server-side. Never throws; state is best-effort.
-  Future<void> _verifyPayment() async {
+  // Also surfaces the refund state after a cancellation: while the refund is
+  // in flight the Pay button stays hidden and a 10s poll unlocks rebooking
+  // the moment the server says the refund settled.
+  Future<String?> _verifyPayment() async {
     try {
       final session = supabase.auth.currentSession;
-      if (session == null) return;
+      if (session == null) return null;
       final res = await supabase.functions
           .invoke('verify-payment', body: {'event_id': widget.id})
           .timeout(const Duration(seconds: 15));
-      if (!mounted) return;
+      if (!mounted) return null;
       final state = res.data['state'] as String?;
+      final rebookable = res.data['rebookable'] as bool?;
       if (state == 'confirmed') {
         setState(() {
           _isRegistered = true;
           _registrationStatus = 'confirmed';
           _processingPayment = false;
           _registering = false;
+          _refundInFlight = false;
         });
+        _refundPollTimer?.cancel();
       } else if (state == 'paid_needs_repair') {
         // Money was captured but the booking row is unconfirmed — a legacy
         // stuck row. Never show Pay for it again; the server repairs it.
@@ -275,10 +422,58 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           _processingPayment = false;
           _registering = false;
         });
+      } else if (state == 'refunded') {
+        // The previous payment was refunded (or is refunding). Never show a
+        // Pay action for a refunded row; unlock rebooking only when the
+        // server says the refund is no longer in flight.
+        setState(() {
+          _processingPayment = false;
+          _registering = false;
+          _refundInFlight = rebookable == false;
+        });
+        if (rebookable == false) {
+          _startRefundPoll();
+        } else {
+          _refundPollTimer?.cancel();
+        }
       }
+      return state;
     } catch (_) {
       // Best-effort — the poll/reload will retry.
+      return null;
     }
+  }
+
+  // Poll verify-payment every 10s while a refund is in flight so the rebook
+  // action unlocks (and the customer is told) as soon as the refund settles —
+  // no manual refresh needed. Stops after 30 minutes.
+  void _startRefundPoll() {
+    if (_refundPollTimer != null) return;
+    _refundPollTicks = 0;
+    _refundPollTimer = Timer.periodic(const Duration(seconds: 10), (
+      timer,
+    ) async {
+      if (!mounted || !_refundInFlight || _refundPollTicks >= 180) {
+        timer.cancel();
+        _refundPollTimer = null;
+        return;
+      }
+      _refundPollTicks++;
+      await _verifyPayment();
+      if (mounted && !_refundInFlight) {
+        timer.cancel();
+        _refundPollTimer = null;
+        await _load();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Your refund is complete — you can rebook now.'),
+              backgroundColor: Color(0xFF10B981),
+            ),
+          );
+        }
+      }
+    });
   }
 
   Future<void> _openTicket() async {
@@ -377,6 +572,11 @@ class _EventDetailScreenState extends State<EventDetailScreen>
         if (regData != null && regData['status'] == 'pending') {
           _verifyPayment();
         }
+        if (regData != null && regData['status'] == 'cancelled') {
+          // Surface an in-flight refund (and start the unlock-poll) instead
+          // of showing an apparently active Pay action.
+          _verifyPayment();
+        }
       } else {
         final results = await Future.wait([
           eventFuture,
@@ -405,39 +605,35 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     }
   }
 
-  Future<void> _cleanupPendingBooking() async {
+  // Returns true when Razorpay says the payment actually landed and the
+  // server confirmed the booking (cleanup-booking refuses to cancel a paid
+  // order). A genuine cancellation returns false.
+  Future<bool> _cleanupPendingBooking() async {
+    var confirmed = false;
     try {
       final res = await supabase.functions
           .invoke('cleanup-booking', body: {'event_id': widget.id})
           .timeout(const Duration(seconds: 15));
-      if (mounted && res.data != null && res.data['cleaned'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Pending booking cancelled.'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+      final data = res.data;
+      if (data is Map) {
+        if (data['reconciled'] == true || data['reason'] == 'confirmed') {
+          confirmed = true;
+        }
       }
     } catch (e) {
       if (kDebugMode) debugPrint('Cleanup booking failed: $e');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Could not clean up your booking — it will auto-clear in a few minutes.',
-          ),
-          backgroundColor: Colors.orange,
-        ),
-      );
     }
-    if (!mounted) return;
-    setState(() {
-      _registrationStatus = null;
-    });
+    if (!confirmed && mounted) {
+      setState(() {
+        _registrationStatus = null;
+      });
+    }
+    return confirmed;
   }
 
   Future<void> _payForEvent() async {
     if (_registering || _processingPayment) return;
+    _paymentConfirmedNotified = false;
     setState(() => _registering = true);
     try {
       final session = supabase.auth.currentSession;
@@ -492,12 +688,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           _registrationStatus = 'confirmed';
           _registering = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Registration confirmed!'),
-            backgroundColor: Color(0xFF10B981),
-          ),
-        );
+        _notifyPaymentConfirmed();
         return;
       }
 
@@ -520,6 +711,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
         setState(() => _registering = false);
         return;
       }
+      _registrationId = registrationId;
 
       // Open Razorpay Checkout
       final userEmail = session.user.email ?? '';
@@ -528,7 +720,10 @@ class _EventDetailScreenState extends State<EventDetailScreen>
       setState(() {
         _registering = false;
         _processingPayment = true;
+        _paymentAttemptActive = true;
       });
+      _paymentResolving = false;
+      _paymentAppLeft = false;
 
       final options = {
         'key': AppConfig.razorpayKeyId,
@@ -541,21 +736,13 @@ class _EventDetailScreenState extends State<EventDetailScreen>
         'theme': {'color': '#111111'},
       };
 
-      // Safety timer: if checkout doesn't complete in 90s, reset state
-      Future.delayed(const Duration(seconds: 90), () {
-        if (mounted && _pollActive) {
-          _pollActive = false;
-          setState(() {
-            _processingPayment = false;
-            _registering = false;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Confirmation timed out. Pull to refresh.'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
+      // Safety timer: if checkout never calls back (lost callback after a UPI
+      // redirect), ask the server what really happened instead of leaving the
+      // Pay button stuck on "Processing…" forever.
+      _paymentSafetyTimer?.cancel();
+      _paymentSafetyTimer = Timer(const Duration(seconds: 90), () {
+        if (!mounted || !_paymentAttemptActive || _pollActive) return;
+        unawaited(_resolveAfterCheckout(cancelled: false, attempts: 2));
       });
 
       if (kIsWeb) {
@@ -570,7 +757,26 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     } catch (e) {
       if (kDebugMode) debugPrint('Payment flow error: $e');
       if (!mounted) return;
-      _showError('Payment failed. Please check your connection and try again.');
+      _clearPaymentAttempt();
+      // The server refuses re-quotes with 409 + a machine-readable code
+      // (already_paid / refund_in_progress). Never leave the customer stuck
+      // on a Pay button that can only fail — resolve the real state and say
+      // what is happening.
+      final code = _functionErrorCode(e);
+      if (code == 'already_paid' || code == 'refund_in_progress') {
+        setState(() {
+          _registering = false;
+          _processingPayment = false;
+        });
+        await _verifyPayment();
+        _showError(
+          code == 'already_paid'
+              ? 'You have already paid for this event.'
+              : 'A refund for your previous booking is being processed. Rebooking unlocks automatically once it completes.',
+        );
+        return;
+      }
+      _showError(_functionErrorMessage(e, 'Payment failed. Please try again.'));
       setState(() {
         _registering = false;
         _processingPayment = false;
@@ -670,26 +876,41 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           .timeout(const Duration(seconds: 30));
       if (!mounted) return;
       if (res.data['success'] == true) {
-        final refund = res.data['refund'];
-        final refundedAmount = refund is Map<String, dynamic>
-            ? refund['amount'] as num?
-            : null;
+        final refundRaw = res.data['refund'];
+        final refund = refundRaw is Map<String, dynamic> ? refundRaw : null;
+        final refundedAmount = refund?['amount'] as num?;
+        final refundInitiated = refund?['initiated'] == true;
+        final refundReason = refund?['reason'] as String?;
         setState(() {
           _isRegistered = false;
           _registrationStatus = 'cancelled';
           _event!['booked_count'] =
               ((_event!['booked_count'] as num?) ?? 1) - 1;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              refundedAmount != null && refundedAmount > 0
-                  ? 'Registration cancelled. Refund of ₹${(refundedAmount / 100).toStringAsFixed(0)} initiated.'
-                  : 'Registration cancelled.',
-            ),
-            backgroundColor: Colors.green[700],
-          ),
-        );
+        // Never say "cancelled" alone when a refund was expected: an
+        // initiated:false response means the money side needs attention, and
+        // hiding that left customers believing a refund was coming.
+        final String message;
+        final Color bg;
+        if (refundInitiated && refundedAmount != null && refundedAmount > 0) {
+          message =
+              'Registration cancelled. Refund of ₹${(refundedAmount / 100).toStringAsFixed(0)} initiated.';
+          bg = Colors.green[700]!;
+        } else if (refundReason == 'failed') {
+          message =
+              'Registration cancelled. Your refund could not be started yet — we\'ll keep retrying automatically and will notify you.';
+          bg = Colors.orange[700]!;
+        } else if (refundReason == 'in_flight') {
+          message =
+              'Registration cancelled. Your refund is already being processed.';
+          bg = Colors.orange[700]!;
+        } else {
+          message = 'Registration cancelled.';
+          bg = Colors.green[700]!;
+        }
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message), backgroundColor: bg));
       } else {
         _showError(res.data['error'] ?? 'Cancellation failed.');
       }
@@ -716,6 +937,17 @@ class _EventDetailScreenState extends State<EventDetailScreen>
       }
     }
     return fallback;
+  }
+
+  String? _functionErrorCode(Object error) {
+    if (error is FunctionException) {
+      final details = error.details;
+      if (details is Map) {
+        final code = details['code'];
+        if (code is String && code.isNotEmpty) return code;
+      }
+    }
+    return null;
   }
 
   @override
@@ -958,7 +1190,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
                         const SizedBox(height: 8),
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                          child: _buildRefundDisclosure(price),
+                          child: _buildRefundDisclosure(),
                         ),
                       ],
                     ],
@@ -976,12 +1208,51 @@ class _EventDetailScreenState extends State<EventDetailScreen>
 
   Widget _buildHero(Map<String, dynamic> e) {
     final imageUrl = e['image_url'] as String?;
+    final videoUrl = e['video_url'] as String?;
     final title = e['title'] as String;
-    final start = e['start_date'] as String?;
     final height = (MediaQuery.of(context).size.height * 0.36).clamp(
       250.0,
       320.0,
     );
+
+    // Reset the failure flag whenever the hero video URL changes so a newly
+    // added/replaced video gets a fresh attempt.
+    if (videoUrl != _heroVideoUrl) {
+      _heroVideoUrl = videoUrl;
+      _heroVideoFailed = false;
+      _heroMuted = true;
+      _heroPage = 0;
+      if (_heroPageController.hasClients) _heroPageController.jumpToPage(0);
+    }
+
+    final showVideo =
+        videoUrl != null && videoUrl.isNotEmpty && !_heroVideoFailed;
+    final hasImage = imageUrl != null && imageUrl.isNotEmpty;
+
+    // Slides, video first. The image slide is only included when there is a real
+    // image, so a video-only event stays a single slide (no carousel/dots).
+    final slides = <Widget>[
+      if (showVideo)
+        HeroVideoView(
+          key: ValueKey(videoUrl),
+          url: videoUrl,
+          muted: _heroMuted,
+          active: _heroPage == 0,
+          onFailed: () {
+            if (mounted) setState(() => _heroVideoFailed = true);
+          },
+        ),
+      if (hasImage)
+        CachedNetworkImage(
+          imageUrl: imageUrl,
+          fit: BoxFit.cover,
+          placeholder: (_, _) => _buildBannerFallback(title),
+          errorWidget: (_, _, _) => _buildBannerFallback(title),
+        ),
+      if (!showVideo && !hasImage) _buildBannerFallback(title),
+    ];
+    final showPager = slides.length > 1;
+    final videoOnPage = showVideo && _heroPage == 0;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
@@ -1002,28 +1273,32 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           child: Stack(
             fit: StackFit.expand,
             children: [
-              imageUrl != null && imageUrl.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: imageUrl,
-                      fit: BoxFit.cover,
-                      placeholder: (_, _) => _buildBannerFallback(title),
-                      errorWidget: (_, _, _) => _buildBannerFallback(title),
-                    )
-                  : _buildBannerFallback(title),
+              PageView.builder(
+                controller: _heroPageController,
+                physics: showPager
+                    ? const PageScrollPhysics()
+                    : const NeverScrollableScrollPhysics(),
+                itemCount: slides.length,
+                onPageChanged: (i) => setState(() => _heroPage = i),
+                itemBuilder: (_, i) => slides[i],
+              ),
 
-              // Scrim for text legibility — stronger toward the bottom
-              Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.black38,
-                      Colors.transparent,
-                      Colors.transparent,
-                      Colors.black87,
-                    ],
-                    stops: [0.0, 0.28, 0.55, 1.0],
+              // Scrim for text legibility — stronger toward the bottom. Wrapped
+              // in IgnorePointer so it never swallows the PageView's swipe.
+              IgnorePointer(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black38,
+                        Colors.transparent,
+                        Colors.transparent,
+                        Colors.black87,
+                      ],
+                      stops: [0.0, 0.28, 0.55, 1.0],
+                    ),
                   ),
                 ),
               ),
@@ -1031,74 +1306,59 @@ class _EventDetailScreenState extends State<EventDetailScreen>
               // Status badge (Live / Ended / Cancelled) when relevant
               Positioned(top: 14, right: 14, child: _heroStatusBadge(e)),
 
-              // Title + date, set directly into the image
-              Positioned(
-                left: 20,
-                right: 20,
-                bottom: 18,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontFamily: 'PlayfairDisplay',
-                        fontSize: 29,
-                        height: 1.12,
-                        fontWeight: FontWeight.w700,
+              // Compact mute toggle for the hero video. Placed last (after the
+              // scrim and text) so it is never covered and always receives taps.
+              if (videoOnPage)
+                Positioned(
+                  right: 12,
+                  bottom: 12,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => setState(() => _heroMuted = !_heroMuted),
+                    child: Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        _heroMuted ? Icons.volume_off : Icons.volume_up,
                         color: Colors.white,
-                        shadows: [
-                          Shadow(
-                            color: Colors.black45,
-                            blurRadius: 6,
-                            offset: Offset(0, 2),
-                          ),
-                          Shadow(
-                            color: Colors.black26,
-                            blurRadius: 14,
-                            offset: Offset(0, 6),
-                          ),
-                        ],
+                        size: 16,
                       ),
                     ),
-                    if (start != null) ...[
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.calendar_today_outlined,
-                            size: 14,
-                            color: Colors.white,
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              _formatDateTime(e, 'start_date'),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                                shadows: [
-                                  Shadow(
-                                    color: Colors.black45,
-                                    blurRadius: 6,
-                                    offset: Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
+                  ),
                 ),
-              ),
+
+              // Page dots (bottom-center) — only when there is a second slide.
+              if (showPager)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 16,
+                  child: IgnorePointer(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(slides.length, (i) {
+                        final selected = i == _heroPage;
+                        return AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          margin: const EdgeInsets.symmetric(horizontal: 3),
+                          width: selected ? 18 : 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(
+                              alpha: selected ? 0.95 : 0.45,
+                            ),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+                ),
+
+              // Title/date removed from hero overlay; displayed in details sheet.
             ],
           ),
         ),
@@ -1169,22 +1429,14 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     final booked = (e['booked_count'] as num?) ?? 0;
 
     final chips = <Widget>[
-      if (start != null)
-        _infoChip(
-          Icons.calendar_today_outlined,
-          _formatDateTime(e, 'start_date'),
-        ),
-      if (location != null && location.isNotEmpty)
-        _locationChip(location, lat: lat, lng: lng)
-      else if (lat != null && lng != null)
-        _locationChip('View on map', lat: lat, lng: lng),
       if (communityName != null)
         _communityChip(communityName, communityAvatarUrl),
       if (category != null && category.isNotEmpty)
-        _infoChip(Icons.local_offer_outlined, category),
-      _priceChip(price),
+        _infoChip(categoryIcon(category), category),
       if (capacity != null) _spotsChip(booked.toInt(), capacity),
     ];
+
+    final hasEndDate = e['end_date'] != null;
 
     return Container(
       decoration: BoxDecoration(
@@ -1199,15 +1451,231 @@ class _EventDetailScreenState extends State<EventDetailScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(
-              height: 44,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: chips.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (_, i) => chips[i],
+            if (chips.isNotEmpty)
+              SizedBox(
+                height: 44,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: chips.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 8),
+                  itemBuilder: (_, i) => chips[i],
+                ),
+              ),
+            if (chips.isNotEmpty) const SizedBox(height: 16),
+            Text(
+              e['title'] as String? ?? '',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: context.cluvoTextPrimary,
+                height: 1.25,
               ),
             ),
+            const SizedBox(height: 16),
+            if (start != null) ...[
+              Builder(
+                builder: (context) {
+                  final dt = getParsedDate(e, 'start_date');
+                  if (dt == null) return const SizedBox.shrink();
+                  final month = _months[dt.month - 1];
+                  final hour12 = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+                  final meridiem = dt.hour < 12 ? 'AM' : 'PM';
+                  final minute = dt.minute.toString().padLeft(2, '0');
+                  final dateStr = '${dt.day} $month ${dt.year}';
+                  final timeStr = '$hour12:$minute $meridiem';
+                  String? endTimeStr;
+                  if (hasEndDate) {
+                    final edt = getParsedDate(e, 'end_date');
+                    if (edt != null) {
+                      final ehour12 = edt.hour % 12 == 0 ? 12 : edt.hour % 12;
+                      final emeridiem = edt.hour < 12 ? 'AM' : 'PM';
+                      final eminute = edt.minute.toString().padLeft(2, '0');
+                      endTimeStr = '$ehour12:$eminute $emeridiem';
+                    }
+                  }
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.calendar_today_outlined,
+                        size: 18,
+                        color: context.cluvoTextPrimary,
+                      ),
+                      const SizedBox(width: 10),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            dateStr,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: context.cluvoTextPrimary,
+                            ),
+                          ),
+                          Text(
+                            endTimeStr != null
+                                ? '$timeStr - $endTimeStr'
+                                : timeStr,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: context.cluvoTextPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+            ],
+            if (capacity != null) ...[
+              Builder(
+                builder: (context) {
+                  final remaining = capacity - booked.toInt();
+                  final isSoldOut = booked.toInt() >= capacity && capacity > 0;
+                  String subtext;
+                  if (isSoldOut) {
+                    subtext = 'Sold out';
+                  } else if (remaining > 0 && remaining <= 10) {
+                    subtext = 'Limited spots available';
+                  } else if (remaining > 0) {
+                    subtext = 'Spots available';
+                  } else {
+                    subtext = 'Sold out';
+                  }
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.groups_outlined,
+                        size: 18,
+                        color: context.cluvoTextPrimary,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${isSoldOut ? 0 : (remaining > 0 ? remaining : 0)}/$capacity spots',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: context.cluvoTextPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              subtext,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: context.cluvoTextSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+            ],
+            if ((location != null && location.isNotEmpty) ||
+                (lat != null && lng != null)) ...[
+              Builder(
+                builder: (context) {
+                  final locValue = location ?? 'View on map';
+                  final parts = locValue.split(',');
+                  String display = locValue.trim();
+                  if (parts.length > 1) {
+                    display = parts[1].trim().isNotEmpty
+                        ? parts[1].trim()
+                        : parts[0].trim();
+                  }
+                  final tappable = lat != null && lng != null;
+                  return InkWell(
+                    onTap: tappable
+                        ? () => _openInGoogleMaps(locValue, lat, lng)
+                        : null,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.grey.shade300,
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: context.cluvoChipFill.withValues(
+                                alpha: 0.6,
+                              ),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.location_on_outlined,
+                              size: 18,
+                              color: context.cluvoTextPrimary,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  display,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: context.cluvoTextPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Tap to view event location',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: context.cluvoTextSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (tappable)
+                            Icon(
+                              Icons.chevron_right,
+                              size: 20,
+                              color: context.cluvoTextSecondary,
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+            ],
             if (e['description'] != null) ...[
               const SizedBox(height: 20),
               ..._buildDescSection(e['description'] as String),
@@ -1217,15 +1685,6 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           ],
         ),
       ),
-    );
-  }
-
-  Widget _locationChip(String value, {double? lat, double? lng}) {
-    Widget chip = _infoChip(Icons.location_on_outlined, value);
-    if (lat == null || lng == null) return chip;
-    return GestureDetector(
-      onTap: () => _openInGoogleMaps(value, lat, lng),
-      child: chip,
     );
   }
 
@@ -1303,15 +1762,17 @@ class _EventDetailScreenState extends State<EventDetailScreen>
 
   Widget _infoChip(IconData icon, String value) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: context.cluvoChipFill,
-        borderRadius: BorderRadius.circular(22),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.grey.shade300, width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(icon, size: 15, color: context.cluvoPrimaryText),
+          Icon(icon, size: 16, color: context.cluvoTextPrimary),
           const SizedBox(width: 6),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 220),
@@ -1321,7 +1782,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 12.5,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w500,
                 color: context.cluvoTextPrimary,
               ),
             ),
@@ -1334,26 +1795,28 @@ class _EventDetailScreenState extends State<EventDetailScreen>
   Widget _communityChip(String name, String? avatarUrl) {
     final showAvatar = avatarUrl != null && avatarUrl.isNotEmpty;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: context.cluvoChipFill,
-        borderRadius: BorderRadius.circular(22),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.grey.shade300, width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           if (showAvatar)
             ClipOval(
               child: SizedBox(
-                width: 20,
-                height: 20,
+                width: 18,
+                height: 18,
                 child: CachedNetworkImage(
                   imageUrl: avatarUrl,
                   fit: BoxFit.cover,
                   errorWidget: (_, _, _) => Icon(
                     Icons.groups_outlined,
-                    size: 15,
-                    color: context.cluvoPrimaryText,
+                    size: 16,
+                    color: context.cluvoTextPrimary,
                   ),
                 ),
               ),
@@ -1361,19 +1824,19 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           else
             Icon(
               Icons.groups_outlined,
-              size: 15,
-              color: context.cluvoPrimaryText,
+              size: 16,
+              color: context.cluvoTextPrimary,
             ),
           const SizedBox(width: 6),
           ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 170),
+            constraints: const BoxConstraints(maxWidth: 160),
             child: Text(
               name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 12.5,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w500,
                 color: context.cluvoTextPrimary,
               ),
             ),
@@ -1383,65 +1846,8 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     );
   }
 
-  Widget _priceChip(num price) {
-    final paid = price > 0;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: paid
-            ? CluvoTheme.primary.withValues(alpha: 0.1)
-            : CluvoTheme.success.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            paid ? Icons.currency_rupee : Icons.volunteer_activism_outlined,
-            size: 15,
-            color: paid ? CluvoTheme.primary : CluvoTheme.success,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            paid ? '₹${(price / 100).toStringAsFixed(0)}' : 'Free',
-            style: TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w700,
-              color: paid ? CluvoTheme.primary : CluvoTheme.success,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _spotsChip(int booked, int capacity) {
-    final full = booked >= capacity;
-    final color = full ? CluvoTheme.error : CluvoTheme.neutral;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: full
-            ? CluvoTheme.error.withValues(alpha: 0.08)
-            : context.cluvoChipFill,
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.people_outline, size: 15, color: color),
-          const SizedBox(width: 6),
-          Text(
-            full ? 'Event full' : '$booked/$capacity spots',
-            style: TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w600,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
+    return SpotsBadge(booked: booked, capacity: capacity);
   }
 
   // ── SEGMENTED CONTROL — animated underline instead of pill toggle ───────
@@ -1490,14 +1896,12 @@ class _EventDetailScreenState extends State<EventDetailScreen>
   // Platform fee as a percent of the (post-coupon) ticket, in paise. No GST.
   int _feeAmountPaise(int ticketPaise) {
     final community = _event?['communities'] as Map<String, dynamic>?;
-    final commissionPercent =
-        (community?['commission_percent'] as num?)?.toDouble();
+    final commissionPercent = (community?['commission_percent'] as num?)
+        ?.toDouble();
     return platformFeeTotal(ticketPaise, commissionPercent);
   }
 
-  Widget _buildRefundDisclosure(num price) {
-    final fee = _feeAmountPaise(price.toInt());
-    final total = price + fee;
+  Widget _buildRefundDisclosure() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1516,9 +1920,9 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'Free cancellation up to 24h before start. Self-cancelling refunds '
-              'your ticket ${formatRupees(price)} (platform fee ${formatRupees(fee)} is kept); '
-              'if the organizer cancels, you get the full ${formatRupees(total)} back.',
+              'Free cancellation up to 24 hours before the event. Ticket refunds '
+              'exclude the non-refundable platform fee. If the organizer cancels '
+              'the event, you’ll receive a full refund, including the platform fee.',
               style: TextStyle(
                 fontSize: 12,
                 height: 1.4,
@@ -1666,6 +2070,19 @@ class _EventDetailScreenState extends State<EventDetailScreen>
         title: 'Confirming your booking',
         subtitle:
             'We are verifying your payment. This usually takes a few minutes.',
+      );
+    }
+
+    // A refund from a previous cancelled booking is still moving at the
+    // provider. Rebooking is blocked until it settles (money-safety rule) —
+    // say so, and unlock automatically via the 10s poll.
+    if (_refundInFlight) {
+      return _statusPanel(
+        color: const Color(0xFFF59E0B),
+        icon: Icons.replay_circle_filled_outlined,
+        title: 'Refund in progress',
+        subtitle:
+            'Your refund is being processed. Rebooking unlocks automatically once it completes — we\'ll notify you.',
       );
     }
 
@@ -2263,16 +2680,6 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     'Nov',
     'Dec',
   ];
-
-  String _formatDateTime(Map<String, dynamic> event, String key) {
-    final dt = getParsedDate(event, key);
-    if (dt == null) return '';
-    final month = _months[dt.month - 1];
-    final hour12 = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
-    final meridiem = dt.hour < 12 ? 'AM' : 'PM';
-    final minute = dt.minute.toString().padLeft(2, '0');
-    return '${dt.day} $month ${dt.year} · $hour12:$minute $meridiem';
-  }
 }
 
 class _CancellationPolicySheet extends StatefulWidget {
@@ -2641,4 +3048,38 @@ class _CancelRegistrationDialogState extends State<_CancelRegistrationDialog> {
       ],
     );
   }
+}
+
+/// Message shown after an unclear checkout result. Deliberately never calls a
+/// pending/uncaptured payment "failed": a debited amount can still confirm
+/// moments later via the webhook or the reconcile job.
+String paymentStatusMessage({
+  required String? status,
+  required String? failureReason,
+  required String? refundStatus,
+}) {
+  if (status == 'success') {
+    return 'Payment received — we are confirming your booking. It will appear in your registrations shortly.';
+  }
+  if (refundStatus != null && refundStatus != 'failed') {
+    return refundStatus == 'processed'
+        ? 'This payment was refunded. Check your payment details for the refund status.'
+        : 'A refund for this payment is being processed. Check your payment details for the latest status.';
+  }
+  if (status == 'refunded') {
+    return 'This payment was refunded. Check your payment details for the refund status.';
+  }
+  if (failureReason == 'event_cancelled') {
+    return 'This event was cancelled while you were paying. Your money will be refunded automatically.';
+  }
+  if (failureReason == 'capacity_full') {
+    return 'This event just sold out. Your money will be refunded automatically.';
+  }
+  if (failureReason == 'registration_cancelled') {
+    return 'Your booking was cancelled before the payment completed. If money was debited, it will be refunded automatically.';
+  }
+  if (status == 'pending' || status == null) {
+    return 'We have not received confirmation from the bank yet. If money was debited, your booking will confirm automatically — check My Registrations in a few minutes.';
+  }
+  return 'Payment failed. Try again.';
 }

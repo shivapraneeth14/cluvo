@@ -111,3 +111,11 @@ double? eventDistanceKm(Event event, double? userLat, double? userLon) {
   }
   return distanceKm(userLat, userLon, event.latitude!, event.longitude!);
 }
+
+/// Human-readable distance for cards: one decimal below 10 km, whole numbers
+/// beyond, and an explicit "Under 1 km" for walking distances.
+String formatDistance(double km) {
+  if (km < 1) return 'Under 1 km away';
+  if (km < 10) return '${km.toStringAsFixed(1)} km away';
+  return '${km.round()} km away';
+}

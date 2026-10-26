@@ -111,49 +111,54 @@ class SpotlightSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: CluvoTheme.screenPadding),
-      child: Container(
-        decoration: BoxDecoration(
-          color: context.cluvoSurface,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: context.cluvoBorder),
-        ),
-        child: Column(
-          children: [
-            Container(
-              height: 200,
-              decoration: BoxDecoration(
-                color: context.cluvoChipFill,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(23),
+      child: AspectRatio(
+        aspectRatio: 13 / 9,
+        child: Container(
+          decoration: BoxDecoration(
+            color: context.cluvoSurface,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: context.cluvoBorder),
+          ),
+          child: Column(
+            children: [
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: context.cluvoChipFill,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(23),
+                    ),
+                  ),
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    height: 12,
-                    width: 200,
-                    color: context.cluvoChipFill,
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    height: 12,
-                    width: 140,
-                    color: context.cluvoChipFill,
-                  ),
-                  const SizedBox(height: 18),
-                  Container(
-                    height: 40,
-                    width: double.infinity,
-                    color: context.cluvoChipFill,
-                  ),
-                ],
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      height: 12,
+                      width: 200,
+                      color: context.cluvoChipFill,
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      height: 12,
+                      width: 140,
+                      color: context.cluvoChipFill,
+                    ),
+                    const SizedBox(height: 18),
+                    Container(
+                      height: 40,
+                      width: double.infinity,
+                      color: context.cluvoChipFill,
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

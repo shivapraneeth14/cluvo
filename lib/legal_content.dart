@@ -3,7 +3,7 @@
 // sync; CONSENT_VERSION is the drift guard: bump it whenever this content
 // changes so the server can tell which version a user agreed to).
 
-const String consentVersion = '2026-08-07';
+const String consentVersion = '2026-10-22';
 
 class LegalSection {
   final String title;
@@ -48,10 +48,14 @@ const List<LegalSection> privacyPolicySections = [
   LegalSection(
     '4. Retention and Deletion',
     'You can delete your account at any time from the app (Profile → Delete '
-        'Account). When you do, we permanently remove your profile, wishlist, '
-        'reviews, notifications, and community memberships. Registration and '
-        'payment records and audit logs are retained for legal and financial '
-        'purposes with your personal identifiers removed or unlinked. To request '
+        'Account). Deletion uses a 30-day grace period: your account is '
+        'scheduled and you are signed out, and if you log back in within 30 '
+        'days you can cancel the deletion. After 30 days we permanently remove '
+        'your profile, wishlist, reviews, notifications, and community '
+        'memberships. Registration and payment records and audit logs are '
+        'retained for legal and financial purposes with your personal '
+        'identifiers removed or unlinked. If you own a community, contact us '
+        'first — we will help close or transfer it before deletion. To request '
         'deletion, correction, or a copy of your data, email supp.cluvo@gmail.com.',
   ),
   LegalSection(

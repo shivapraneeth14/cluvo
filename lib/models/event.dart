@@ -6,6 +6,7 @@ class Event {
   final String title;
   final String? description;
   final String? imageUrl;
+  final String? videoUrl;
   final String? category;
   final DateTime startDate;
   final DateTime? endDate;
@@ -22,12 +23,17 @@ class Event {
   final DateTime? deletedAt;
   final String? communityName;
 
+  /// Straight-line distance from the user, when supplied by the
+  /// `events_with_distance` RPC. Null on plain catalogue reads.
+  final double? distanceKm;
+
   Event({
     required this.id,
     required this.communityId,
     required this.title,
     this.description,
     this.imageUrl,
+    this.videoUrl,
     this.category,
     required this.startDate,
     this.endDate,
@@ -43,6 +49,7 @@ class Event {
     required this.updatedAt,
     this.deletedAt,
     this.communityName,
+    this.distanceKm,
   });
 
   factory Event.fromMap(Map<String, dynamic> map) {
@@ -53,12 +60,16 @@ class Event {
         communityName = communities['name'] as String?;
       }
     }
+    // The distance RPC returns a flat `community_name` column instead of the
+    // `communities` embed used by the plain catalogue queries.
+    communityName ??= map['community_name'] as String?;
     return Event(
       id: map['id'] as String,
       communityId: map['community_id'] as String,
       title: map['title'] as String,
       description: map['description'] as String?,
       imageUrl: map['image_url'] as String?,
+      videoUrl: map['video_url'] as String?,
       category: map['category'] as String?,
       startDate: DateTime.parse(map['start_date'] as String).toLocal(),
       endDate: map['end_date'] != null
@@ -78,6 +89,7 @@ class Event {
           ? DateTime.parse(map['deleted_at'] as String).toLocal()
           : null,
       communityName: communityName,
+      distanceKm: (map['distance_km'] as num?)?.toDouble(),
     );
   }
 
@@ -97,6 +109,7 @@ class Event {
     'title': title,
     if (description != null) 'description': description,
     if (imageUrl != null) 'image_url': imageUrl,
+    if (videoUrl != null) 'video_url': videoUrl,
     if (category != null) 'category': category,
     'start_date': startDate.toIso8601String(),
     if (endDate != null) 'end_date': endDate!.toIso8601String(),
@@ -111,5 +124,6 @@ class Event {
     'created_at': createdAt.toIso8601String(),
     'updated_at': updatedAt.toIso8601String(),
     if (deletedAt != null) 'deleted_at': deletedAt!.toIso8601String(),
+    if (distanceKm != null) 'distance_km': distanceKm,
   };
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/models.dart';
 import '../../theme.dart';
+import '../../utils/category_icons.dart';
 import 'community_image.dart';
 import 'community_join_button.dart';
 
@@ -82,15 +83,28 @@ class CommunityDiscoveryCard extends StatelessWidget {
                             CluvoTheme.radiusPill,
                           ),
                         ),
-                        child: Text(
-                          community.category!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              categoryIcon(community.category!),
+                              size: 11,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                community.category!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -197,14 +211,29 @@ class CommunityResultCard extends StatelessWidget {
                   ),
                   if (subtitle.isNotEmpty) ...[
                     const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: context.cluvoTextSecondary,
-                      ),
+                    Row(
+                      children: [
+                        if (community.category != null &&
+                            community.category!.isNotEmpty) ...[
+                          Icon(
+                            categoryIcon(community.category!),
+                            size: 12,
+                            color: context.cluvoTextSecondary,
+                          ),
+                          const SizedBox(width: 4),
+                        ],
+                        Expanded(
+                          child: Text(
+                            subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: context.cluvoTextSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                   const SizedBox(height: 4),

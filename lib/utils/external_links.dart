@@ -11,9 +11,9 @@ import 'package:url_launcher/url_launcher.dart';
 /// `mailto:` is allowed ONLY for hardcoded support links
 /// ([allowMailto]), never for user content.
 bool isSafeExternalUrl(Uri uri, {bool allowMailto = false}) {
-  if (uri.host.isEmpty) return false;
   final scheme = uri.scheme.toLowerCase();
   if (scheme == 'mailto') return allowMailto;
+  if (uri.host.isEmpty) return false;
   return scheme == 'https' || scheme == 'http';
 }
 

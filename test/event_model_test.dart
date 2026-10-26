@@ -2,12 +2,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/models/event.dart';
 import 'package:mobile/models/registration.dart';
 
-Map<String, dynamic> _eventMap({String? createdBy}) => {
+Map<String, dynamic> _eventMap({String? createdBy, String? videoUrl}) => {
   'id': 'evt-1',
   'community_id': 'com-1',
   'title': 'Retention Event',
   'description': null,
   'image_url': null,
+  'video_url': videoUrl,
   'start_date': '2099-01-01T09:00:00Z',
   'end_date': '2099-01-01T11:00:00Z',
   'location': null,
@@ -53,6 +54,24 @@ void main() {
         expect(event.communityName, 'Guard Community');
       },
     );
+
+    test('parses video_url when present', () {
+      final event = Event.fromMap(
+        _eventMap(videoUrl: 'https://res.cloudinary.com/demo/video/upload/v1/e.mp4'),
+      );
+      expect(event.videoUrl, 'https://res.cloudinary.com/demo/video/upload/v1/e.mp4');
+    });
+
+    test('video_url defaults to null and is omitted from toMap', () {
+      final event = Event.fromMap(_eventMap());
+      expect(event.videoUrl, isNull);
+      expect(event.toMap().containsKey('video_url'), isFalse);
+    });
+
+    test('toMap includes video_url when set', () {
+      final event = Event.fromMap(_eventMap(videoUrl: 'https://x/v.mp4'));
+      expect(event.toMap()['video_url'], 'https://x/v.mp4');
+    });
   });
 
   group('Registration.fromMap', () {

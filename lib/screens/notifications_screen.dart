@@ -131,6 +131,14 @@ class NotificationsScreen extends ConsumerWidget {
         icon = Icons.update;
         color = CluvoTheme.primaryLight;
         break;
+      case 'refund_initiated':
+        icon = Icons.sync_rounded;
+        color = Colors.orange;
+        break;
+      case 'refund_completed':
+        icon = Icons.replay_circle_filled;
+        color = Colors.green;
+        break;
       case 'removed_from_community':
         icon = Icons.person_remove;
         color = Colors.red;
@@ -161,6 +169,17 @@ class NotificationsScreen extends ConsumerWidget {
         ref.invalidate(unreadCountProvider);
         ref.invalidate(notificationsProvider);
       } catch (_) {}
+    }
+    // Deep-link refund and event notifications to the screen that actually
+    // shows the state (receipt / event page) instead of dead-ending.
+    if (!context.mounted) return;
+    final payload = n.payload;
+    final paymentId = payload?['payment_id'] as String?;
+    final eventId = payload?['event_id'] as String?;
+    if (paymentId != null && paymentId.isNotEmpty) {
+      context.push('/payments/$paymentId');
+    } else if (eventId != null && eventId.isNotEmpty) {
+      context.push('/events/$eventId');
     }
   }
 

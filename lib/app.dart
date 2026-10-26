@@ -11,6 +11,7 @@ import 'providers/theme_provider.dart';
 import 'theme.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/consent_gate_screen.dart';
 import 'screens/main_shell.dart';
 import 'screens/home_screen.dart';
 import 'screens/search_screen.dart';
@@ -128,6 +129,10 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
                   );
                 },
           ),
+        ),
+        GoRoute(
+          path: '/consent',
+          builder: (context, state) => const ConsentGateScreen(),
         ),
         GoRoute(
           path: '/edit-profile',
@@ -281,6 +286,7 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
     final loggedIn = auth.session != null;
     final location = state.uri.toString();
     final pendingRoute = ref.read(pendingRouteProvider);
+    final consent = ref.read(consentProvider);
 
     if (location == '/') return '/splash';
 
@@ -292,14 +298,27 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
       return '/login';
     }
 
-    if (loggedIn && pendingRoute != null) {
-      ref.read(pendingRouteProvider.notifier).state = null;
-      unawaited(clearPendingRoute());
-      return location == pendingRoute ? null : pendingRoute;
-    }
-
-    if (loggedIn && authPaths.contains(location)) {
-      return '/home';
+    if (loggedIn) {
+      // If consent status unknown or not up to date, force consent gate
+      if (consent.upToDate != true && location != '/consent') {
+        return '/consent';
+      }
+      if (consent.upToDate == true && location == '/consent') {
+        if (pendingRoute != null) {
+          ref.read(pendingRouteProvider.notifier).state = null;
+          unawaited(clearPendingRoute());
+          return location == pendingRoute ? '/home' : pendingRoute;
+        }
+        return '/home';
+      }
+      if (pendingRoute != null && location != '/consent') {
+        ref.read(pendingRouteProvider.notifier).state = null;
+        unawaited(clearPendingRoute());
+        return location == pendingRoute ? null : pendingRoute;
+      }
+      if (authPaths.contains(location)) {
+        return '/home';
+      }
     }
     if (!loggedIn && !authPaths.contains(location)) {
       return '/login';
@@ -310,15 +329,10 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
   bool _isSharePath(String location) =>
       location.startsWith('/communities') || location.startsWith('/events');
 
-  /// Keeps the server-side consent_log in sync for the current session.
-  /// The tick on the login screen is the user's consent action; this records
-  /// it right after sign-in (and after OAuth returns) when a session token
-  /// exists. Idempotent on the server — a no-op when a row already exists.
+  /// Check server-side consent status for the current session.
   Future<void> _syncConsent() async {
     final notifier = ref.read(consentProvider.notifier);
-    final consented = await notifier.check();
-    if (consented || !mounted) return;
-    await notifier.record(source: 'mobile');
+    await notifier.check();
   }
 
   @override
@@ -327,9 +341,16 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
     ref.listen<AuthState>(authProvider, (_, next) {
       ref.read(notificationsRealtimeProvider).sync(next.session?.user.id);
       if (next.session != null && !next.session!.isExpired) {
-        unawaited(_syncConsent());
+        unawaited(
+          _syncConsent().then((_) {
+            if (mounted) _router.refresh();
+          }),
+        );
       }
       _router.refresh();
+    });
+    ref.listen<ConsentState>(consentProvider, (_, _) {
+      if (mounted) _router.refresh();
     });
     ref
         .read(notificationsRealtimeProvider)
@@ -372,7 +393,8 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
           ),
         );
         return child!;
-      },      routerConfig: _router,
+      },
+      routerConfig: _router,
     );
   }
 }

@@ -2,41 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../providers/home_provider.dart';
 import '../../theme.dart';
+import '../../utils/category_icons.dart';
 
-/// Maps a free-text category to a sensible icon for gradient fallbacks.
-IconData categoryIcon(String category) {
-  final c = category.toLowerCase();
-  if (c.contains('music') || c.contains('concert')) return Icons.music_note;
-  if (c.contains('sport') || c.contains('fitness')) {
-    return Icons.sports_basketball;
-  }
-  if (c.contains('food') || c.contains('dine') || c.contains('drink')) {
-    return Icons.restaurant;
-  }
-  if (c.contains('tech') || c.contains('code') || c.contains('startup')) {
-    return Icons.memory;
-  }
-  if (c.contains('art') || c.contains('culture') || c.contains('theatre')) {
-    return Icons.palette;
-  }
-  if (c.contains('business') || c.contains('network')) {
-    return Icons.work_outline;
-  }
-  if (c.contains('education') ||
-      c.contains('workshop') ||
-      c.contains('learn')) {
-    return Icons.school_outlined;
-  }
-  if (c.contains('social') || c.contains('community') || c.contains('meet')) {
-    return Icons.groups_outlined;
-  }
-  if (c.contains('travel') || c.contains('outdoor') || c.contains('nature')) {
-    return Icons.terrain;
-  }
-  if (c.contains('game') || c.contains('gaming')) return Icons.sports_esports;
-  if (c.contains('health') || c.contains('wellness')) return Icons.spa_outlined;
-  return Icons.local_activity_outlined;
-}
+export '../../utils/category_icons.dart' show categoryIcon;
 
 class CategoryCards extends StatelessWidget {
   final List<CategoryCount> categories;
@@ -141,18 +109,32 @@ class _CategoryCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      category,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: hasImage
-                            ? Colors.white
-                            : CluvoTheme.textPrimaryColor,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        height: 1.15,
-                      ),
+                    Row(
+                      children: [
+                        Icon(
+                          categoryIcon(category),
+                          size: 15,
+                          color: hasImage
+                              ? Colors.white
+                              : CluvoTheme.primary,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            category,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: hasImage
+                                  ? Colors.white
+                                  : CluvoTheme.textPrimaryColor,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              height: 1.15,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     if (count > 0) ...[
                       const SizedBox(height: 3),

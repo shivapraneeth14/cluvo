@@ -3,32 +3,31 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../supabase_client.dart';
 import 'auth_provider.dart';
 
-/// Tracks whether the signed-in user has a recorded consent row (server-side
-/// source of truth via the record-consent edge function). Consent is captured
-/// on the login screen (tick above the Continue with Google button) and
-/// recorded server-side right after sign-in, when a session token exists.
-///
-/// No re-prompting: once a consent row exists for the user it stays valid;
-/// policy updates do not force existing users to re-accept.
+/// Tracks whether the signed-in user has accepted the current policy version
+/// (server-side source of truth via the record-consent edge function).
 class ConsentState {
   final bool checking;
-  final bool? consented;
+  final bool? consented; // has any consent row
+  final bool? upToDate; // accepted current CONSENT_VERSION
   final String? error;
 
   const ConsentState({
     this.checking = false,
     this.consented,
+    this.upToDate,
     this.error,
   });
 
   ConsentState copyWith({
     bool? checking,
     bool? consented,
+    bool? upToDate,
     String? error,
   }) {
     return ConsentState(
       checking: checking ?? this.checking,
       consented: consented ?? this.consented,
+      upToDate: upToDate ?? this.upToDate,
       error: error ?? this.error,
     );
   }
@@ -41,11 +40,11 @@ class ConsentNotifier extends StateNotifier<ConsentState> {
   Future<bool> check() async {
     final session = supabase.auth.currentSession;
     if (session == null) {
-      state = const ConsentState(consented: true);
+      state = const ConsentState(consented: true, upToDate: true);
       return true;
     }
     // Ignore re-entrant calls while a check is already in flight.
-    if (state.checking) return state.consented == true;
+    if (state.checking) return state.upToDate == true;
 
     state = state.copyWith(checking: true, error: null);
     try {
@@ -54,14 +53,15 @@ class ConsentNotifier extends StateNotifier<ConsentState> {
           .timeout(const Duration(seconds: 15));
       final data = res.data as Map<String, dynamic>?;
       final consented = data?['consent'] == true;
-      state = ConsentState(checking: false, consented: consented);
-      return consented;
+      final upToDate = data?['upToDate'] == true;
+      state = ConsentState(checking: false, consented: consented, upToDate: upToDate);
+      return upToDate;
     } catch (_) {
-      // Fail closed: consent stays unknown (never true) so callers that
-      // depend on it do not assume agreement that was never confirmed.
+      // Fail closed: don't assume up to date
       state = ConsentState(
         checking: false,
         consented: state.consented,
+        upToDate: state.upToDate,
         error: 'Could not verify consent status. Check your connection.',
       );
       return false;
@@ -81,12 +81,13 @@ class ConsentNotifier extends StateNotifier<ConsentState> {
           .timeout(const Duration(seconds: 15));
       final data = res.data as Map<String, dynamic>?;
       final ok = data?['consent'] == true;
-      state = ConsentState(checking: false, consented: ok);
+      state = ConsentState(checking: false, consented: ok, upToDate: ok);
       return ok;
     } catch (_) {
       state = const ConsentState(
         checking: false,
         consented: false,
+        upToDate: false,
         error: 'Could not record consent. Please try again.',
       );
       return false;

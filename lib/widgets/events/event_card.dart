@@ -4,6 +4,7 @@ import '../../models/models.dart';
 import '../../providers/wishlist_provider.dart';
 import '../../theme.dart';
 import '../../utils.dart';
+import '../../utils/category_icons.dart';
 import '../event_status_chip.dart';
 import '../wishlist_button.dart';
 import 'event_cover_image.dart';
@@ -108,15 +109,28 @@ class EventCard extends StatelessWidget {
                               ),
                               borderRadius: BorderRadius.circular(20),
                             ),
-                            child: Text(
-                              event.category!,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  categoryIcon(event.category!),
+                                  size: 12,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(width: 5),
+                                Flexible(
+                                  child: Text(
+                                    event.category!,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         if (showStatus) ...[
@@ -258,14 +272,29 @@ class EventListCard extends StatelessWidget {
                   ),
                   if (subtitle.isNotEmpty) ...[
                     const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: context.cluvoTextSecondary,
-                      ),
+                    Row(
+                      children: [
+                        if (event.category != null &&
+                            event.category!.isNotEmpty) ...[
+                          Icon(
+                            categoryIcon(event.category!),
+                            size: 12,
+                            color: context.cluvoTextSecondary,
+                          ),
+                          const SizedBox(width: 4),
+                        ],
+                        Expanded(
+                          child: Text(
+                            subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: context.cluvoTextSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                   const SizedBox(height: 6),
