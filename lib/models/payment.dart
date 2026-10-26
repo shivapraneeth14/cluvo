@@ -11,6 +11,10 @@ class Payment {
   final String? razorpayPaymentId;
   final String status;
   final String? refundStatus;
+  final double? refundedAmount;
+  final String? razorpayRefundId;
+  final String? refundClaimState;
+  final int? refundAttemptCount;
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? deletedAt;
@@ -28,6 +32,10 @@ class Payment {
     this.razorpayPaymentId,
     this.status = 'pending',
     this.refundStatus,
+    this.refundedAmount,
+    this.razorpayRefundId,
+    this.refundClaimState,
+    this.refundAttemptCount,
     required this.createdAt,
     required this.updatedAt,
     this.deletedAt,
@@ -52,6 +60,12 @@ class Payment {
     razorpayPaymentId: map['razorpay_payment_id'] as String?,
     status: map['status'] as String? ?? 'pending',
     refundStatus: map['refund_status'] as String?,
+    refundedAmount: map['refunded_amount'] != null
+        ? (map['refunded_amount'] as num).toDouble()
+        : null,
+    razorpayRefundId: map['razorpay_refund_id'] as String?,
+    refundClaimState: map['refund_claim_state'] as String?,
+    refundAttemptCount: map['refund_attempt_count'] as int?,
     createdAt: DateTime.parse(map['created_at'] as String).toLocal(),
     updatedAt: DateTime.parse(map['updated_at'] as String).toLocal(),
     deletedAt: map['deleted_at'] != null

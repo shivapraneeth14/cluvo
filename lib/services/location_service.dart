@@ -39,6 +39,7 @@ class GeolocatorLocationService implements LocationService {
   const GeolocatorLocationService();
 
   static const _timeLimit = Duration(seconds: 8);
+  static const _maxPositionAge = Duration(minutes: 2);
   static final _geocoding = Geocoding();
 
   @override
@@ -77,7 +78,13 @@ class GeolocatorLocationService implements LocationService {
 
   Future<Position?> _position() async {
     final last = await Geolocator.getLastKnownPosition();
-    if (last != null) return last;
+    // A cached fix keeps launch snappy, but an old one would compute wrong
+    // event distances — anything past [_maxPositionAge] is discarded in
+    // favour of a fresh live fix.
+    if (last != null &&
+        DateTime.now().difference(last.timestamp).abs() < _maxPositionAge) {
+      return last;
+    }
     return Geolocator.getCurrentPosition(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.medium,

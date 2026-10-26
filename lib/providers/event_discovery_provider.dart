@@ -176,38 +176,34 @@ final discoveryPopularProvider = FutureProvider<List<Event>>((ref) async {
 final nearbyPopularProvider = FutureProvider<List<Event>>((ref) async {
   final filters = ref.watch(discoveryFiltersProvider);
   final loc = ref.watch(locationControllerProvider);
-  var query = supabase
-      .from('events')
-      .select(_select)
-      .isFilter('deleted_at', null)
-      .eq('communities.is_hidden', false)
-      .eq('status', 'published')
-      .or(_discoverableOr());
-  if (filters.freeOnly) {
-    query = query.eq('price', 0);
-  }
-  if (filters.category != null && filters.category!.isNotEmpty) {
-    query = query.eq('category', filters.category!);
-  }
-  if (filters.date != null) {
-    final dayStart = DateTime(
-      filters.date!.year,
-      filters.date!.month,
-      filters.date!.day,
-    );
-    final dayEnd = dayStart.add(const Duration(days: 1));
-    query = query
-        .gte('start_date', dayStart.toUtc().toIso8601String())
-        .lt('start_date', dayEnd.toUtc().toIso8601String());
-  }
-  final res = await query.limit(50);
+  // The distance RPC returns the truly nearest events (already ordered), so
+  // the tie-break sort below only reshuffles events at ~the same distance.
+  final res = await supabase.rpc(
+    'events_with_distance',
+    params: {
+      'user_lat': loc.gpsLat,
+      'user_lng': loc.gpsLng,
+      'free_only': filters.freeOnly,
+      'paid_only': false,
+      'category_filter': filters.category,
+      'date_from': null,
+      'date_to': filters.date != null
+          ? DateTime(
+              filters.date!.year,
+              filters.date!.month,
+              filters.date!.day,
+            ).add(const Duration(days: 1)).toUtc().toIso8601String()
+          : null,
+      'max_rows': 50,
+    },
+  );
   final items = (res as List)
       .cast<Map<String, dynamic>>()
       .map((e) => Event.fromMap(e))
       .toList();
   items.sort((a, b) {
-    final da = eventDistanceKm(a, loc.latitude, loc.longitude);
-    final db = eventDistanceKm(b, loc.latitude, loc.longitude);
+    final da = eventDistanceKm(a, loc.gpsLat, loc.gpsLng);
+    final db = eventDistanceKm(b, loc.gpsLat, loc.gpsLng);
     if (da != null && db != null) {
       final diff = da - db;
       if (diff.abs() > 0.001) return da.compareTo(db);

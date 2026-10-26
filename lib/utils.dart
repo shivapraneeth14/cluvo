@@ -109,6 +109,57 @@ String formatRupees(num paise) {
       : '₹${value.toStringAsFixed(2)}';
 }
 
+/// True when a payment row records money actually moving — a capture, a
+/// refund, or a refund the provider is still working on.
+///
+/// Mirrors the backend rule that decides whether a cancelled registration may
+/// be silently reused (`supabase/functions/_shared/payments.ts`:
+/// `paymentNonRequotableReason` + `refundFieldsPresent`), so the app never
+/// hides a booking the server still treats as financially live.
+bool paymentHasMoneyTrail(Map<String, dynamic>? payment) {
+  if (payment == null) return false;
+  final status = payment['status'] as String?;
+  if (status == 'success' || status == 'refunded') return true;
+  if (payment['refund_status'] != null) return true;
+  final claim = payment['refund_claim_state'] as String?;
+  if (claim != null && claim != 'none') return true;
+  final refunded = payment['refunded_amount'] as num?;
+  return refunded != null && refunded > 0;
+}
+
+/// The payment embedded on a registration, tolerating both the object and
+/// array shapes PostgREST returns for an embedded one-to-many relation.
+Map<String, dynamic>? embeddedPayment(Map<String, dynamic> registration) {
+  final raw = registration['payments'];
+  if (raw is Map<String, dynamic>) return raw;
+  if (raw is List && raw.isNotEmpty) {
+    return raw.first as Map<String, dynamic>?;
+  }
+  return null;
+}
+
+/// A registration is *noise* only when it is an abandoned checkout: soft
+/// deleted, the event itself not cancelled, and no money ever captured.
+///
+/// A cancelled booking with a refund — or a free-event booking the user
+/// cancelled — is history the owner must keep seeing.
+bool isAbandonedCheckout({
+  required Map<String, dynamic> registration,
+  required Map<String, dynamic>? payment,
+  required Map<String, dynamic>? event,
+}) {
+  if (registration['deleted_at'] == null) return false;
+  if (event?['status'] == 'cancelled') return false;
+  if (paymentHasMoneyTrail(payment)) return false;
+  if (payment == null) {
+    // No payment row: a free-event booking the user cancelled stays visible;
+    // a paid event whose order never started is an abandoned checkout.
+    return ((event?['price'] as num?) ?? 0) > 0;
+  }
+  // A payment row exists but never succeeded (failed/pending): abandoned.
+  return true;
+}
+
 Color regStatusColor(BuildContext context, String status) {
   switch (status) {
     case 'confirmed':

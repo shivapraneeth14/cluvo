@@ -23,8 +23,11 @@ class MyRegistrationsScreen extends ConsumerWidget {
         data: (registrations) {
           final visible = registrations.where((r) {
             final events = r['events'] as Map<String, dynamic>?;
-            final isEventCancelled = events?['status'] == 'cancelled';
-            return r['deleted_at'] == null || isEventCancelled;
+            return !isAbandonedCheckout(
+              registration: r,
+              payment: embeddedPayment(r),
+              event: events,
+            );
           }).toList();
           if (visible.isEmpty) {
             return const EmptyState(
@@ -58,13 +61,7 @@ class MyRegistrationsScreen extends ConsumerWidget {
     final eventId = r['event_id'] as String?;
     final isEventCancelled = events?['status'] == 'cancelled';
 
-    Map<String, dynamic>? payment;
-    final raw = r['payments'];
-    if (raw is Map<String, dynamic>) {
-      payment = raw;
-    } else if (raw is List && raw.isNotEmpty) {
-      payment = raw.first as Map<String, dynamic>?;
-    }
+    Map<String, dynamic>? payment = embeddedPayment(r);
     final paymentStatus = payment?['status'] as String?;
     final refundStatus = payment?['refund_status'] as String?;
     final paidAmount = payment?['amount'] as num?;

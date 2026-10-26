@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,7 +10,6 @@ import '../services/location_matching.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/home/section_header.dart';
 import '../widgets/list_page_scaffold.dart' show ActivityCard;
-import '../widgets/communities/communities_search_header.dart';
 import '../widgets/communities/community_location_button.dart';
 import '../widgets/communities/community_category_chips.dart';
 import '../widgets/communities/community_discovery_card.dart';
@@ -19,7 +17,7 @@ import '../widgets/communities/community_image.dart';
 import '../models/models.dart';
 
 /// Communities discovery page:
-/// compact header → title + search → category chips → Popular carousel →
+/// compact header → title → category chips → Popular carousel →
 /// Your communities. The full catalogue lives at "/communities/all".
 class CommunitiesScreen extends ConsumerStatefulWidget {
   const CommunitiesScreen({super.key});
@@ -29,31 +27,7 @@ class CommunitiesScreen extends ConsumerStatefulWidget {
 }
 
 class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
-  final _searchController = TextEditingController();
-  Timer? _debounce;
-  String _query = '';
   String? _selectedCategory;
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    _debounce?.cancel();
-    super.dispose();
-  }
-
-  void _onSearchChanged(String value) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 350), () {
-      if (!mounted) return;
-      setState(() => _query = value.trim());
-    });
-  }
-
-  void _clearSearch() {
-    _debounce?.cancel();
-    _searchController.clear();
-    setState(() => _query = '');
-  }
 
   void _selectCategory(String? category) {
     if (_selectedCategory == category) return;
@@ -71,9 +45,6 @@ class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
   @override
   Widget build(BuildContext context) {
     final signedIn = supabase.auth.currentSession != null;
-    final searchLoading =
-        _query.trim().isNotEmpty &&
-        ref.watch(searchCommunitiesProvider(_query)).isLoading;
 
     return Scaffold(
       backgroundColor: context.cluvoBackground,
@@ -87,20 +58,27 @@ class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
             slivers: [
               SliverToBoxAdapter(child: _header(context)),
               SliverToBoxAdapter(
-                child: CommunitiesSearchHeader(
-                  controller: _searchController,
-                  onChanged: _onSearchChanged,
-                  onClear: _clearSearch,
-                  searching: searchLoading,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    CluvoTheme.screenPadding,
+                    16,
+                    CluvoTheme.screenPadding,
+                    0,
+                  ),
+                  child: Text(
+                    'Explore your connections',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                      color: context.cluvoTextPrimary,
+                    ),
+                  ),
                 ),
               ),
-              ...(_query.trim().isNotEmpty
-                  ? _searchSlivers()
-                  : [
-                      ..._categoriesSliver(),
-                      ..._popularSlivers(context),
-                      ..._yourCommunitiesSlivers(context, signedIn),
-                    ]),
+              ..._categoriesSliver(),
+              ..._popularSlivers(context),
+              ..._yourCommunitiesSlivers(context, signedIn),
               const SliverToBoxAdapter(child: SizedBox(height: 40)),
             ],
           ),
@@ -308,69 +286,6 @@ class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
       onTap: () => context.push('/communities/${community.id}'),
     );
   }
-
-  // ── Search results ─────────────────────────────────────────────────────
-
-  List<Widget> _searchSlivers() {
-    final async = ref.watch(searchCommunitiesProvider(_query));
-    final city = ref.watch(locationControllerProvider.select((s) => s.city));
-    final Widget content = async.when(
-      loading: () => const _RowSkeleton(),
-      error: (e, _) => _InlineCard(
-        message: 'Could not search communities. Please try again.',
-        onRetry: () => ref.invalidate(searchCommunitiesProvider(_query)),
-        retryLabel: 'Retry',
-      ),
-      data: (communities) {
-        if (communities.isEmpty) {
-          return const _InlineCard(
-            icon: Icons.search_off,
-            message: 'No communities match your search.',
-          );
-        }
-        final ordered = partitionLocalFirst(
-          communities,
-          (c) => isCommunityLocal(c, city),
-        );
-        return Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: CluvoTheme.screenPadding,
-          ),
-          child: Column(
-            children: [
-              for (final community in ordered)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: CommunityResultCard(community: community),
-                ),
-            ],
-          ),
-        );
-      },
-    );
-
-    return [
-      SliverToBoxAdapter(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            CluvoTheme.screenPadding,
-            20,
-            CluvoTheme.screenPadding,
-            12,
-          ),
-          child: Text(
-            'Results for "$_query"',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: context.cluvoTextPrimary,
-            ),
-          ),
-        ),
-      ),
-      SliverToBoxAdapter(child: content),
-    ];
-  }
 }
 
 /// A centred, bordered message card that keeps one section's failure from
@@ -490,5 +405,3 @@ class _RowSkeleton extends StatelessWidget {
     );
   }
 }
-
-/// Skeleton for the search results.

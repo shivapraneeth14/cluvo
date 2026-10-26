@@ -194,6 +194,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   String _friendlyAuthError(String message) {
+    final lower = message.toLowerCase();
+    if (lower.contains('banned') || lower.contains('user_banned') || lower.contains('suspended')) {
+      return 'Your account has been suspended. Please contact customer support.';
+    }
     if (message.contains('Invalid login credentials')) {
       return 'Invalid email or password. Please try again.';
     }

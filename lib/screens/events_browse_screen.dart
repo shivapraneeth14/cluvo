@@ -113,7 +113,6 @@ class _EventsBrowseScreenState extends ConsumerState<EventsBrowseScreen> {
       freeOnly: n.freeOnly,
       paidOnly: n.paidOnly,
       priceSort: n.priceSort,
-      distanceSort: n.distanceSort,
       date: n.date,
       dateFrom: n.dateFrom,
       category: category,
@@ -168,12 +167,17 @@ class _EventsBrowseScreenState extends ConsumerState<EventsBrowseScreen> {
   }
 
   Widget _buildContent(PaginatedList<Event> state) {
-    final city = ref.watch(locationControllerProvider.select((s) => s.city));
-    final items = partitionLocalFirst(
-      state.items,
-      (e) => isEventLocal(e, city),
-    );
+    final locState = ref.watch(locationControllerProvider);
     final notifier = ref.read(eventsProvider.notifier);
+    final distanceActive = notifier.distanceSort != null;
+    // Under a distance sort the provider order is authoritative; otherwise
+    // float city-matching events first (city is prioritisation-only).
+    final items = distanceActive
+        ? state.items
+        : partitionLocalFirst(
+            state.items,
+            (e) => isEventLocal(e, locState.city),
+          );
     final categoriesAsync = ref.watch(categoryCountsProvider);
     final activeCount = _advancedCount(notifier);
 
@@ -211,6 +215,16 @@ class _EventsBrowseScreenState extends ConsumerState<EventsBrowseScreen> {
                         return EventGridCard(
                           event: event,
                           showCommunity: true,
+                          // Distance is shown only while a distance sort is
+                          // active, so the badge never appears for other
+                          // filters or on other screens.
+                          distanceKm: distanceActive
+                              ? eventDistanceKm(
+                                  event,
+                                  locState.gpsLat,
+                                  locState.gpsLng,
+                                )
+                              : null,
                           onTap: () => context.push('/events/${event.id}'),
                         );
                       }, childCount: items.length),

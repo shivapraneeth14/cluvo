@@ -57,6 +57,7 @@ class MyPaymentsScreen extends ConsumerWidget {
     final eventCancelled = ev?['status'] == 'cancelled';
     final date = p['created_at'] as String?;
     final paymentId = p['id'] as String?;
+    final isHistory = p['is_refund_history'] == true;
 
     // A refunded row shows what the buyer gets back, not the gross payment:
     // the ticket only on a self-cancel (platform fee kept), the full amount when
@@ -113,7 +114,12 @@ class MyPaymentsScreen extends ConsumerWidget {
         ),
       ),
       title: title,
-      subtitle: date != null ? formatDate(date) : null,
+      subtitle: isHistory
+          ? [
+              date != null ? formatDate(date) : null,
+              'Previous refund',
+            ].whereType<String>().join(' · ')
+          : (date != null ? formatDate(date) : null),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -145,7 +151,10 @@ class MyPaymentsScreen extends ConsumerWidget {
           ),
         ],
       ),
-      onTap: paymentId != null
+      // An archived refund points at a payment row that has since been reused
+      // for a NEW sale — its receipt shows the new attempt, not this refund.
+      // Keep it informational (no navigation) to never show a misleading receipt.
+      onTap: paymentId != null && !isHistory
           ? () => context.push('/payments/$paymentId')
           : null,
     );

@@ -82,7 +82,7 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
       final payment = await supabase
           .from('payments')
           .select(
-            '*, registrations!inner(*, events!inner(title, start_date, image_url, status))',
+            '*, registrations!inner(*, events(title, start_date, image_url, status))',
           )
           .eq('id', widget.paymentId)
           .single();

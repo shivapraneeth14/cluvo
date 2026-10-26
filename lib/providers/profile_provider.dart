@@ -10,7 +10,7 @@ final profileProvider = FutureProvider<Profile?>((ref) async {
   final response = await supabase
       .from('profiles')
       .select(
-        'id, first_name, last_name, username, avatar_url, created_at, updated_at',
+        'id, first_name, last_name, username, avatar_url, created_at, updated_at, deletion_grace_started_at',
       )
       .eq('id', session.user.id)
       .single();

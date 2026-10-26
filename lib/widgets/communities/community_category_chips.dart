@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../theme.dart';
+import '../../utils/category_icons.dart';
 
 /// Horizontally scrolling category filter chips derived from real category
 /// data. Includes an "All" option that clears the filter.
@@ -50,7 +51,7 @@ class CommunityCategoryChips extends StatelessWidget {
       onTap: () => onSelected(value),
       child: Container(
         alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
           color: active ? CluvoTheme.primary : context.cluvoSurface,
           borderRadius: BorderRadius.circular(CluvoTheme.radiusPill),
@@ -58,14 +59,25 @@ class CommunityCategoryChips extends StatelessWidget {
             color: active ? CluvoTheme.primary : context.cluvoBorder,
           ),
         ),
-        child: Text(
-          label,
-          maxLines: 1,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-            color: active ? Colors.white : context.cluvoTextPrimary,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isAll ? kAllCategoriesIcon : categoryIcon(label),
+              size: 15,
+              color: active ? Colors.white : context.cluvoTextPrimary,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                color: active ? Colors.white : context.cluvoTextPrimary,
+              ),
+            ),
+          ],
         ),
       ),
     );

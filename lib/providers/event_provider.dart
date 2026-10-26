@@ -10,7 +10,13 @@ const _pageSize = 20;
 
 final eventsProvider =
     StateNotifierProvider<EventsNotifier, PaginatedList<Event>>((ref) {
-      return EventsNotifier(ref);
+      final notifier = EventsNotifier(ref);
+      // A distance sort computed before the GPS fix (or against a stale one)
+      // must re-run as soon as real coordinates land or change.
+      ref.listen(locationControllerProvider, (prev, next) {
+        notifier.onLocationChanged(prev, next);
+      });
+      return notifier;
     });
 
 class EventsNotifier extends StateNotifier<PaginatedList<Event>> {
@@ -61,9 +67,6 @@ class EventsNotifier extends StateNotifier<PaginatedList<Event>> {
     String? category,
   }) {
     final nextPriceSort = clearPriceSort ? null : (priceSort ?? _priceSort);
-    final nextDistanceSort = clearDistanceSort
-        ? null
-        : (distanceSort ?? _distanceSort);
     // Date choices are mutually exclusive: an explicit `date` or `dateFrom`
     // clears the other one.
     DateTime? nextDate;
@@ -81,6 +84,18 @@ class EventsNotifier extends StateNotifier<PaginatedList<Event>> {
       nextDate = _date;
       nextDateFrom = _dateFrom;
     }
+    // A distance sort is exclusive with the other filters: applying a
+    // category, price or date filter cancels it, so the km badges disappear
+    // and the list returns to its normal ordering.
+    final applyingOtherFilter =
+        category != _category ||
+        freeOnly != _freeOnly ||
+        paidOnly != _paidOnly ||
+        nextDate != _date ||
+        nextDateFrom != _dateFrom;
+    final nextDistanceSort = (clearDistanceSort || applyingOtherFilter)
+        ? null
+        : (distanceSort ?? _distanceSort);
     if (_freeOnly == freeOnly &&
         _paidOnly == paidOnly &&
         _priceSort == nextPriceSort &&
@@ -119,8 +134,33 @@ class EventsNotifier extends StateNotifier<PaginatedList<Event>> {
     }
     if (_distanceSort != null) {
       try {
-        final res = await _buildQuery().limit(100);
-        final items = (res as List)
+        final loc = ref.read(locationControllerProvider);
+        final rows = await supabase.rpc(
+          'events_with_distance',
+          params: {
+            'user_lat': loc.gpsLat,
+            'user_lng': loc.gpsLng,
+            'free_only': _freeOnly,
+            'paid_only': _paidOnly,
+            'category_filter': _category,
+            'date_from': _dateFrom != null
+                ? DateTime(
+                    _dateFrom!.year,
+                    _dateFrom!.month,
+                    _dateFrom!.day,
+                  ).toUtc().toIso8601String()
+                : null,
+            'date_to': _date != null
+                ? DateTime(
+                    _date!.year,
+                    _date!.month,
+                    _date!.day,
+                  ).add(const Duration(days: 1)).toUtc().toIso8601String()
+                : null,
+            'max_rows': 1000,
+          },
+        );
+        final items = (rows as List)
             .cast<Map<String, dynamic>>()
             .map((e) => Event.fromMap(e))
             .toList();
@@ -158,21 +198,26 @@ class EventsNotifier extends StateNotifier<PaginatedList<Event>> {
 
   Future<void> fetchNextPage() async {
     if (state.loadingMore || !state.hasMore) return;
-    if (_distanceSort != null && _sortedCache != null) {
+    if (_distanceSort != null) {
+      // The sorted cache is the only valid source under a distance sort. If it
+      // is missing (e.g. the first fetch failed) paginating the raw, unsorted
+      // query would silently break the ordering — do nothing instead.
+      final cache = _sortedCache;
+      if (cache == null) return;
       state = state.copyWith(loadingMore: true);
       final nextPage = _clientPage + 1;
       final start = nextPage * _pageSize;
       final end = start + _pageSize;
-      final pageItems = _sortedCache!.sublist(
+      final pageItems = cache.sublist(
         start,
-        end > _sortedCache!.length ? _sortedCache!.length : end,
+        end > cache.length ? cache.length : end,
       );
       _clientPage = nextPage;
       state = PaginatedList(
         items: [...state.items, ...pageItems],
         loading: false,
         loadingMore: false,
-        hasMore: end < _sortedCache!.length,
+        hasMore: end < cache.length,
       );
       return;
     }
@@ -230,25 +275,23 @@ class EventsNotifier extends StateNotifier<PaginatedList<Event>> {
       );
       query = query.gte('start_date', fromStart.toUtc().toIso8601String());
     }
-    if (_distanceSort == null &&
-        (_priceSort == 'low' || _priceSort == 'high')) {
+    // Only reached when no distance sort is active — distance is served by the
+    // `events_with_distance` RPC instead.
+    if (_priceSort == 'low' || _priceSort == 'high') {
       return query.order('price', ascending: _priceSort == 'low');
     }
-    if (_distanceSort == null) {
-      if (_priceSort == 'soonest') {
-        return query.order('start_date', ascending: true);
-      }
-      return query.order('start_date', ascending: false);
+    if (_priceSort == 'soonest') {
+      return query.order('start_date', ascending: true);
     }
-    return query.order('start_date', ascending: true);
+    return query.order('start_date', ascending: false);
   }
 
   List<Event> _sortByDistance(List<Event> items) {
     final loc = ref.read(locationControllerProvider);
     final sorted = List<Event>.from(items);
     sorted.sort((a, b) {
-      final da = eventDistanceKm(a, loc.latitude, loc.longitude);
-      final db = eventDistanceKm(b, loc.latitude, loc.longitude);
+      final da = eventDistanceKm(a, loc.gpsLat, loc.gpsLng);
+      final db = eventDistanceKm(b, loc.gpsLat, loc.gpsLng);
       if (da != null && db != null) {
         final diff = da - db;
         if (diff.abs() > 0.001) {
@@ -276,5 +319,16 @@ class EventsNotifier extends StateNotifier<PaginatedList<Event>> {
     _clientPage = 0;
     _sortedCache = null;
     await fetchFirstPage(showLoading: false);
+  }
+
+  /// Re-runs the distance sort when the user's coordinates actually change
+  /// (GPS resolves after launch, a fresh fix arrives, or a manual city pick is
+  /// geocoded). No-op for non-distance sorts and city/status-only changes.
+  void onLocationChanged(LocationState? prev, LocationState next) {
+    if (!mounted || _distanceSort == null) return;
+    if (prev?.gpsLat == next.gpsLat && prev?.gpsLng == next.gpsLng) {
+      return;
+    }
+    fetchFirstPage(showLoading: false);
   }
 }

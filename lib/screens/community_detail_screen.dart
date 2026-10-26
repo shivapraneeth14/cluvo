@@ -6,9 +6,10 @@
 //   2. Full-width community cover
 //   3. Community name + tagline + social links over the cover
 //   4. Community information cards (location · category · members)
-//   5. Community guidelines / tags
-//   6. Existing Events / Photos tabs
-//   7. Media heading, real count, All/Photos/Videos filters, Grid/List toggle
+//   5. About Us (full community description)
+//   6. Community guidelines / tags
+//   7. Existing Events / Photos tabs
+//   8. Media heading, real count, All/Photos/Videos filters, Grid/List toggle
 //
 // All data queries, the follow-toggle logic, model classes, theme tokens,
 // routes and share/social behavior are UNCHANGED — only the visual layer was
@@ -26,6 +27,7 @@ import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../utils/external_links.dart';
+import '../utils/category_icons.dart';
 import '../theme.dart';
 import '../config.dart';
 import '../supabase_client.dart';
@@ -330,13 +332,16 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
             // ── 4. Community information cards ───────────────────────────
             SliverToBoxAdapter(child: _buildInfoCards(c)),
 
-            // ── 5. Guidelines + tags (existing content, compact) ─────────
+            // ── 5. About Us (full description) ──────────────────────────
+            SliverToBoxAdapter(child: _buildAbout(c)),
+
+            // ── 6. Guidelines + tags (existing content, compact) ─────────
             SliverToBoxAdapter(child: _buildExtraInfo(c)),
 
-            // ── 6. Existing Events / Photos tabs ─────────────────────────
+            // ── 7. Existing Events / Photos tabs ─────────────────────────
             SliverToBoxAdapter(child: _buildTabs()),
 
-            // ── 7. Section body (events or media gallery) ────────────────
+            // ── 8. Section body (events or media gallery) ────────────────
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 18, 16, 32),
               sliver: _selectedSection == 'photos'
@@ -639,7 +644,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
       if (location.isNotEmpty)
         _infoCard(Icons.location_on_outlined, 'Location', location),
       if (category != null && category.isNotEmpty)
-        _infoCard(Icons.category_outlined, 'Category', category),
+        _infoCard(categoryIcon(category), 'Category', category),
       _infoCard(
         Icons.people_alt_outlined,
         'Members',
@@ -712,7 +717,49 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
     return '—';
   }
 
-  // ── 5. GUIDELINES + TAGS (existing content) ─────────────────────────────
+  // ── 5. ABOUT US ─────────────────────────────────────────────────────────
+
+  Widget _buildAbout(Map<String, dynamic> c) {
+    final about = (c['description'] as String?)?.trim() ?? '';
+    if (about.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'About Us',
+            style: TextStyle(
+              fontFamily: 'PlayfairDisplay',
+              fontWeight: FontWeight.w600,
+              fontSize: 15,
+              color: context.cluvoTextPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: context.cluvoChipFill,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Text(
+              about,
+              style: TextStyle(
+                color: context.cluvoTextSecondary,
+                fontSize: 13.5,
+                height: 1.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── 6. GUIDELINES + TAGS (existing content) ─────────────────────────────
 
   Widget _buildExtraInfo(Map<String, dynamic> c) {
     final hasTags = c['tags'] != null && (c['tags'] as List).isNotEmpty;
@@ -733,7 +780,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
     );
   }
 
-  // ── 6. TABS ─────────────────────────────────────────────────────────────
+  // ── 7. TABS ─────────────────────────────────────────────────────────────
 
   Widget _buildTabs() {
     return Padding(

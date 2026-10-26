@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../theme.dart';
+import '../../utils/category_icons.dart';
 
 /// Horizontal row of search pills for popular categories / searches.
 class TrendingPills extends StatelessWidget {
@@ -35,8 +36,8 @@ class TrendingPills extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.trending_up,
+                  Icon(
+                    categoryIcon(label),
                     size: 15,
                     color: CluvoTheme.primary,
                   ),

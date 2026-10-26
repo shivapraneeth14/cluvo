@@ -32,36 +32,43 @@ enum LocationStatus {
   serviceDisabled,
 }
 
-/// The single source of truth for the user's city/location. [city] is only
-/// ever used to prioritise the display (city-matching items first) — never to
-/// hide items. Coordinates are used for distance-based sorting.
+/// The single source of truth for the user's location.
+///
+/// Two independent concepts live here on purpose:
+/// * [city] — the display city. Only ever used to *prioritise* the display
+///   (city-matching items first) and label the location button. Never hides
+///   items, and never affects distance numbers.
+/// * [gpsLat]/[gpsLng] — the **device GPS location only**. This is the sole
+///   origin for distance sorting and the distance badges. A manually picked
+///   city deliberately does NOT populate these, so "Near to Far" always
+///   measures from where the user actually is.
 @immutable
 class LocationState {
   final String? city;
   final LocationStatus status;
-  final double? latitude;
-  final double? longitude;
+  final double? gpsLat;
+  final double? gpsLng;
 
   const LocationState({
     this.city,
     this.status = LocationStatus.idle,
-    this.latitude,
-    this.longitude,
+    this.gpsLat,
+    this.gpsLng,
   });
 
   bool get hasCity => city != null && city!.isNotEmpty;
-  bool get hasCoords => latitude != null && longitude != null;
+  bool get hasGps => gpsLat != null && gpsLng != null;
 
   @override
   bool operator ==(Object other) =>
       other is LocationState &&
       other.city == city &&
       other.status == status &&
-      other.latitude == latitude &&
-      other.longitude == longitude;
+      other.gpsLat == gpsLat &&
+      other.gpsLng == gpsLng;
 
   @override
-  int get hashCode => Object.hash(city, status, latitude, longitude);
+  int get hashCode => Object.hash(city, status, gpsLat, gpsLng);
 }
 
 final locationControllerProvider =
@@ -80,15 +87,17 @@ class LocationController extends Notifier<LocationState> {
     return const LocationState();
   }
 
-  /// Manual override from the location selector. Passing null/empty clears the
-  /// prioritisation.
+  /// Manual override from the location selector. Display-only: it changes the
+  /// prioritised [city] and never the GPS coordinates, so distance sorting
+  /// keeps measuring from the user's real location. Passing null/empty clears
+  /// the prioritisation (GPS coordinates are retained).
   void select(String? city) {
     final next = (city == null || city.trim().isEmpty) ? null : city.trim();
     state = LocationState(
       city: next,
       status: next == null ? LocationStatus.idle : LocationStatus.ready,
-      latitude: next == null ? null : state.latitude,
-      longitude: next == null ? null : state.longitude,
+      gpsLat: state.gpsLat,
+      gpsLng: state.gpsLng,
     );
   }
 
@@ -102,13 +111,13 @@ class LocationController extends Notifier<LocationState> {
     if (_detecting) return;
     _detecting = true;
     final prior = state.city;
-    final priorLat = state.latitude;
-    final priorLon = state.longitude;
+    final priorLat = state.gpsLat;
+    final priorLon = state.gpsLng;
     state = LocationState(
       city: prior,
       status: LocationStatus.detecting,
-      latitude: priorLat,
-      longitude: priorLon,
+      gpsLat: priorLat,
+      gpsLng: priorLon,
     );
     try {
       final resolution = await ref.read(locationServiceProvider).resolveCity();
@@ -117,24 +126,24 @@ class LocationController extends Notifier<LocationState> {
           state = LocationState(
             city: prior,
             status: LocationStatus.serviceDisabled,
-            latitude: priorLat,
-            longitude: priorLon,
+            gpsLat: priorLat,
+            gpsLng: priorLon,
           );
           return;
         case LocationAccess.denied:
           state = LocationState(
             city: prior,
             status: LocationStatus.denied,
-            latitude: priorLat,
-            longitude: priorLon,
+            gpsLat: priorLat,
+            gpsLng: priorLon,
           );
           return;
         case LocationAccess.deniedForever:
           state = LocationState(
             city: prior,
             status: LocationStatus.deniedForever,
-            latitude: priorLat,
-            longitude: priorLon,
+            gpsLat: priorLat,
+            gpsLng: priorLon,
           );
           return;
         case LocationAccess.granted:
@@ -148,22 +157,22 @@ class LocationController extends Notifier<LocationState> {
           ? LocationState(
               city: prior,
               status: LocationStatus.noMatch,
-              latitude: resolution.latitude,
-              longitude: resolution.longitude,
+              gpsLat: resolution.latitude,
+              gpsLng: resolution.longitude,
             )
           : LocationState(
               city: matched,
               status: LocationStatus.ready,
-              latitude: resolution.latitude,
-              longitude: resolution.longitude,
+              gpsLat: resolution.latitude,
+              gpsLng: resolution.longitude,
             );
     } catch (_) {
       if (!_disposed) {
         state = LocationState(
           city: prior,
           status: LocationStatus.idle,
-          latitude: priorLat,
-          longitude: priorLon,
+          gpsLat: priorLat,
+          gpsLng: priorLon,
         );
       }
     } finally {

@@ -225,7 +225,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 150));
 
     expect(find.text('Sunrise Yoga Collective'), findsOneWidget);
-    expect(find.text('Morning flows for everyone.'), findsOneWidget);
+    expect(find.text('Morning flows for everyone.'), findsNWidgets(2)); // cover tagline + About Us
     expect(find.text('Berlin, Germany'), findsOneWidget);
     expect(find.text('Yoga'), findsOneWidget);
     expect(find.text('1,234'), findsOneWidget);
@@ -245,6 +245,8 @@ void main() {
     expect(tester.takeException(), isNull, reason: 'after list toggle');
 
     // Videos filter, then open the real video player from the tile.
+    await tester.ensureVisible(find.widgetWithText(GestureDetector, 'Videos'));
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(GestureDetector, 'Videos'));
     await tester.pumpAndSettle();
     expect(find.text('1 video'), findsOneWidget);

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mobile/providers/auth_provider.dart';
+import 'package:mobile/screens/consent_gate_screen.dart';
 import 'package:mobile/screens/login_screen.dart';
 import 'package:mobile/theme.dart';
 
@@ -15,19 +16,23 @@ class _FakeAuthNotifier extends AuthNotifier {
 
 Widget _app() {
   return ProviderScope(
-    overrides: [
-      authProvider.overrideWith((ref) => _FakeAuthNotifier(ref)),
-    ],
+    overrides: [authProvider.overrideWith((ref) => _FakeAuthNotifier(ref))],
+    child: MaterialApp(theme: CluvoTheme.lightTheme, home: const LoginScreen()),
+  );
+}
+
+Widget _consentApp() {
+  return ProviderScope(
     child: MaterialApp(
       theme: CluvoTheme.lightTheme,
-      home: const LoginScreen(),
+      home: const ConsentGateScreen(),
     ),
   );
 }
 
-FilledButton _googleButton(WidgetTester tester) {
+FilledButton _agreeButton(WidgetTester tester) {
   return tester.widget<FilledButton>(
-    find.widgetWithText(FilledButton, 'Continue with Google'),
+    find.widgetWithText(FilledButton, 'I Agree & Continue'),
   );
 }
 
@@ -40,45 +45,46 @@ Future<void> _tapLinkSpan(WidgetTester tester, String linkText) async {
   final paragraph = tester.renderObject<RenderParagraph>(finder);
   final full = paragraph.text.toPlainText();
   final start = full.indexOf(linkText);
-  expect(start, greaterThanOrEqualTo(0), reason: '$linkText not in checkbox text');
+  expect(
+    start,
+    greaterThanOrEqualTo(0),
+    reason: '$linkText not in checkbox text',
+  );
   final selection = TextSelection(
     baseOffset: start,
     extentOffset: start + linkText.length,
   );
   final box = paragraph.getBoxesForSelection(selection).first;
-  final center = Offset(
-    (box.left + box.right) / 2,
-    (box.top + box.bottom) / 2,
-  );
+  final center = Offset((box.left + box.right) / 2, (box.top + box.bottom) / 2);
   await tester.tapAt(paragraph.localToGlobal(center));
 }
 
 void main() {
-  testWidgets('Google button disabled until the terms box is ticked', (
+  testWidgets('I Agree button disabled until the terms box is ticked', (
     tester,
   ) async {
-    await tester.pumpWidget(_app());
+    await tester.pumpWidget(_consentApp());
 
-    expect(_googleButton(tester).onPressed, isNull);
+    expect(_agreeButton(tester).onPressed, isNull);
 
     await tester.tap(find.byType(Checkbox));
     await tester.pump();
 
-    expect(_googleButton(tester).onPressed, isNotNull);
+    expect(_agreeButton(tester).onPressed, isNotNull);
   });
 
-  testWidgets('tapping the checkbox again re-disables the Google button', (
+  testWidgets('tapping the checkbox again re-disables the I Agree button', (
     tester,
   ) async {
-    await tester.pumpWidget(_app());
+    await tester.pumpWidget(_consentApp());
 
     await tester.tap(find.byType(Checkbox));
     await tester.pump();
-    expect(_googleButton(tester).onPressed, isNotNull);
+    expect(_agreeButton(tester).onPressed, isNotNull);
 
     await tester.tap(find.byType(Checkbox));
     await tester.pump();
-    expect(_googleButton(tester).onPressed, isNull);
+    expect(_agreeButton(tester).onPressed, isNull);
   });
 
   testWidgets('Privacy Policy link opens the policy dialog', (tester) async {

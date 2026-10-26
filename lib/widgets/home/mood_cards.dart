@@ -59,19 +59,28 @@ const List<Mood> kMoods = [
 class MoodCards extends StatelessWidget {
   final Map<String, String> images;
   final void Function(String query) onTap;
+  final List<Mood>? moods;
 
-  const MoodCards({super.key, required this.images, required this.onTap});
+  const MoodCards({
+    super.key,
+    required this.images,
+    required this.onTap,
+    this.moods,
+  });
 
   String? _imageFor(Mood mood) {
     for (final entry in images.entries) {
       final key = entry.key.toLowerCase();
-      if (mood.matchKeys.any(key.contains)) return entry.value;
+      if (mood.matchKeys.any((mk) => key.contains(mk.toLowerCase()))) {
+        return entry.value;
+      }
     }
     return null;
   }
 
   @override
   Widget build(BuildContext context) {
+    final list = moods ?? kMoods;
     return SizedBox(
       height: 132,
       child: ListView.separated(
@@ -79,10 +88,10 @@ class MoodCards extends StatelessWidget {
         padding: const EdgeInsets.symmetric(
           horizontal: CluvoTheme.screenPadding,
         ),
-        itemCount: kMoods.length,
+        itemCount: list.length,
         separatorBuilder: (_, _) => const SizedBox(width: 14),
         itemBuilder: (context, i) {
-          final mood = kMoods[i];
+          final mood = list[i];
           return _MoodCard(
             mood: mood,
             imageUrl: _imageFor(mood),

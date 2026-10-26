@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../providers/home_provider.dart';
 import '../../theme.dart';
+import '../../utils/category_icons.dart';
 
 /// Horizontally scrollable category chips sourced from the server-side
 /// `event_category_counts` aggregate. When no real categories exist the widget
@@ -38,6 +39,7 @@ class EventCategoryChips extends StatelessWidget {
               label: 'All',
               selected: selected == null,
               onTap: () => onSelected(null),
+              isAll: true,
             );
           }
           final category = categories[index - 1];
@@ -60,12 +62,14 @@ class _Chip extends StatelessWidget {
   final int? count;
   final bool selected;
   final VoidCallback onTap;
+  final bool isAll;
 
   const _Chip({
     required this.label,
     required this.selected,
     required this.onTap,
     this.count,
+    this.isAll = false,
   });
 
   @override
@@ -75,7 +79,7 @@ class _Chip extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: selected ? CluvoTheme.primary : context.cluvoSurface,
@@ -87,6 +91,12 @@ class _Chip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Icon(
+              isAll ? kAllCategoriesIcon : categoryIcon(label),
+              size: 15,
+              color: selected ? Colors.white : context.cluvoTextPrimary,
+            ),
+            const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(

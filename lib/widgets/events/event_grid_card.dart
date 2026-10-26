@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../theme.dart';
 import '../../models/models.dart';
 import '../../providers/wishlist_provider.dart';
+import '../../services/location_matching.dart';
 import '../event_status_chip.dart';
 import '../wishlist_button.dart';
 
@@ -30,11 +31,16 @@ class EventGridCard extends StatelessWidget {
   final VoidCallback onTap;
   final bool showCommunity;
 
+  /// Straight-line distance from the user. Rendered as a small pill when
+  /// non-null; callers only supply it while a distance sort is active.
+  final double? distanceKm;
+
   const EventGridCard({
     super.key,
     required this.event,
     required this.onTap,
     this.showCommunity = false,
+    this.distanceKm,
   });
 
   @override
@@ -138,6 +144,41 @@ class EventGridCard extends StatelessWidget {
                       right: 8,
                       child: WishlistButton(type: wishlistEvent, id: event.id),
                     ),
+                    // Distance pill, bottom-left (shown only under a distance sort)
+                    if (distanceKm != null)
+                      Positioned(
+                        left: 8,
+                        bottom: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.92),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.near_me_outlined,
+                                size: 11,
+                                color: Color(0xFF171717),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                formatDistance(distanceKm!),
+                                style: const TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF171717),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
