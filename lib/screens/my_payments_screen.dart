@@ -55,7 +55,9 @@ class MyPaymentsScreen extends ConsumerWidget {
     final status = p['status'] as String? ?? 'pending';
     final refundStatus = p['refund_status'] as String?;
     final eventCancelled = ev?['status'] == 'cancelled';
-    final date = p['created_at'] as String?;
+    final date = (status == 'success' || status == 'refunded')
+        ? (p['updated_at'] as String? ?? p['created_at'] as String?)
+        : (p['created_at'] as String?);
     final paymentId = p['id'] as String?;
     final isHistory = p['is_refund_history'] == true;
 
