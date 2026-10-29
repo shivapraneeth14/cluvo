@@ -194,8 +194,19 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
               .map((e) => Event.fromMap(e as Map<String, dynamic>))
               .toList(),
         );
+        final community = results[0] as Map<String, dynamic>?;
+        if (community != null && community['deletion_grace_started_at'] != null && community['closed_at'] == null) {
+          if (mounted) {
+            setState(() {
+              _community = community;
+              _loading = false;
+              _error = 'This community is scheduled for closure. Access is restricted.';
+            });
+          }
+          return;
+        }
         setState(() {
-          _community = results[0] as Map<String, dynamic>?;
+          _community = community;
           _events = events;
           _media = (results[2] as List).cast<Map<String, dynamic>>();
           _isMember = isMember;
@@ -214,8 +225,19 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
               .map((e) => Event.fromMap(e as Map<String, dynamic>))
               .toList(),
         );
+        final community = results[0] as Map<String, dynamic>?;
+        if (community != null && community['deletion_grace_started_at'] != null && community['closed_at'] == null) {
+          if (mounted) {
+            setState(() {
+              _community = community;
+              _loading = false;
+              _error = 'This community is scheduled for closure. Access is restricted.';
+            });
+          }
+          return;
+        }
         setState(() {
-          _community = results[0] as Map<String, dynamic>?;
+          _community = community;
           _events = events;
           _media = (results[2] as List).cast<Map<String, dynamic>>();
           _loading = false;

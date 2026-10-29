@@ -30,6 +30,21 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Verified Android App Links -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data
+                    android:scheme="https"
+                    android:host="cluvo.app"
+                    android:pathPrefix="/communities" />
+                <data
+                    android:scheme="https"
+                    android:host="cluvo.app"
+                    android:pathPrefix="/events" />
+            </intent-filter>
+            <!-- Custom scheme fallback -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>

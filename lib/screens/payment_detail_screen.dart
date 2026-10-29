@@ -191,7 +191,11 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
       orderId: _payment!['razorpay_order_id'] as String?,
       razorpayId: _payment!['razorpay_payment_id'] as String?,
       createdAtText: formatDateTime(
-        safeParseDate(_payment!['created_at'] as String?),
+        safeParseDate(
+          (_payment!['status'] == 'success' || _payment!['status'] == 'refunded')
+              ? (_payment!['updated_at'] as String? ?? _payment!['created_at'] as String?)
+              : (_payment!['created_at'] as String?),
+        ),
       ),
       timeline: (_timeline ?? []).whereType<Map<String, dynamic>>().toList(),
     );

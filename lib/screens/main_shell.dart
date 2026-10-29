@@ -24,6 +24,7 @@ class _MainShellState extends ConsumerState<MainShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _maybePromptGrace());
   }
 
+
   /// If the signed-in account is in its 30-day deletion grace period, show a
   /// one-time prompt right after login. User must choose: keep account or
   /// delete anyway. If they choose delete anyway, they are signed out and
