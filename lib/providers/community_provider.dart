@@ -56,6 +56,7 @@ class CommunitiesNotifier extends StateNotifier<PaginatedList<Community>> {
         .from('communities')
         .select(communitySelectColumns)
         .isFilter('deleted_at', null)
+        .isFilter('deletion_grace_started_at', null)
         .eq('is_hidden', false);
     if (_category != null) {
       query = query.eq('category', _category!);
@@ -182,6 +183,7 @@ final searchCommunitiesProvider = FutureProvider.autoDispose
           .from('communities')
           .select(communitySelectColumns)
           .isFilter('deleted_at', null)
+          .isFilter('deletion_grace_started_at', null)
           .eq('is_hidden', false)
           .or(
             'name.ilike.$pattern,'

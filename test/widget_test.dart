@@ -25,6 +25,6 @@ void main() {
   });
 
   test('share URL builder produces deep link', () {
-    expect(buildShareUrl('event', 'abc123'), 'cluvo:///event/abc123');
+    expect(buildShareUrl('event', 'abc123'), 'cluvo://event/abc123');
   });
 }
