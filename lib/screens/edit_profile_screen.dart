@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import '../models/models.dart';
 import '../providers/profile_provider.dart';
 import '../supabase_client.dart';
 import '../theme.dart';
@@ -20,23 +23,32 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   final _lastNameController = TextEditingController();
   final _usernameController = TextEditingController();
   String? _avatarUrl;
+  XFile? _pendingImageFile;
+  bool _avatarChanged = false;
   String? _initialUsername;
   bool _usernameAvailable = true;
   bool _checkingUsername = false;
   bool _saving = false;
   bool _uploading = false;
   Timer? _usernameTimer;
+  bool _initialized = false;
+
+  void _populateFromProfile(Profile profile) {
+    if (_initialized) return;
+    _initialized = true;
+    _firstNameController.text = profile.firstName ?? '';
+    _lastNameController.text = profile.lastName ?? '';
+    _usernameController.text = profile.username ?? '';
+    _initialUsername = profile.username ?? '';
+    _avatarUrl = profile.avatarUrl;
+  }
 
   @override
   void initState() {
     super.initState();
     final profile = ref.read(profileProvider).valueOrNull;
     if (profile != null) {
-      _firstNameController.text = profile.firstName ?? '';
-      _lastNameController.text = profile.lastName ?? '';
-      _usernameController.text = profile.username ?? '';
-      _initialUsername = profile.username ?? '';
-      _avatarUrl = profile.avatarUrl;
+      _populateFromProfile(profile);
     }
   }
 
@@ -87,6 +99,50 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     });
   }
 
+  bool _hasChanges() {
+    if (!_initialized) return false;
+    final profile = ref.read(profileProvider).valueOrNull;
+    if (_avatarChanged) return true;
+    if (_firstNameController.text.trim() != (profile?.firstName ?? '')) return true;
+    if (_lastNameController.text.trim() != (profile?.lastName ?? '')) return true;
+    if (_usernameController.text.trim() != (profile?.username ?? '')) return true;
+    return false;
+  }
+
+  Future<void> _handleBack() async {
+    if (_hasChanges()) {
+      final shouldDiscard = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Discard changes?'),
+          content: const Text('You have unsaved changes that will be lost.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Discard'),
+            ),
+          ],
+        ),
+      );
+      if (shouldDiscard != true || !mounted) return;
+    }
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    } else {
+      try {
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/home');
+        }
+      } catch (_) {}
+    }
+  }
+
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final picked = await picker.pickImage(
@@ -95,29 +151,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       maxHeight: 512,
     );
     if (picked == null) return;
-    setState(() => _uploading = true);
-    try {
-      final url = await uploadToCloudinary(picked);
-      if (!mounted) return;
-      await supabase
-          .from('profiles')
-          .update({'avatar_url': url})
-          .eq('id', supabase.auth.currentSession!.user.id);
-      final _ = await ref.refresh(profileProvider.future);
-      setState(() {
-        _avatarUrl = url;
-        _uploading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _uploading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Upload failed: $e'),
-          backgroundColor: Colors.red[700],
-        ),
-      );
-    }
+    // Stage image locally: zero network calls to Cloudinary or Supabase
+    setState(() {
+      _pendingImageFile = picked;
+      _avatarChanged = true;
+    });
   }
 
   Future<void> _save() async {
@@ -143,15 +181,44 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     }
 
     setState(() => _saving = true);
+    String? newlyUploadedUrl;
     try {
-      await supabase
-          .from('profiles')
-          .update({
-            'first_name': firstName,
-            'last_name': lastName,
-            if (username != _initialUsername) 'username': username,
-          })
-          .eq('id', supabase.auth.currentSession!.user.id);
+      if (_avatarChanged && _pendingImageFile != null) {
+        setState(() => _uploading = true);
+        try {
+          newlyUploadedUrl = await uploadToCloudinary(_pendingImageFile!);
+        } finally {
+          if (mounted) setState(() => _uploading = false);
+        }
+      }
+
+      final updates = <String, dynamic>{
+        'first_name': firstName,
+        'last_name': lastName,
+        if (username != _initialUsername) 'username': username,
+        'avatar_url': ?newlyUploadedUrl,
+      };
+
+      try {
+        await supabase
+            .from('profiles')
+            .update(updates)
+            .eq('id', supabase.auth.currentSession!.user.id);
+      } catch (dbErr) {
+        // Safe Cleanup: Database write failed. Destroy newly uploaded orphan asset
+        if (newlyUploadedUrl != null) {
+          try {
+            await supabase.functions.invoke(
+              'delete-media',
+              body: {'asset_url': newlyUploadedUrl},
+            );
+          } catch (_) {
+            // Cleanup error logged, existing DB avatar untouched
+          }
+        }
+        rethrow;
+      }
+
       final _ = await ref.refresh(profileProvider.future);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -160,10 +227,16 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           backgroundColor: Color(0xFF10B981),
         ),
       );
-      if (context.canPop()) {
-        context.pop();
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
       } else {
-        context.go('/home');
+        try {
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.go('/home');
+          }
+        } catch (_) {}
       }
     } catch (e) {
       _showError('Failed to save: $e');
@@ -181,20 +254,35 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Edit Profile'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/home');
-            }
-          },
+    final profileAsync = ref.watch(profileProvider);
+    if (!_initialized && profileAsync.hasValue && profileAsync.value != null) {
+      _populateFromProfile(profileAsync.value!);
+    }
+    ImageProvider? imageProvider;
+    if (_pendingImageFile != null) {
+      if (kIsWeb) {
+        imageProvider = NetworkImage(_pendingImageFile!.path);
+      } else {
+        imageProvider = FileImage(File(_pendingImageFile!.path));
+      }
+    } else if (_avatarUrl != null && _avatarUrl!.isNotEmpty) {
+      imageProvider = NetworkImage(_avatarUrl!);
+    }
+
+    return PopScope(
+      canPop: !_hasChanges(),
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        await _handleBack();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Edit Profile'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: _handleBack,
+          ),
         ),
-      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -207,11 +295,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                   CircleAvatar(
                     radius: 50,
                     backgroundColor: CluvoTheme.primary.withValues(alpha: 0.15),
-                    backgroundImage:
-                        _avatarUrl != null && _avatarUrl!.isNotEmpty
-                        ? NetworkImage(_avatarUrl!)
-                        : null,
-                    child: _avatarUrl == null || _avatarUrl!.isEmpty
+                    backgroundImage: imageProvider,
+                    child: imageProvider == null
                         ? Text(
                             _firstNameController.text.isNotEmpty
                                 ? _firstNameController.text[0].toUpperCase()
@@ -268,7 +353,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             GestureDetector(
               onTap: _uploading ? null : _pickImage,
               child: Text(
-                _uploading ? 'Uploading...' : 'Tap to change photo',
+                _uploading
+                    ? 'Uploading...'
+                    : (_pendingImageFile != null
+                        ? 'New photo selected (tap to change)'
+                        : 'Tap to change photo'),
                 style: TextStyle(
                   fontSize: 12,
                   color: context.cluvoTextSecondary,
@@ -341,8 +430,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildLabel(String text) {
     return Text(

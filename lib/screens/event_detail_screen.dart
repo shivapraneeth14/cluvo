@@ -700,6 +700,20 @@ class _EventDetailScreenState extends State<EventDetailScreen>
         await _verifyPayment();
         return;
       }
+      if (errorCode == 'capacity_held') {
+        setState(() => _registering = false);
+        _showError(
+          'All available tickets are currently held in checkout. Please try again in a few minutes.',
+        );
+        return;
+      }
+      if (errorCode == 'high_demand_try_again') {
+        setState(() => _registering = false);
+        _showError(
+          'High booking demand — please try again in a moment.',
+        );
+        return;
+      }
 
       final registrationId = paymentRes.data['registration_id'] as String?;
       final orderId = paymentRes.data['razorpay_order_id'] as String?;
