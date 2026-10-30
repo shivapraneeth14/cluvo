@@ -51,5 +51,5 @@ const String appDeepLinkBase = 'cluvo://';
 
 String buildShareUrl(String type, String id) {
   if (kIsWeb) return '${Uri.base.origin}/$type/$id';
-  return '$appDeepLinkBase/$type/$id';
+  return '$appDeepLinkBase$type/$id';
 }

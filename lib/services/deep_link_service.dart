@@ -28,11 +28,20 @@ class DeepLinkService {
 
   void _handleUri(Uri uri) {
     try {
-      final segments = uri.pathSegments;
-      if (segments.length < 2) return;
+      String? type;
+      String? id;
 
-      final type = segments[0];
-      final id = segments[1];
+      final segments = uri.pathSegments;
+      if (segments.length >= 2) {
+        type = segments[0];
+        id = segments[1];
+      } else if (segments.isNotEmpty &&
+          (uri.host == 'events' || uri.host == 'communities')) {
+        type = uri.host;
+        id = segments[0];
+      }
+
+      if (type == null || id == null) return;
       if (type != 'communities' && type != 'events') return;
 
       Future.delayed(const Duration(milliseconds: 300), () {

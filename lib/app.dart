@@ -47,6 +47,7 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
   void initState() {
     super.initState();
     _router = GoRouter(
+      navigatorKey: navigatorKey,
       initialLocation: '/splash',
       redirect: _redirect,
       errorBuilder: (context, state) => Scaffold(
@@ -355,7 +356,6 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
         .read(notificationsRealtimeProvider)
         .sync(ref.read(authProvider).session?.user.id);
     return MaterialApp.router(
-      key: navigatorKey,
       title: 'Cluvo',
       debugShowCheckedModeBanner: false,
       theme: CluvoTheme.lightTheme,

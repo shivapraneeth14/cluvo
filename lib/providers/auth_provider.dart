@@ -6,6 +6,7 @@ import 'profile_provider.dart';
 import 'community_provider.dart';
 import 'notification_provider.dart';
 import 'wishlist_provider.dart';
+import 'activity_provider.dart';
 
 class AuthState {
   final bool isLoading;
@@ -117,6 +118,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
   void _invalidateDependentProviders() {
     _ref.invalidate(profileProvider);
     _ref.invalidate(myCommunitiesProvider);
+    _ref.invalidate(myMembershipsProvider);
+    _ref.invalidate(myRegistrationsProvider);
+    _ref.invalidate(myPaymentsProvider);
     _ref.invalidate(notificationsProvider);
     _ref.invalidate(unreadCountProvider);
     _ref.invalidate(wishlistProvider);

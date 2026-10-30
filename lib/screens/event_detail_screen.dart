@@ -1562,7 +1562,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              '${isSoldOut ? 0 : (remaining > 0 ? remaining : 0)}/$capacity spots',
+                              '${booked.toInt()}/$capacity spots',
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
