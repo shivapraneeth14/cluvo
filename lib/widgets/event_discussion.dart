@@ -40,6 +40,8 @@ class _EventDiscussionState extends State<EventDiscussion> {
   RealtimeChannel? _channel;
   String? _editingId;
   final Set<String> _blockedUserIds = {};
+  final Map<String, ({String name, String? avatarUrl})> _profileCache = {};
+  final Set<String> _pendingProfileFetches = {};
 
   @override
   void initState() {
@@ -103,6 +105,14 @@ class _EventDiscussionState extends State<EventDiscussion> {
       } catch (_) {}
       setState(() {
         _messages = messages;
+        for (final msg in messages) {
+          if (msg.senderName != null && msg.senderName!.isNotEmpty) {
+            _profileCache[msg.userId] = (
+              name: msg.senderName!,
+              avatarUrl: msg.senderAvatarUrl,
+            );
+          }
+        }
         _isBanned = banned;
         _isRemoved = removed;
         _blockedUserIds
@@ -120,6 +130,46 @@ class _EventDiscussionState extends State<EventDiscussion> {
     }
   }
 
+  Future<void> _fetchAndHydrateProfile(String userId) async {
+    if (_profileCache.containsKey(userId) ||
+        _pendingProfileFetches.contains(userId)) {
+      return;
+    }
+    _pendingProfileFetches.add(userId);
+    try {
+      final res = await supabase
+          .from('profiles')
+          .select('first_name, last_name, avatar_url')
+          .eq('id', userId)
+          .maybeSingle();
+      if (res != null) {
+        final first = (res['first_name'] as String?) ?? '';
+        final last = (res['last_name'] as String?) ?? '';
+        final fullName = '$first $last'.trim();
+        final name = fullName.isNotEmpty ? fullName : 'Member';
+        final avatar = res['avatar_url'] as String?;
+        _profileCache[userId] = (name: name, avatarUrl: avatar);
+
+        if (!mounted) return;
+        setState(() {
+          for (final m in _messages) {
+            if (m.userId == userId &&
+                (m.senderName == null ||
+                    m.senderName!.isEmpty ||
+                    m.senderName == 'Unknown')) {
+              m.senderName = name;
+              m.senderAvatarUrl = avatar;
+            }
+          }
+        });
+      }
+    } catch (_) {
+      // Gracefully ignore profile fetch errors; defaults will be retained
+    } finally {
+      _pendingProfileFetches.remove(userId);
+    }
+  }
+
   void _subscribe() {
     _channel = supabase.channel('event-discussion-${widget.eventId}');
     _channel!.onPostgresChanges(
@@ -133,10 +183,72 @@ class _EventDiscussionState extends State<EventDiscussion> {
       ),
       callback: (payload) {
         if (!mounted) return;
-        final msg = EventMessage.fromMap(payload.newRecord);
+        final newRecord = payload.newRecord;
+        if (newRecord.isEmpty) return;
+        final msg = EventMessage.fromMap(newRecord);
         if (_blockedUserIds.contains(msg.userId)) return;
+
+        // Prevent duplicate messages if already present
+        if (_messages.any((m) => m.id == msg.id)) return;
+
+        final cached = _profileCache[msg.userId];
+        if (cached != null) {
+          msg.senderName = cached.name;
+          msg.senderAvatarUrl = cached.avatarUrl;
+        } else {
+          _fetchAndHydrateProfile(msg.userId);
+        }
+
         setState(() => _messages.add(msg));
         _scrollToBottom();
+      },
+    );
+    _channel!.onPostgresChanges(
+      event: PostgresChangeEvent.update,
+      schema: 'public',
+      table: 'event_messages',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'event_id',
+        value: widget.eventId,
+      ),
+      callback: (payload) {
+        if (!mounted) return;
+        final newRecord = payload.newRecord;
+        if (newRecord.isEmpty) return;
+        final id = newRecord['id'] as String?;
+        final content = newRecord['content'] as String?;
+        final updatedAtStr = newRecord['updated_at'] as String?;
+        if (id == null) return;
+        setState(() {
+          for (final m in _messages) {
+            if (m.id == id) {
+              if (content != null) m.content = content;
+              if (updatedAtStr != null) {
+                m.updatedAt = DateTime.parse(updatedAtStr).toLocal();
+              }
+            }
+          }
+        });
+      },
+    );
+    _channel!.onPostgresChanges(
+      event: PostgresChangeEvent.delete,
+      schema: 'public',
+      table: 'event_messages',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'event_id',
+        value: widget.eventId,
+      ),
+      callback: (payload) {
+        if (!mounted) return;
+        final oldRecord = payload.oldRecord;
+        final id = oldRecord['id'] as String?;
+        if (id == null) return;
+        setState(() {
+          _messages.removeWhere((m) => m.id == id);
+        });
       },
     );
     _channel!.onPostgresChanges(

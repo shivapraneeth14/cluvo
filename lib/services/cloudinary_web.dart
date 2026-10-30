@@ -2,16 +2,14 @@ import 'dart:convert';
 import 'package:cross_file/cross_file.dart';
 import 'package:http/http.dart' as http;
 import '../config.dart';
+import 'media_validator.dart';
 
 final _cloudName = AppConfig.cloudinaryCloudName;
 final _uploadPreset = AppConfig.cloudinaryUploadPreset;
-const _maxFileSize = 10 * 1024 * 1024; // 10 MB
 
 Future<String> uploadToCloudinary(XFile image) async {
   final bytes = await image.readAsBytes();
-  if (bytes.length > _maxFileSize) {
-    throw Exception('File is too large. Maximum size is 10 MB.');
-  }
+  validateImageBytes(bytes, filename: image.name);
 
   final uri = Uri.parse(
     'https://api.cloudinary.com/v1_1/$_cloudName/image/upload',
