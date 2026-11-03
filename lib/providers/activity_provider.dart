@@ -7,7 +7,7 @@ Future<List<Map<String, dynamic>>> _fetchMyRegistrations() async {
   final res = await supabase
       .from('registrations')
       .select(
-        '*, events!inner(title, start_date, status, price, communities!inner(name)), payments(status, refund_status, refund_claim_state, amount, refunded_amount, platform_fee))',
+        '*, events!inner(title, start_date, status, price, communities!inner(name)), payments(status, refund_status, refund_claim_state, amount, refunded_amount, platform_fee, organizer_share))',
       )
       .eq('user_id', session.user.id)
       .eq('events.communities.is_hidden', false)

@@ -66,7 +66,7 @@ class MyRegistrationsScreen extends ConsumerWidget {
     final refundStatus = payment?['refund_status'] as String?;
     final paidAmount = payment?['amount'] as num?;
     final refundedAmount = payment?['refunded_amount'] as num?;
-    final platformFee = payment?['platform_fee'] as num?;
+    final organizerShare = payment?['organizer_share'] as num?;
     final qrCode = r['qr_code'] as String?;
 
     final refundLabels = {
@@ -77,18 +77,15 @@ class MyRegistrationsScreen extends ConsumerWidget {
       'failed': 'Refund failed — support will contact you',
     };
 
-    // Amount the buyer gets back: the recorded refund, else the full amount for
-    // an organizer-cancelled event, else the ticket price (platform fee kept)
-    // for a self-cancel.
+    // Amount the buyer gets back: the recorded refund when we have it;
+    // otherwise the ticket price (organizer_share) if they were issued a ticket
+    // — the platform fee is kept for a self-cancel and an organizer-cancelled
+    // event alike; a never-confirmed capture is refunded in full.
     num? refundDisplay;
     if (refundedAmount is num && refundedAmount > 0) {
       refundDisplay = refundedAmount;
-    } else if (isEventCancelled && paidAmount is num) {
-      refundDisplay = paidAmount;
-    } else if (paidAmount is num &&
-        platformFee is num &&
-        paidAmount - platformFee > 0) {
-      refundDisplay = paidAmount - platformFee;
+    } else if (organizerShare is num) {
+      refundDisplay = organizerShare;
     } else if (paidAmount is num) {
       refundDisplay = paidAmount;
     }

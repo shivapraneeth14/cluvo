@@ -811,7 +811,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           .invoke('register-for-event', body: {'event_id': widget.id})
           .timeout(const Duration(seconds: 30));
       if (!mounted) return;
-      if (res.data['success'] == true) {
+      if (res.data != null && res.data["success"] == true) {
         setState(() {
           _isRegistered = true;
           _registrationStatus = 'confirmed';
@@ -889,7 +889,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           )
           .timeout(const Duration(seconds: 30));
       if (!mounted) return;
-      if (res.data['success'] == true) {
+      if (res.data != null && res.data["success"] == true) {
         final refundRaw = res.data['refund'];
         final refund = refundRaw is Map<String, dynamic> ? refundRaw : null;
         final refundedAmount = refund?['amount'] as num?;
@@ -1936,7 +1936,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
             child: Text(
               'Free cancellation up to 24 hours before the event. Ticket refunds '
               'exclude the non-refundable platform fee. If the organizer cancels '
-              'the event, you’ll receive a full refund, including the platform fee.',
+              'the event, you’ll receive a refund of the ticket price only.',
               style: TextStyle(
                 fontSize: 12,
                 height: 1.4,

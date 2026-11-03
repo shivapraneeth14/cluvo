@@ -50,11 +50,10 @@ class MyPaymentsScreen extends ConsumerWidget {
     final ev = reg?['events'] as Map<String, dynamic>?;
     final title = ev?['title'] as String? ?? 'Unknown Event';
     final amount = (p['amount'] as num?)?.toDouble() ?? 0;
-    final platformFee = (p['platform_fee'] as num?)?.toDouble();
+    final organizerShare = (p['organizer_share'] as num?)?.toDouble();
     final refundedAmount = (p['refunded_amount'] as num?)?.toDouble();
     final status = p['status'] as String? ?? 'pending';
     final refundStatus = p['refund_status'] as String?;
-    final eventCancelled = ev?['status'] == 'cancelled';
     final date = (status == 'success' || status == 'refunded')
         ? (p['updated_at'] as String? ?? p['created_at'] as String?)
         : (p['created_at'] as String?);
@@ -62,16 +61,16 @@ class MyPaymentsScreen extends ConsumerWidget {
     final isHistory = p['is_refund_history'] == true;
 
     // A refunded row shows what the buyer gets back, not the gross payment:
-    // the ticket only on a self-cancel (platform fee kept), the full amount when
-    // the organizer cancelled the event.
+    // the recorded refund when we have it; otherwise the ticket price
+    // (organizer_share) if they were issued a ticket — the platform fee is kept
+    // for a self-cancel and an organizer-cancelled event alike; a never-confirmed
+    // capture (organizer_share null) is refunded in full.
     var displayAmount = amount;
     if (refundStatus != null && refundStatus != 'failed') {
       if (refundedAmount != null && refundedAmount > 0) {
         displayAmount = refundedAmount;
-      } else if (eventCancelled) {
-        displayAmount = amount;
-      } else if (platformFee != null && amount - platformFee > 0) {
-        displayAmount = amount - platformFee;
+      } else if (organizerShare != null) {
+        displayAmount = organizerShare;
       }
     }
 
@@ -154,10 +153,9 @@ class MyPaymentsScreen extends ConsumerWidget {
         ],
       ),
       // An archived refund points at a payment row that has since been reused
-      // for a NEW sale — its receipt shows the new attempt, not this refund.
-      // Keep it informational (no navigation) to never show a misleading receipt.
-      onTap: paymentId != null && !isHistory
-          ? () => context.push('/payments/$paymentId')
+      // for a NEW sale — navigate to its immutable refund history detail view.
+      onTap: paymentId != null
+          ? () => context.push(isHistory ? '/refunds/$paymentId' : '/payments/$paymentId')
           : null,
     );
   }
