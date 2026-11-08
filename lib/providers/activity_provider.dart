@@ -51,22 +51,41 @@ Future<List<Map<String, dynamic>>> _fetchMyPayments() async {
   }
   if (history.isEmpty) return payments;
 
-  final liveRefundByPayment = {
+  // A live refund must hide only ITSELF from the archive, not every archived
+  // refund on the same reused payment row. Deduplicate by provider refund id;
+  // for an id-less in-flight claim, hide at most the newest archived row.
+  final liveRefundIds = <String>{
     for (final p in payments)
-      if (p['refund_status'] != null) p['id'] as String: p['refund_status'],
+      if (p['razorpay_refund_id'] != null)
+        p['razorpay_refund_id'] as String,
   };
-  final archived = <Map<String, dynamic>>[
-    for (final h in history)
-      if (liveRefundByPayment[h['payment_id']] == null)
-        {
-          ...h,
-          'status': 'refunded',
-          'refund_status': h['refund_status'] ?? 'processed',
-          'refunded_amount': h['amount'],
-          'amount': h['payment_amount'] ?? h['amount'],
-          'is_refund_history': true,
-        },
-  ];
+  final liveIdlessPayments = <String>{
+    for (final p in payments)
+      if (p['refund_status'] != null && p['razorpay_refund_id'] == null)
+        p['id'] as String,
+  };
+  final skippedIdless = <String>{};
+  final archived = <Map<String, dynamic>>[];
+  for (final h in history) {
+    final refundId = h['razorpay_refund_id'] as String?;
+    if (refundId != null && liveRefundIds.contains(refundId)) continue;
+    final paymentId = h['payment_id'] as String?;
+    if (refundId == null &&
+        paymentId != null &&
+        liveIdlessPayments.contains(paymentId) &&
+        skippedIdless.add(paymentId)) {
+      continue;
+    }
+    archived.add({
+      ...h,
+      'status': 'refunded',
+      'refund_status': h['refund_status'] ?? 'processed',
+      'refunded_amount':
+          h['refund_amount'] ?? h['organizer_clawed'] ?? h['amount'],
+      'amount': h['payment_amount'] ?? h['amount'],
+      'is_refund_history': true,
+    });
+  }
 
   final merged = [...payments, ...archived];
   merged.sort((a, b) => (b['created_at'] as String? ?? '')

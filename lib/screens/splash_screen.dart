@@ -85,7 +85,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
               ),
               const SizedBox(height: 16),
               Text(
-                'CLUVO',
+                 'chigzo',
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.w700,

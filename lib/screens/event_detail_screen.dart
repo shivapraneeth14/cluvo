@@ -19,7 +19,9 @@ import '../widgets/spots_badge.dart';
 import '../widgets/wishlist_button.dart';
 import '../widgets/lifecycle_ticker.dart';
 import '../widgets/media/hero_video.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/wishlist_provider.dart';
+import '../providers/activity_provider.dart';
 import '../models/models.dart';
 import '../utils.dart';
 import '../utils/category_icons.dart';
@@ -895,20 +897,41 @@ class _EventDetailScreenState extends State<EventDetailScreen>
         final refundedAmount = refund?['amount'] as num?;
         final refundInitiated = refund?['initiated'] == true;
         final refundReason = refund?['reason'] as String?;
+        final refundStatus = refund?['status'] as String?;
+        // Only release the local capacity count when the server actually
+        // decremented it; on an already-cancelled retry it did not.
+        final decrementedCapacity = refund?['decremented_capacity'] == true;
+        final refundStillOwed = (refundInitiated && refundStatus != 'processed') ||
+            refundReason == 'in_flight' ||
+            refundReason == 'failed';
         setState(() {
           _isRegistered = false;
           _registrationStatus = 'cancelled';
-          _event!['booked_count'] =
-              ((_event!['booked_count'] as num?) ?? 1) - 1;
+          if (decrementedCapacity) {
+            _event!['booked_count'] =
+                ((_event!['booked_count'] as num?) ?? 1) - 1;
+          }
+          _refundInFlight = refundStillOwed;
         });
+        if (refundStillOwed) {
+          _startRefundPoll();
+        } else {
+          _refundPollTimer?.cancel();
+        }
+        // Refresh the activity lists so the cancelled/refund state is visible
+        // immediately instead of only after a cold app restart.
+        final container = ProviderScope.containerOf(context, listen: false);
+        container.invalidate(myRegistrationsProvider);
+        container.invalidate(myPaymentsProvider);
         // Never say "cancelled" alone when a refund was expected: an
         // initiated:false response means the money side needs attention, and
         // hiding that left customers believing a refund was coming.
         final String message;
         final Color bg;
         if (refundInitiated && refundedAmount != null && refundedAmount > 0) {
-          message =
-              'Registration cancelled. Refund of ₹${(refundedAmount / 100).toStringAsFixed(0)} initiated.';
+          message = refundStatus == 'processed'
+              ? 'Registration cancelled. Refund of ₹${(refundedAmount / 100).toStringAsFixed(0)} completed.'
+              : 'Registration cancelled. Refund of ₹${(refundedAmount / 100).toStringAsFixed(0)} is processing — we\'ll notify you when it completes.';
           bg = Colors.green[700]!;
         } else if (refundReason == 'failed') {
           message =

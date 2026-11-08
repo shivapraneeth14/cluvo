@@ -59,7 +59,13 @@ class MyRegistrationsScreen extends ConsumerWidget {
     final startDate = events?['start_date'] as String?;
     final status = r['status'] as String? ?? 'pending';
     final eventId = r['event_id'] as String?;
-    final isEventCancelled = events?['status'] == 'cancelled';
+    // A cancellation in progress ('cancelling') is already final for the
+    // attendee: the event will not happen and their QR credential has been
+    // cleared. Treat it exactly like 'cancelled' so we never show a live
+    // ticket for an event that is being called off.
+    final eventStatus = events?['status'] as String?;
+    final isEventCancelled =
+        eventStatus == 'cancelled' || eventStatus == 'cancelling';
 
     Map<String, dynamic>? payment = embeddedPayment(r);
     final paymentStatus = payment?['status'] as String?;
@@ -105,6 +111,14 @@ class MyRegistrationsScreen extends ConsumerWidget {
       } else {
         refundNotice = 'Event cancelled — money will be refunded';
       }
+    } else if (status == 'cancelled' && refundStatus != null && refundStatus != 'processed') {
+      // A cancelled booking can have payments.status='refunded' while the
+      // provider attempt is still pending or has failed. Show the real state,
+      // never a false "refunded".
+      final label = refundStatus == 'failed'
+          ? 'Refund failed — retrying'
+          : (effectiveRefundLabel ?? 'Refund processing');
+      refundNotice = 'Cancelled · $label$amtText';
     } else if (status == 'cancelled' && paymentStatus == 'refunded') {
       refundNotice = 'Cancelled · refunded$amtText';
     } else if (status == 'cancelled' && effectiveRefundLabel != null) {

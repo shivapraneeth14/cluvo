@@ -26,7 +26,7 @@ class ProfileScreen extends ConsumerWidget {
       appBar: AppBar(
         centerTitle: true,
         title: Text(
-          'CLUVO',
+           'chigzo',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             letterSpacing: 2,

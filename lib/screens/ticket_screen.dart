@@ -94,7 +94,12 @@ class _TicketScreenState extends State<TicketScreen> {
     final eventStatus = event?['status'] as String? ?? 'published';
     final userEmail = supabase.auth.currentUser?.email ?? '';
 
-    final status = (regStatus == 'cancelled' || eventStatus == 'cancelled')
+    // 'cancelling' means the organizer has already called the event off and
+    // the QR credential is revoked; show it as cancelled, never as a live
+    // ticket.
+    final isEventCancelled =
+        eventStatus == 'cancelled' || eventStatus == 'cancelling';
+    final status = (regStatus == 'cancelled' || isEventCancelled)
         ? 'cancelled'
         : (regStatus == 'attended' ? 'attended' : 'confirmed');
 
@@ -114,7 +119,7 @@ class _TicketScreenState extends State<TicketScreen> {
           venue: event?['location'] as String?,
           attendeeName: attendee,
           bookingId: widget.registrationId.split('-').first.toUpperCase(),
-          qrData: qrCode,
+          qrData: status == 'confirmed' ? qrCode : null,
           status: status,
         ),
       ],
