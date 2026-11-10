@@ -9,6 +9,7 @@ import '../models/models.dart';
 import '../providers/profile_provider.dart';
 import '../supabase_client.dart';
 import '../theme.dart';
+import '../widgets/cluvo_logo.dart';
 import '../services/cloudinary.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
@@ -277,7 +278,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Edit Profile'),
+          title: const CluvoLogoTitle('Edit Profile'),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: _handleBack,

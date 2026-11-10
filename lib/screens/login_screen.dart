@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../theme.dart';
+import '../widgets/cluvo_logo.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -70,43 +71,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Container(
-                            width: 84,
-                            height: 84,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.18),
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.35),
-                              ),
-                            ),
-                            child: const Icon(
-                              Icons.groups_rounded,
-                              color: Colors.white,
-                              size: 42,
-                            ),
+                          const CluvoLogo(
+                            variant: CluvoLogoVariant.light,
+                            height: 52,
                           ),
-                          const SizedBox(height: 22),
-                          const Text(
-                            'Cluvo',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontFamily: 'PlayfairDisplay',
-                              fontSize: 52,
-                              height: 1.0,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1,
-                              color: Colors.white,
-                              shadows: [
-                                Shadow(
-                                  color: Colors.black38,
-                                  blurRadius: 18,
-                                  offset: Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 14),
                           Text(
                             'Connecting communities',
                             textAlign: TextAlign.center,

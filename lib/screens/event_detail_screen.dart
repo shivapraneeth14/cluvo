@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'dart:async';
 import '../theme.dart';
+import '../widgets/cluvo_logo.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -107,7 +108,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     setState(() {});
   }
 
-  // A UPI/bank app is opened in front of Cluvo during checkout. When the
+  // A UPI/bank app is opened in front of chigzo during checkout. When the
   // customer comes back, the SDK callback may be delayed or lost entirely —
   // re-check the payment with the server instead of trusting the last local
   // state. Only acts when we actually left the app for a payment.
@@ -746,7 +747,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
         'amount': amount,
         'currency': 'INR',
         'order_id': orderId,
-        'name': 'Cluvo',
+        'name': 'chigzo',
         'description': _event?['title'] ?? 'Event Registration',
         'prefill': {'contact': userPhone, 'email': userEmail},
         'theme': {'color': '#111111'},
@@ -997,6 +998,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
       return Scaffold(
         backgroundColor: context.cluvoBackground,
         appBar: AppBar(
+          title: const CluvoLogo(height: 18),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back_rounded),
             onPressed: _goBack,
@@ -1110,6 +1112,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
                     elevation: 0,
                     scrolledUnderElevation: 0,
                     toolbarHeight: 52,
+                    title: const CluvoLogo(height: 18),
                     backgroundColor: Colors.white,
                     foregroundColor: CluvoTheme.textPrimaryColor,
                     systemOverlayStyle: SystemUiOverlayStyle.dark,
@@ -1130,8 +1133,8 @@ class _EventDetailScreenState extends State<EventDetailScreen>
                         onPressed: () {
                           final url = buildShareUrl('events', widget.id);
                           Share.share(
-                            'Check out $title on Cluvo!\n$url',
-                            subject: 'Check out $title on Cluvo',
+                            'Check out $title on chigzo!\n$url',
+                            subject: 'Check out $title on chigzo',
                           );
                         },
                       ),

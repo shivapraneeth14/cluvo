@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../supabase_client.dart';
 import '../utils.dart';
+import '../widgets/cluvo_logo.dart';
 import '../widgets/ticket_card.dart';
 
 class TicketScreen extends StatefulWidget {
@@ -59,7 +60,7 @@ class _TicketScreenState extends State<TicketScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Your Ticket')),
+      appBar: AppBar(title: const CluvoLogoTitle('Your Ticket')),
       body: _buildBody(),
     );
   }

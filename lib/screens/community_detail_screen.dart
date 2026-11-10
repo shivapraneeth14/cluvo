@@ -29,6 +29,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../utils/external_links.dart';
 import '../utils/category_icons.dart';
 import '../theme.dart';
+import '../widgets/cluvo_logo.dart';
 import '../config.dart';
 import '../supabase_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -399,6 +400,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
       ),
       automaticallyImplyLeading: false,
       toolbarHeight: 64,
+      title: const CluvoLogo(height: 18),
       leadingWidth: 62,
       leading: Padding(
         padding: const EdgeInsets.only(left: 16),
@@ -453,8 +455,8 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
   void _shareCommunity(Map<String, dynamic> c) {
     final url = buildShareUrl('communities', widget.id);
     Share.share(
-      'Join ${c['name']} on Cluvo!\n$url',
-      subject: 'Join ${c['name']} on Cluvo',
+      'Join ${c['name']} on chigzo!\n$url',
+      subject: 'Join ${c['name']} on chigzo',
     );
   }
 
@@ -1222,6 +1224,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
   Widget _buildErrorState() {
     return Scaffold(
       appBar: AppBar(
+        title: const CluvoLogo(height: 18),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {

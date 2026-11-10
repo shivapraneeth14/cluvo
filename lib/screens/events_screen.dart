@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme.dart';
+import '../widgets/cluvo_logo.dart';
 import '../models/models.dart';
 import '../providers/event_provider.dart';
 import '../providers/event_discovery_provider.dart';
@@ -154,15 +155,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
         children: [
           Row(
             children: [
-              Text(
-                'Cluvo',
-                style: TextStyle(
-                  color: CluvoTheme.primary,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
-                ),
-              ),
+              const CluvoLogo(height: 22),
               const SizedBox(width: 3),
               Container(
                 width: 6,

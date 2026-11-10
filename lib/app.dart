@@ -361,7 +361,7 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
         .read(notificationsRealtimeProvider)
         .sync(ref.read(authProvider).session?.user.id);
     return MaterialApp.router(
-      title: 'Cluvo',
+      title: 'chigzo',
       debugShowCheckedModeBanner: false,
       theme: CluvoTheme.lightTheme,
       darkTheme: CluvoTheme.darkTheme,

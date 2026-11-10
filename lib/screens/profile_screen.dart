@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
+import '../widgets/cluvo_logo.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -25,14 +26,7 @@ class ProfileScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
-        title: Text(
-           'chigzo',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            letterSpacing: 2,
-            color: CluvoTheme.primary,
-          ),
-        ),
+        title: const CluvoLogo(height: 22),
         actions: const [NotificationBell()],
       ),
       body: profile.when(
@@ -207,7 +201,7 @@ class ProfileScreen extends ConsumerWidget {
                   ActivityCard(
                     leading: _menuLeading(Icons.description_outlined),
                     title: 'Terms of Service',
-                    subtitle: 'Rules for using Cluvo',
+                    subtitle: 'Rules for using chigzo',
                     onTap: () => showLegalDialog(
                       context,
                       title: 'Terms of Service',
@@ -220,7 +214,7 @@ class ProfileScreen extends ConsumerWidget {
                     subtitle: 'supp.cluvo@gmail.com',
                     onTap: () async {
                       final opened = await openExternalLink(
-                        'mailto:supp.cluvo@gmail.com?subject=Cluvo%20Support',
+                        'mailto:supp.cluvo@gmail.com?subject=chigzo%20Support',
                         allowMailto: true,
                       );
                       if (!opened && context.mounted) {
