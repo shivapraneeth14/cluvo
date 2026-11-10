@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../theme.dart';
-import '../widgets/cluvo_logo.dart';
+import '../widgets/chigzo_logo.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -71,8 +71,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const CluvoLogo(
-                            variant: CluvoLogoVariant.light,
+                          const ChigzoLogo(
+                            variant: ChigzoLogoVariant.light,
                             height: 52,
                           ),
                           const SizedBox(height: 14),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
-import '../widgets/cluvo_logo.dart';
+import '../widgets/chigzo_logo.dart';
 
 class DineScreen extends StatelessWidget {
   const DineScreen({super.key});
@@ -10,7 +10,7 @@ class DineScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
-        title: const CluvoLogo(height: 22),
+        title: const ChigzoLogo(height: 22),
       ),
       body: Center(
         child: Padding(

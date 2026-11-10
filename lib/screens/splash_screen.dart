@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../providers/consent_provider.dart';
 import '../theme.dart';
-import '../widgets/cluvo_logo.dart';
+import '../widgets/chigzo_logo.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -71,7 +71,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const CluvoLogo(height: 44),
+              const ChigzoLogo(height: 44),
               const SizedBox(height: 14),
               Text(
                 'Connecting communities',

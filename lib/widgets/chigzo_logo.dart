@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 /// Aspect ratio of the cropped chigzo wordmark (1063 x 401).
-const double kCluvoLogoAspect = 1063 / 401;
+const double kChigzoLogoAspect = 1063 / 401;
 
-enum CluvoLogoVariant {
+enum ChigzoLogoVariant {
   /// Black wordmark for light surfaces.
   dark,
 
@@ -13,26 +13,26 @@ enum CluvoLogoVariant {
 }
 
 /// The chigzo wordmark, used everywhere the product name appears.
-class CluvoLogo extends StatelessWidget {
-  final CluvoLogoVariant variant;
+class ChigzoLogo extends StatelessWidget {
+  final ChigzoLogoVariant variant;
 
   /// Rendered height; width follows the wordmark's aspect ratio.
   final double height;
 
-  const CluvoLogo({
+  const ChigzoLogo({
     super.key,
-    this.variant = CluvoLogoVariant.dark,
+    this.variant = ChigzoLogoVariant.dark,
     this.height = 24,
   });
 
   @override
   Widget build(BuildContext context) {
     return SvgPicture.asset(
-      variant == CluvoLogoVariant.light
+      variant == ChigzoLogoVariant.light
           ? 'assets/images/logo_white.svg'
           : 'assets/images/logo.svg',
       height: height,
-      width: height * kCluvoLogoAspect,
+      width: height * kChigzoLogoAspect,
       fit: BoxFit.contain,
       semanticsLabel: 'chigzo',
       excludeFromSemantics: false,
@@ -42,12 +42,12 @@ class CluvoLogo extends StatelessWidget {
 
 /// App bar title that keeps the screen name and prefixes the chigzo wordmark,
 /// so pushed screens still carry the brand.
-class CluvoLogoTitle extends StatelessWidget {
+class ChigzoLogoTitle extends StatelessWidget {
   final String title;
   final double logoHeight;
   final TextStyle? style;
 
-  const CluvoLogoTitle(
+  const ChigzoLogoTitle(
     this.title, {
     super.key,
     this.logoHeight = 15,
@@ -59,7 +59,7 @@ class CluvoLogoTitle extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        CluvoLogo(height: logoHeight),
+        ChigzoLogo(height: logoHeight),
         const SizedBox(width: 8),
         Flexible(
           child: Text(

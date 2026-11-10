@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
-import 'cluvo_logo.dart';
+import 'chigzo_logo.dart';
 
 /// Common layout for full-bleed list pages (My Communities / Registrations /
 /// Payments): a solid app bar with back navigation + refreshable content.
@@ -32,7 +32,7 @@ class ListPageScaffold extends StatelessWidget {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
-        title: CluvoLogoTitle(
+        title: ChigzoLogoTitle(
           title,
           style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
         ),

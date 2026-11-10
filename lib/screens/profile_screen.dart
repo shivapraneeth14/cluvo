@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
-import '../widgets/cluvo_logo.dart';
+import '../widgets/chigzo_logo.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -26,7 +26,7 @@ class ProfileScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
-        title: const CluvoLogo(height: 22),
+        title: const ChigzoLogo(height: 22),
         actions: const [NotificationBell()],
       ),
       body: profile.when(

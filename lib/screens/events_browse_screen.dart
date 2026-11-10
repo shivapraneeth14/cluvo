@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../theme.dart';
-import '../widgets/cluvo_logo.dart';
+import '../widgets/chigzo_logo.dart';
 import '../models/models.dart';
 import '../providers/event_provider.dart';
 import '../providers/home_provider.dart';
@@ -150,7 +150,7 @@ class _EventsBrowseScreenState extends ConsumerState<EventsBrowseScreen> {
             }
           },
         ),
-        title: const CluvoLogoTitle('All events'),
+        title: const ChigzoLogoTitle('All events'),
         actions: [
           IconButton(
             icon: const Icon(Icons.search),

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../supabase_client.dart';
 import '../utils.dart';
-import '../widgets/cluvo_logo.dart';
+import '../widgets/chigzo_logo.dart';
 import '../widgets/payment_receipt.dart';
 
 class PaymentDetailScreen extends StatefulWidget {
@@ -166,7 +166,7 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: CluvoLogoTitle(widget.historyId != null ? 'Refund Details' : 'Payment Details'),
+        title: ChigzoLogoTitle(widget.historyId != null ? 'Refund Details' : 'Payment Details'),
       ),
       body: _buildBody(),
     );

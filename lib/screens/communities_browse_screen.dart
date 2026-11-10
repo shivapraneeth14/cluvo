@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../theme.dart';
-import '../widgets/cluvo_logo.dart';
+import '../widgets/chigzo_logo.dart';
 import '../models/models.dart';
 import '../providers/community_provider.dart';
 import '../providers/location_provider.dart';
@@ -67,7 +67,7 @@ class _CommunitiesBrowseScreenState
             }
           },
         ),
-        title: const CluvoLogoTitle('All communities'),
+        title: const ChigzoLogoTitle('All communities'),
         actions: [
           IconButton(
             icon: const Icon(Icons.search),

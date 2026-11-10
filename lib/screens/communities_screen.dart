@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../theme.dart';
-import '../widgets/cluvo_logo.dart';
+import '../widgets/chigzo_logo.dart';
 import '../supabase_client.dart';
 import '../providers/community_provider.dart';
 import '../providers/location_provider.dart';
@@ -97,7 +97,7 @@ class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
         children: [
           Row(
             children: [
-              const CluvoLogo(height: 22),
+              const ChigzoLogo(height: 22),
               const SizedBox(width: 3),
               Container(
                 width: 6,

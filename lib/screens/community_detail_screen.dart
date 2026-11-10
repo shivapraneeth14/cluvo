@@ -29,7 +29,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../utils/external_links.dart';
 import '../utils/category_icons.dart';
 import '../theme.dart';
-import '../widgets/cluvo_logo.dart';
+import '../widgets/chigzo_logo.dart';
 import '../config.dart';
 import '../supabase_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -400,7 +400,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
       ),
       automaticallyImplyLeading: false,
       toolbarHeight: 64,
-      title: const CluvoLogo(height: 18),
+      title: const ChigzoLogo(height: 18),
       leadingWidth: 62,
       leading: Padding(
         padding: const EdgeInsets.only(left: 16),
@@ -1224,7 +1224,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
   Widget _buildErrorState() {
     return Scaffold(
       appBar: AppBar(
-        title: const CluvoLogo(height: 18),
+        title: const ChigzoLogo(height: 18),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {

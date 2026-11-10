@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme.dart';
-import '../widgets/cluvo_logo.dart';
+import '../widgets/chigzo_logo.dart';
 import '../models/models.dart';
 import '../providers/event_provider.dart';
 import '../providers/event_discovery_provider.dart';
@@ -155,7 +155,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
         children: [
           Row(
             children: [
-              const CluvoLogo(height: 22),
+              const ChigzoLogo(height: 22),
               const SizedBox(width: 3),
               Container(
                 width: 6,

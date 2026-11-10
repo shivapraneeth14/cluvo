@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'dart:async';
 import '../theme.dart';
-import '../widgets/cluvo_logo.dart';
+import '../widgets/chigzo_logo.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -998,7 +998,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
       return Scaffold(
         backgroundColor: context.cluvoBackground,
         appBar: AppBar(
-          title: const CluvoLogo(height: 18),
+          title: const ChigzoLogo(height: 18),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back_rounded),
             onPressed: _goBack,
@@ -1112,7 +1112,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
                     elevation: 0,
                     scrolledUnderElevation: 0,
                     toolbarHeight: 52,
-                    title: const CluvoLogo(height: 18),
+                    title: const ChigzoLogo(height: 18),
                     backgroundColor: Colors.white,
                     foregroundColor: CluvoTheme.textPrimaryColor,
                     systemOverlayStyle: SystemUiOverlayStyle.dark,
