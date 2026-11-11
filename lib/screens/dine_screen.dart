@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
+import '../widgets/chigzo_logo.dart';
 
 class DineScreen extends StatelessWidget {
   const DineScreen({super.key});
@@ -9,14 +10,7 @@ class DineScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
-        title: Text(
-          'CLUVO',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            letterSpacing: 2,
-            color: CluvoTheme.primary,
-          ),
-        ),
+        title: const ChigzoLogo(height: 22),
       ),
       body: Center(
         child: Padding(

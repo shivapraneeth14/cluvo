@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/consent_provider.dart';
 import '../theme.dart';
+import '../widgets/chigzo_logo.dart';
 import '../widgets/legal_dialog.dart';
 import '../legal_content.dart';
 import '../widgets/terms_checkbox.dart';
@@ -27,7 +28,7 @@ class _ConsentGateScreenState extends ConsumerState<ConsentGateScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('Agree to our policies'),
+        title: const ChigzoLogoTitle('Agree to our policies'),
       ),
       body: SafeArea(
         child: Padding(

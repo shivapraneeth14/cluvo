@@ -102,7 +102,7 @@ class TicketCard extends StatelessWidget {
       child: const RotatedBox(
         quarterTurns: 3,
         child: Text(
-          'CLUVO PASS',
+          'chigzo PASS',
           maxLines: 1,
           style: TextStyle(
             color: Colors.white,

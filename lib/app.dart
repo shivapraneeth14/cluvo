@@ -176,6 +176,11 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
               PaymentDetailScreen(paymentId: state.pathParameters['id']!),
         ),
         GoRoute(
+          path: '/refunds/:id',
+          builder: (context, state) =>
+              PaymentDetailScreen(historyId: state.pathParameters['id']!),
+        ),
+        GoRoute(
           path: '/ticket/:id',
           builder: (context, state) =>
               TicketScreen(registrationId: state.pathParameters['id']!),
@@ -356,7 +361,7 @@ class _CluvoAppState extends ConsumerState<CluvoApp> {
         .read(notificationsRealtimeProvider)
         .sync(ref.read(authProvider).session?.user.id);
     return MaterialApp.router(
-      title: 'Cluvo',
+      title: 'chigzo',
       debugShowCheckedModeBanner: false,
       theme: CluvoTheme.lightTheme,
       darkTheme: CluvoTheme.darkTheme,

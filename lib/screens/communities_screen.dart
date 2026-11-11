@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../theme.dart';
+import '../widgets/chigzo_logo.dart';
 import '../supabase_client.dart';
 import '../providers/community_provider.dart';
 import '../providers/location_provider.dart';
@@ -96,15 +97,7 @@ class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
         children: [
           Row(
             children: [
-              Text(
-                'Cluvo',
-                style: TextStyle(
-                  color: CluvoTheme.primary,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
-                ),
-              ),
+              const ChigzoLogo(height: 22),
               const SizedBox(width: 3),
               Container(
                 width: 6,

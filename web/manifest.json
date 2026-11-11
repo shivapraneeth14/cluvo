@@ -1,11 +1,11 @@
 {
-    "name": "mobile",
-    "short_name": "mobile",
+    "name": "chigzo",
+    "short_name": "chigzo",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FFFFFF",
+    "theme_color": "#C2185B",
+    "description": "chigzo — find and join communities and events.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

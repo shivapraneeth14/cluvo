@@ -45,6 +45,7 @@ class ProfileNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 
+  @Deprecated('Use EditProfileScreen deferred avatar workflow (BUG-001/BUG-006)')
   Future<String?> uploadAvatar(XFile image) async {
     final session = supabase.auth.currentSession;
     if (session == null) return null;

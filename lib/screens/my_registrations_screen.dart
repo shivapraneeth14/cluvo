@@ -59,14 +59,20 @@ class MyRegistrationsScreen extends ConsumerWidget {
     final startDate = events?['start_date'] as String?;
     final status = r['status'] as String? ?? 'pending';
     final eventId = r['event_id'] as String?;
-    final isEventCancelled = events?['status'] == 'cancelled';
+    // A cancellation in progress ('cancelling') is already final for the
+    // attendee: the event will not happen and their QR credential has been
+    // cleared. Treat it exactly like 'cancelled' so we never show a live
+    // ticket for an event that is being called off.
+    final eventStatus = events?['status'] as String?;
+    final isEventCancelled =
+        eventStatus == 'cancelled' || eventStatus == 'cancelling';
 
     Map<String, dynamic>? payment = embeddedPayment(r);
     final paymentStatus = payment?['status'] as String?;
     final refundStatus = payment?['refund_status'] as String?;
     final paidAmount = payment?['amount'] as num?;
     final refundedAmount = payment?['refunded_amount'] as num?;
-    final platformFee = payment?['platform_fee'] as num?;
+    final organizerShare = payment?['organizer_share'] as num?;
     final qrCode = r['qr_code'] as String?;
 
     final refundLabels = {
@@ -77,18 +83,15 @@ class MyRegistrationsScreen extends ConsumerWidget {
       'failed': 'Refund failed — support will contact you',
     };
 
-    // Amount the buyer gets back: the recorded refund, else the full amount for
-    // an organizer-cancelled event, else the ticket price (platform fee kept)
-    // for a self-cancel.
+    // Amount the buyer gets back: the recorded refund when we have it;
+    // otherwise the ticket price (organizer_share) if they were issued a ticket
+    // — the platform fee is kept for a self-cancel and an organizer-cancelled
+    // event alike; a never-confirmed capture is refunded in full.
     num? refundDisplay;
     if (refundedAmount is num && refundedAmount > 0) {
       refundDisplay = refundedAmount;
-    } else if (isEventCancelled && paidAmount is num) {
-      refundDisplay = paidAmount;
-    } else if (paidAmount is num &&
-        platformFee is num &&
-        paidAmount - platformFee > 0) {
-      refundDisplay = paidAmount - platformFee;
+    } else if (organizerShare is num) {
+      refundDisplay = organizerShare;
     } else if (paidAmount is num) {
       refundDisplay = paidAmount;
     }
@@ -108,6 +111,14 @@ class MyRegistrationsScreen extends ConsumerWidget {
       } else {
         refundNotice = 'Event cancelled — money will be refunded';
       }
+    } else if (status == 'cancelled' && refundStatus != null && refundStatus != 'processed') {
+      // A cancelled booking can have payments.status='refunded' while the
+      // provider attempt is still pending or has failed. Show the real state,
+      // never a false "refunded".
+      final label = refundStatus == 'failed'
+          ? 'Refund failed — retrying'
+          : (effectiveRefundLabel ?? 'Refund processing');
+      refundNotice = 'Cancelled · $label$amtText';
     } else if (status == 'cancelled' && paymentStatus == 'refunded') {
       refundNotice = 'Cancelled · refunded$amtText';
     } else if (status == 'cancelled' && effectiveRefundLabel != null) {

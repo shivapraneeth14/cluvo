@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../theme.dart';
+import '../chigzo_logo.dart';
 import '../../models/models.dart';
 import '../notification_bell.dart';
 import '../search/search_bar_pill.dart';
@@ -137,15 +138,7 @@ class HomeHero extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Text(
-                  'Cluvo',
-                  style: TextStyle(
-                    color: CluvoTheme.textPrimaryColor,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                  ),
-                ),
+                const ChigzoLogo(height: 24),
                 const SizedBox(width: 3),
                 Container(
                   width: 6,

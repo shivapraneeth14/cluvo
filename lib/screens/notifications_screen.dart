@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../providers/notification_provider.dart';
 import '../supabase_client.dart';
 import '../theme.dart';
+import '../widgets/chigzo_logo.dart';
 import '../models/models.dart';
 
 class NotificationsScreen extends ConsumerWidget {
@@ -15,7 +16,7 @@ class NotificationsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Notifications'),
+        title: const ChigzoLogoTitle('Notifications'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {

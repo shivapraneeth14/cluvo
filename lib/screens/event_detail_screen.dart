@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'dart:async';
 import '../theme.dart';
+import '../widgets/chigzo_logo.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -19,7 +20,9 @@ import '../widgets/spots_badge.dart';
 import '../widgets/wishlist_button.dart';
 import '../widgets/lifecycle_ticker.dart';
 import '../widgets/media/hero_video.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/wishlist_provider.dart';
+import '../providers/activity_provider.dart';
 import '../models/models.dart';
 import '../utils.dart';
 import '../utils/category_icons.dart';
@@ -105,7 +108,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     setState(() {});
   }
 
-  // A UPI/bank app is opened in front of Cluvo during checkout. When the
+  // A UPI/bank app is opened in front of chigzo during checkout. When the
   // customer comes back, the SDK callback may be delayed or lost entirely —
   // re-check the payment with the server instead of trusting the last local
   // state. Only acts when we actually left the app for a payment.
@@ -700,6 +703,20 @@ class _EventDetailScreenState extends State<EventDetailScreen>
         await _verifyPayment();
         return;
       }
+      if (errorCode == 'capacity_held') {
+        setState(() => _registering = false);
+        _showError(
+          'All available tickets are currently held in checkout. Please try again in a few minutes.',
+        );
+        return;
+      }
+      if (errorCode == 'high_demand_try_again') {
+        setState(() => _registering = false);
+        _showError(
+          'High booking demand — please try again in a moment.',
+        );
+        return;
+      }
 
       final registrationId = paymentRes.data['registration_id'] as String?;
       final orderId = paymentRes.data['razorpay_order_id'] as String?;
@@ -730,7 +747,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
         'amount': amount,
         'currency': 'INR',
         'order_id': orderId,
-        'name': 'Cluvo',
+        'name': 'chigzo',
         'description': _event?['title'] ?? 'Event Registration',
         'prefill': {'contact': userPhone, 'email': userEmail},
         'theme': {'color': '#111111'},
@@ -797,7 +814,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           .invoke('register-for-event', body: {'event_id': widget.id})
           .timeout(const Duration(seconds: 30));
       if (!mounted) return;
-      if (res.data['success'] == true) {
+      if (res.data != null && res.data["success"] == true) {
         setState(() {
           _isRegistered = true;
           _registrationStatus = 'confirmed';
@@ -875,26 +892,47 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           )
           .timeout(const Duration(seconds: 30));
       if (!mounted) return;
-      if (res.data['success'] == true) {
+      if (res.data != null && res.data["success"] == true) {
         final refundRaw = res.data['refund'];
         final refund = refundRaw is Map<String, dynamic> ? refundRaw : null;
         final refundedAmount = refund?['amount'] as num?;
         final refundInitiated = refund?['initiated'] == true;
         final refundReason = refund?['reason'] as String?;
+        final refundStatus = refund?['status'] as String?;
+        // Only release the local capacity count when the server actually
+        // decremented it; on an already-cancelled retry it did not.
+        final decrementedCapacity = refund?['decremented_capacity'] == true;
+        final refundStillOwed = (refundInitiated && refundStatus != 'processed') ||
+            refundReason == 'in_flight' ||
+            refundReason == 'failed';
         setState(() {
           _isRegistered = false;
           _registrationStatus = 'cancelled';
-          _event!['booked_count'] =
-              ((_event!['booked_count'] as num?) ?? 1) - 1;
+          if (decrementedCapacity) {
+            _event!['booked_count'] =
+                ((_event!['booked_count'] as num?) ?? 1) - 1;
+          }
+          _refundInFlight = refundStillOwed;
         });
+        if (refundStillOwed) {
+          _startRefundPoll();
+        } else {
+          _refundPollTimer?.cancel();
+        }
+        // Refresh the activity lists so the cancelled/refund state is visible
+        // immediately instead of only after a cold app restart.
+        final container = ProviderScope.containerOf(context, listen: false);
+        container.invalidate(myRegistrationsProvider);
+        container.invalidate(myPaymentsProvider);
         // Never say "cancelled" alone when a refund was expected: an
         // initiated:false response means the money side needs attention, and
         // hiding that left customers believing a refund was coming.
         final String message;
         final Color bg;
         if (refundInitiated && refundedAmount != null && refundedAmount > 0) {
-          message =
-              'Registration cancelled. Refund of ₹${(refundedAmount / 100).toStringAsFixed(0)} initiated.';
+          message = refundStatus == 'processed'
+              ? 'Registration cancelled. Refund of ₹${(refundedAmount / 100).toStringAsFixed(0)} completed.'
+              : 'Registration cancelled. Refund of ₹${(refundedAmount / 100).toStringAsFixed(0)} is processing — we\'ll notify you when it completes.';
           bg = Colors.green[700]!;
         } else if (refundReason == 'failed') {
           message =
@@ -960,6 +998,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
       return Scaffold(
         backgroundColor: context.cluvoBackground,
         appBar: AppBar(
+          title: const ChigzoLogo(height: 18),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back_rounded),
             onPressed: _goBack,
@@ -1073,6 +1112,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
                     elevation: 0,
                     scrolledUnderElevation: 0,
                     toolbarHeight: 52,
+                    title: const ChigzoLogo(height: 18),
                     backgroundColor: Colors.white,
                     foregroundColor: CluvoTheme.textPrimaryColor,
                     systemOverlayStyle: SystemUiOverlayStyle.dark,
@@ -1093,8 +1133,8 @@ class _EventDetailScreenState extends State<EventDetailScreen>
                         onPressed: () {
                           final url = buildShareUrl('events', widget.id);
                           Share.share(
-                            'Check out $title on Cluvo!\n$url',
-                            subject: 'Check out $title on Cluvo',
+                            'Check out $title on chigzo!\n$url',
+                            subject: 'Check out $title on chigzo',
                           );
                         },
                       ),
@@ -1922,7 +1962,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
             child: Text(
               'Free cancellation up to 24 hours before the event. Ticket refunds '
               'exclude the non-refundable platform fee. If the organizer cancels '
-              'the event, you’ll receive a full refund, including the platform fee.',
+              'the event, you’ll receive a refund of the ticket price only.',
               style: TextStyle(
                 fontSize: 12,
                 height: 1.4,

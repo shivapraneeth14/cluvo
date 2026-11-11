@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../supabase_client.dart';
 import '../utils.dart';
+import '../widgets/chigzo_logo.dart';
 import '../widgets/ticket_card.dart';
 
 class TicketScreen extends StatefulWidget {
@@ -59,7 +60,7 @@ class _TicketScreenState extends State<TicketScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Your Ticket')),
+      appBar: AppBar(title: const ChigzoLogoTitle('Your Ticket')),
       body: _buildBody(),
     );
   }
@@ -94,7 +95,12 @@ class _TicketScreenState extends State<TicketScreen> {
     final eventStatus = event?['status'] as String? ?? 'published';
     final userEmail = supabase.auth.currentUser?.email ?? '';
 
-    final status = (regStatus == 'cancelled' || eventStatus == 'cancelled')
+    // 'cancelling' means the organizer has already called the event off and
+    // the QR credential is revoked; show it as cancelled, never as a live
+    // ticket.
+    final isEventCancelled =
+        eventStatus == 'cancelled' || eventStatus == 'cancelling';
+    final status = (regStatus == 'cancelled' || isEventCancelled)
         ? 'cancelled'
         : (regStatus == 'attended' ? 'attended' : 'confirmed');
 
@@ -114,7 +120,7 @@ class _TicketScreenState extends State<TicketScreen> {
           venue: event?['location'] as String?,
           attendeeName: attendee,
           bookingId: widget.registrationId.split('-').first.toUpperCase(),
-          qrData: qrCode,
+          qrData: status == 'confirmed' ? qrCode : null,
           status: status,
         ),
       ],
