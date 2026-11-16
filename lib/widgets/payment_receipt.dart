@@ -16,7 +16,6 @@ class PaymentReceipt extends StatelessWidget {
   final String? eventDateText;
   final String? paymentId;
   final String? orderId;
-  final String? razorpayId;
   final String? createdAtText;
   final List<Map<String, dynamic>> timeline;
 
@@ -33,7 +32,6 @@ class PaymentReceipt extends StatelessWidget {
     this.eventDateText,
     this.paymentId,
     this.orderId,
-    this.razorpayId,
     this.createdAtText,
     this.timeline = const [],
   });
@@ -338,9 +336,6 @@ class PaymentReceipt extends StatelessWidget {
     final r = <Widget>[];
     if (paymentId != null) r.add(_detailRow(context, 'Payment ID', paymentId!));
     if (orderId != null) r.add(_detailRow(context, 'Order ID', orderId!));
-    if (razorpayId != null) {
-      r.add(_detailRow(context, 'Razorpay ID', razorpayId!));
-    }
     if (createdAtText != null) {
       r.add(_detailRow(context, 'Date', createdAtText!));
     }
