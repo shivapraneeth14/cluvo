@@ -184,10 +184,16 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     _pollRegistrationStatus();
   }
 
-  Future<String> _getPaymentFailureMessage(String? registrationId) async {
+  // Returns the message plus whether it is a *hard* failure. Only a definitive
+  // failed payment is a hard failure; success/pending/refund/unknown states are
+  // informational, so the caller must not paint them red (a slow network used
+  // to make a successful payment look like an error).
+  Future<(String, bool)> _getPaymentFailureMessage(
+    String? registrationId,
+  ) async {
     try {
       final session = supabase.auth.currentSession;
-      if (session == null) return 'Payment failed. Try again.';
+      if (session == null) return ('Payment failed. Try again.', true);
       String? regId = registrationId;
       if (regId == null) {
         final reg = await supabase
@@ -198,7 +204,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
             .maybeSingle();
         regId = reg?['id'] as String?;
       }
-      if (regId == null) return 'Payment failed. Try again.';
+      if (regId == null) return ('Payment failed. Try again.', true);
       final payment = await supabase
           .from('payments')
           .select('status, failure_reason, refund_status')
@@ -206,13 +212,28 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           .order('created_at', ascending: false)
           .limit(1)
           .maybeSingle();
-      return paymentStatusMessage(
-        status: payment?['status'] as String?,
-        failureReason: payment?['failure_reason'] as String?,
-        refundStatus: payment?['refund_status'] as String?,
+      final status = payment?['status'] as String?;
+      final failureReason = payment?['failure_reason'] as String?;
+      final refundStatus = payment?['refund_status'] as String?;
+      return (
+        paymentStatusMessage(
+          status: status,
+          failureReason: failureReason,
+          refundStatus: refundStatus,
+        ),
+        isPaymentHardFailure(
+          status: status,
+          failureReason: failureReason,
+          refundStatus: refundStatus,
+        ),
       );
     } catch (_) {}
-    return 'Payment failed. Try again.';
+    // The lookup itself failed (network/timeout) — we do not know the outcome,
+    // so report a neutral "still confirming" state instead of a red failure.
+    return (
+      'We could not confirm your payment yet. If money was debited, your booking will confirm automatically — check My Registrations in a few minutes.',
+      false,
+    );
   }
 
   // An SDK error after checkout is not proof that the payment failed: UPI
@@ -321,10 +342,13 @@ class _EventDetailScreenState extends State<EventDetailScreen>
       return;
     }
 
-    final msg = await _getPaymentFailureMessage(_registrationId);
+    final (msg, isFailure) = await _getPaymentFailureMessage(_registrationId);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: Colors.red[700]),
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: isFailure ? Colors.red[700] : Colors.orange[800],
+      ),
     );
   }
 
@@ -366,10 +390,15 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           _clearPaymentAttempt();
           setState(() => _processingPayment = false);
           if (mounted) {
-            final msg = await _getPaymentFailureMessage(res['id'] as String?);
+            final (msg, isFailure) = await _getPaymentFailureMessage(
+              res['id'] as String?,
+            );
             if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(msg), backgroundColor: Colors.red[700]),
+              SnackBar(
+                content: Text(msg),
+                backgroundColor: isFailure ? Colors.red[700] : Colors.orange[800],
+              ),
             );
           }
           return;
@@ -3122,4 +3151,18 @@ String paymentStatusMessage({
     return 'We have not received confirmation from the bank yet. If money was debited, your booking will confirm automatically — check My Registrations in a few minutes.';
   }
   return 'Payment failed. Try again.';
+}
+
+/// True only when the payment is definitively failed with no automatic refund
+/// on the way — the single case a red "failed" banner is accurate. Success,
+/// pending, refunded, and auto-refund states (capacity_full / event_cancelled /
+/// registration_cancelled) are informational, never a customer-facing failure.
+bool isPaymentHardFailure({
+  required String? status,
+  required String? failureReason,
+  required String? refundStatus,
+}) {
+  return status == 'failed' &&
+      failureReason == null &&
+      (refundStatus == null || refundStatus == 'failed');
 }

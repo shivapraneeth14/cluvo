@@ -228,7 +228,6 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
       eventDateText: formatDayDate(ev?['start_date'] as String?),
       paymentId: widget.paymentId ?? widget.historyId,
       orderId: _payment!['razorpay_order_id'] as String?,
-      razorpayId: _payment!['razorpay_payment_id'] as String?,
       createdAtText: formatDateTime(
         safeParseDate(
           (_payment!['status'] == 'success' || _payment!['status'] == 'refunded')
