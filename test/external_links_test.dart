@@ -4,7 +4,7 @@ import 'package:mobile/utils/external_links.dart';
 void main() {
   group('isSafeExternalUrl', () {
     test('allows mailto only when allowMailto is true', () {
-      final uri = Uri.parse('mailto:supp.cluvo@gmail.com?subject=Cluvo%20Support');
+      final uri = Uri.parse('mailto:chigzo.app@gmail.com?subject=chigzo%20Support');
       expect(isSafeExternalUrl(uri, allowMailto: true), isTrue);
       expect(isSafeExternalUrl(uri), isFalse);
     });

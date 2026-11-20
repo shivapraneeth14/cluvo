@@ -211,10 +211,10 @@ class ProfileScreen extends ConsumerWidget {
                   ActivityCard(
                     leading: _menuLeading(Icons.mail_outline),
                     title: 'Contact Us',
-                    subtitle: 'supp.cluvo@gmail.com',
+                    subtitle: 'chigzo.app@gmail.com',
                     onTap: () async {
                       final opened = await openExternalLink(
-                        'mailto:supp.cluvo@gmail.com?subject=chigzo%20Support',
+                        'mailto:chigzo.app@gmail.com?subject=chigzo%20Support',
                         allowMailto: true,
                       );
                       if (!opened && context.mounted) {

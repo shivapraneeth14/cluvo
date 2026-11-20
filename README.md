@@ -1,6 +1,6 @@
-# Cluvo (mobile + web app)
+# Chigzo (mobile + web app)
 
-Flutter app for Cluvo — event discovery, registration, and payments (Razorpay).
+Flutter app for Chigzo — event discovery, registration, and payments (Razorpay).
 Same codebase builds for Android/iOS (native Razorpay SDK via `razorpay_flutter`)
 and web (Razorpay Checkout.js via `lib/services/razorpay_web.dart`).
 

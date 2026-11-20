@@ -64,6 +64,10 @@ class CommunityLocationButton extends ConsumerWidget {
                         'Use my location',
                         style: TextStyle(color: context.cluvoTextPrimary),
                       ),
+                      subtitle: Text(
+                        'Used to show communities near you',
+                        style: TextStyle(color: context.cluvoTextSecondary),
+                      ),
                       onTap: () => Navigator.pop(
                         context,
                         const _LocationResult(null, useGps: true),

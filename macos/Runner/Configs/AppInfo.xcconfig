@@ -8,7 +8,7 @@
 PRODUCT_NAME = mobile
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.cluvo.mobile
+PRODUCT_BUNDLE_IDENTIFIER = com.chigzo.mobile
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.cluvo. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 com.chigzo. All rights reserved.
