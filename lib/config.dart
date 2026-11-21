@@ -47,7 +47,7 @@ class AppConfig {
   }
 }
 
-const String appDeepLinkBase = 'cluvo://';
+const String appDeepLinkBase = 'chigzo://';
 
 String buildShareUrl(String type, String id) {
   if (kIsWeb) return '${Uri.base.origin}/$type/$id';

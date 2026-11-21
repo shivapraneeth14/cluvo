@@ -64,6 +64,10 @@ class EventsLocationButton extends ConsumerWidget {
                         'Use my location',
                         style: TextStyle(color: context.cluvoTextPrimary),
                       ),
+                      subtitle: Text(
+                        'Used to show events near you',
+                        style: TextStyle(color: context.cluvoTextSecondary),
+                      ),
                       onTap: () => Navigator.pop(
                         context,
                         const _LocationResult(null, useGps: true),

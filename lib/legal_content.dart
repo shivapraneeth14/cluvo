@@ -3,7 +3,7 @@
 // sync; CONSENT_VERSION is the drift guard: bump it whenever this content
 // changes so the server can tell which version a user agreed to).
 
-const String consentVersion = '2026-10-22';
+const String consentVersion = '2026-11-20';
 
 class LegalSection {
   final String title;
@@ -24,7 +24,10 @@ const List<LegalSection> privacyPolicySections = [
         'and paid out through Cashfree. If you sign in with Google, we receive your '
         'name and email address from your Google account. We also collect usage '
         'information such as events you wishlist or register for, notifications, '
-        'event check-ins, and community membership.',
+        'event check-ins, and community membership. If you allow location '
+        'access, we use your device location to show events near you and to '
+        'calculate distances; your coordinates are sent to our server for this '
+        'purpose and are not shared with third parties.',
   ),
   LegalSection(
     '2. How We Use Information',
@@ -56,7 +59,7 @@ const List<LegalSection> privacyPolicySections = [
         'retained for legal and financial purposes with your personal '
         'identifiers removed or unlinked. If you own a community, contact us '
         'first — we will help close or transfer it before deletion. To request '
-        'deletion, correction, or a copy of your data, email supp.cluvo@gmail.com.',
+        'deletion, correction, or a copy of your data, email chigzo.app@gmail.com.',
   ),
   LegalSection(
     '5. Children',
@@ -76,7 +79,7 @@ const List<LegalSection> privacyPolicySections = [
     'Depending on where you live, you may have rights to access, correct, '
         'delete, restrict, or object to our use of your personal information, and '
         'to data portability. You can exercise most of these from within the app; '
-        'otherwise email supp.cluvo@gmail.com. You also have the right to lodge a '
+        'otherwise email chigzo.app@gmail.com. You also have the right to lodge a '
         'complaint with your local data protection authority.',
   ),
   LegalSection(
@@ -94,7 +97,7 @@ const List<LegalSection> privacyPolicySections = [
   LegalSection(
     '10. Contact Us',
     'Questions or requests regarding this policy or your data: '
-        'supp.cluvo@gmail.com',
+        'chigzo.app@gmail.com',
   ),
 ];
 
@@ -160,6 +163,6 @@ const List<LegalSection> termsSections = [
   ),
   LegalSection(
     '9. Contact Us',
-    'Questions about these Terms: supp.cluvo@gmail.com',
+    'Questions about these Terms: chigzo.app@gmail.com',
   ),
 ];

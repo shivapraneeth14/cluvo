@@ -75,19 +75,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             variant: ChigzoLogoVariant.light,
                             height: 52,
                           ),
-                          const SizedBox(height: 14),
-                          Text(
-                            'Connecting communities',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.white.withValues(alpha: 0.85),
-                              shadows: const [
-                                Shadow(color: Colors.black26, blurRadius: 10),
-                              ],
-                            ),
-                          ),
                         ],
                       ),
                     ),
@@ -154,63 +141,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           );
                         },
                       ),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      margin: const EdgeInsets.only(bottom: 14),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.92),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.55),
-                        ),
-                      ),
-                      child: RichText(
-                        textAlign: TextAlign.center,
-                        text: TextSpan(
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            color: Theme.of(context).colorScheme.onSurface,
-                            height: 1.4,
-                          ),
-                          children: [
-                            const TextSpan(text: 'By continuing you agree to our '),
-                            TextSpan(
-                              text: 'Privacy Policy',
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.primary,
-                                fontWeight: FontWeight.w600,
-                                decoration: TextDecoration.underline,
-                              ),
-                              recognizer: TapGestureRecognizer()
-                                ..onTap = () => showLegalDialog(
-                                      context,
-                                      title: 'Privacy Policy',
-                                      sections: privacyPolicySections,
-                                    ),
-                            ),
-                            const TextSpan(text: ' and '),
-                            TextSpan(
-                              text: 'Terms of Service',
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.primary,
-                                fontWeight: FontWeight.w600,
-                                decoration: TextDecoration.underline,
-                              ),
-                              recognizer: TapGestureRecognizer()
-                                ..onTap = () => showLegalDialog(
-                                      context,
-                                      title: 'Terms of Service',
-                                      sections: termsSections,
-                                    ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
                     SizedBox(
                       width: double.infinity,
                       height: 52,
@@ -225,7 +155,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     OAuthProvider.google,
                                     redirectTo: kIsWeb
                                         ? Uri.base.origin
-                                        : 'cluvo://login',
+                                        : 'chigzo://login',
                                   );
                                 } catch (e) {
                                   setState(() => _googleLoading = false);
@@ -272,6 +202,54 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: RichText(
+                        textAlign: TextAlign.center,
+                        text: TextSpan(
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white.withValues(alpha: 0.72),
+                            height: 1.4,
+                          ),
+                          children: [
+                            const TextSpan(
+                              text: 'By continuing you agree to our ',
+                            ),
+                            TextSpan(
+                              text: 'Privacy Policy',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                decoration: TextDecoration.underline,
+                              ),
+                              recognizer: TapGestureRecognizer()
+                                ..onTap = () => showLegalDialog(
+                                      context,
+                                      title: 'Privacy Policy',
+                                      sections: privacyPolicySections,
+                                    ),
+                            ),
+                            const TextSpan(text: ' and '),
+                            TextSpan(
+                              text: 'Terms of Service',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                decoration: TextDecoration.underline,
+                              ),
+                              recognizer: TapGestureRecognizer()
+                                ..onTap = () => showLegalDialog(
+                                      context,
+                                      title: 'Terms of Service',
+                                      sections: termsSections,
+                                    ),
+                            ),
+                          ],
                         ),
                       ),
                     ),

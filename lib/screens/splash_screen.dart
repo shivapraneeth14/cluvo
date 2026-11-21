@@ -72,14 +72,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               const ChigzoLogo(height: 44),
-              const SizedBox(height: 14),
-              Text(
-                'Connecting communities',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: context.cluvoTextSecondary,
-                ),
-              ),
             ],
           ),
         ),

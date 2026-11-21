@@ -18,7 +18,7 @@ val keystoreFile = if (keystorePropertiesFile.exists()) {
 } else null
 
 android {
-    namespace = "com.cluvo.mobile"
+    namespace = "com.chigzo.mobile"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -28,7 +28,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.cluvo.mobile"
+        applicationId = "com.chigzo.mobile"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

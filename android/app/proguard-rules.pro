@@ -1,6 +1,6 @@
 -keep class io.flutter.** { *; }
 -keep class io.flutter.plugins.** { *; }
--keep class com.cluvo.mobile.** { *; }
+-keep class com.chigzo.mobile.** { *; }
 -keep class com.google.android.play.core.** { *; }
 -dontwarn com.google.android.play.core.**
 -keepattributes *Annotation*, InnerClasses
